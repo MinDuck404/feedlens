@@ -114,9 +114,16 @@ cd backend && .venv\Scripts\feedlens agent --server https://feedlens-api.onrende
 ```
 
 4. Lần đầu, đăng nhập mạng xã hội cho agent: `.venv\Scripts\feedlens login facebook`.
-5. Bấm **Lướt mới → Bắt đầu lướt** trên web. Lượt được xếp vào hàng đợi; agent hỏi việc mỗi 4 giây, mở Chrome lướt, báo tiến độ, gửi bài lên; server phân tích bằng key của bạn. Lần sau chỉ cần chạy `feedlens agent`.
+5. Bấm **Lướt mới → Bắt đầu lướt** trên web. Lượt được xếp vào hàng đợi; agent hỏi việc mỗi 2 giây, mở Chrome lướt, báo tiến độ, gửi bài lên; server phân tích bằng key của bạn. Lần sau chỉ cần chạy `feedlens agent`.
 
 Mỗi tài khoản chỉ thấy lượt, bài viết và key của chính mình. `feedlens push` (lướt một lần rồi gửi, không qua hàng đợi) vẫn dùng được với cùng token.
+
+Một số hành vi đáng biết:
+
+- **Lướt nhiều nhóm:** chế độ *Nhóm* có danh sách nhóm đã lưu (thêm nhiều link một lúc, tick chọn nhóm cần lướt). "Số bài" là số bài **mỗi nhóm**; tổng một lượt tối đa `FEEDLENS_MAX_POSTS` (mặc định 500). Nhóm nào lỗi (link sai, không có quyền xem) thì bỏ qua và lướt tiếp nhóm khác.
+- **Lưu cài đặt:** form "Lướt mới" và danh sách nhóm được lưu vào tài khoản (`/api/preferences`), mở lại trang hay đổi máy vẫn giữ nguyên.
+- **Xác minh 2 bước / checkpoint:** nếu nền tảng chuyển sang trang đăng nhập hoặc xác minh, bot dừng lại và chờ bạn tự hoàn tất trong cửa sổ Chrome (tối đa 10 phút), rồi lướt tiếp. Chạy ẩn thì không xác minh được nên lượt báo lỗi rõ ràng. `feedlens login` chỉ coi là xong khi đã qua hết bước xác minh.
+- **Tốc độ:** *Nhanh* (mặc định) cuộn mạnh, nghỉ ~1 giây; *Cẩn thận* cuộn chậm, nghỉ lâu như người đọc thật. AI đọc tối đa 4 lô (20 bài/lô) song song.
 
 Biến môi trường của service **backend**:
 
@@ -141,7 +148,7 @@ Frontend chỉ cần `VITE_API_URL` = URL của backend (đưa vào lúc build).
 | Gemini | aistudio.google.com | `GEMINI_MODEL` |
 
 - Danh sách model trong form "Lướt mới" lấy trực tiếp từ API của nhà cung cấp bằng key của bạn (cache 10 phút, có nút tải lại).
-- Để "Mặc định" thì app chọn model mới nhất thuộc dòng nhanh (Gemini *flash*, OpenAI *mini*, Claude *opus*). Nếu model đó quá tải (429/5xx), app thử lại 3 lần (3s, 6s, 12s) rồi tự chuyển sang model kế tiếp; trạng thái hiện trên web.
+- Để "Mặc định" thì app dùng `gemini-3.5-flash-lite` / `gpt-5-mini` / `claude-opus-5-5` nếu key của bạn có model đó, nếu không thì model mới nhất thuộc dòng nhanh (Gemini *flash*, OpenAI *mini*, Claude *opus*). Nếu model đó quá tải (429/5xx), app thử lại 3 lần (3s, 6s, 12s) rồi tự chuyển sang model kế tiếp; trạng thái hiện trên web.
 - Mọi nhà cung cấp dùng **structured output** theo cùng một JSON schema, nên kết quả có cùng định dạng.
 - Server tương thích OpenAI (OpenRouter, LM Studio…): đặt `OPENAI_BASE_URL` (chỉ local).
 - Thêm nhà cung cấp: viết lớp kế thừa `AIProvider` với `complete_json()` và `list_models()`, đăng ký trong `ai/registry.py`.

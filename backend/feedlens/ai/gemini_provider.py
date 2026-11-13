@@ -11,7 +11,7 @@ TIMEOUT_MS = 180_000
 class GeminiProvider(AIProvider):
     info = ProviderInfo(
         key="gemini", name="Gemini", env_key="GEMINI_API_KEY", model_env="GEMINI_MODEL",
-        default_model="gemini-2.5-flash", key_url="https://aistudio.google.com/apikey",
+        default_model="gemini-3.5-flash-lite", key_url="https://aistudio.google.com/apikey",
     )
 
     def __init__(self, model: str | None = None, api_key: str | None = None):

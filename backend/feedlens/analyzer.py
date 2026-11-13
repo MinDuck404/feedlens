@@ -8,12 +8,14 @@ from __future__ import annotations
 import re
 import time
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost
 
 BATCH_SIZE = 20
+PARALLEL_BATCHES = 4  # số lô gửi AI cùng lúc
 MAX_POST_CHARS = 3000  # bài cực dài bị cắt để giữ chi phí mỗi lô ổn định
 ProgressFn = Callable[[int, str], None]
 
@@ -133,7 +135,6 @@ class LLMAnalyzer:
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
                  profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
-        out: list[AnalyzedPost] = []
         cats = "\n".join(f"- {k}: {v}" for k, v in CATEGORIES.items())
         job_ctx = ""
         if job_mode or keywords or profile:
@@ -142,8 +143,8 @@ class LLMAnalyzer:
                 f"Từ khóa: {', '.join(keywords) or '(không có)'}\nHồ sơ: {profile or '(không có)'}\n"
                 "match_reason: 1 câu giải thích."
             )
-        for start in range(0, len(posts), BATCH_SIZE):
-            batch = posts[start:start + BATCH_SIZE]
+
+        def run_batch(batch: list[RawPost]) -> list[AnalyzedPost]:
             body = "\n".join(
                 f'<post id="{i}" source="{p.source}" author="{p.author}">\n{p.text[:MAX_POST_CHARS]}\n</post>'
                 for i, p in enumerate(batch)
@@ -156,16 +157,28 @@ class LLMAnalyzer:
             )
             data = self._json_call(prompt, CLASSIFY_SCHEMA, effort="low")
             by_id = {it["id"]: it for it in data["items"]}
+            res = []
             for i, p in enumerate(batch):
                 it = by_id.get(i)
                 if not it:
-                    out.append(AnalyzedPost(**p.model_dump(), summary=_first_sentence(p.text)))
+                    res.append(AnalyzedPost(**p.model_dump(), summary=_first_sentence(p.text)))
                     continue
                 job = JobInfo(**it["job"]) if it["is_job"] else None
-                out.append(AnalyzedPost(**p.model_dump(), category="job" if it["is_job"] else it["category"],
+                res.append(AnalyzedPost(**p.model_dump(), category="job" if it["is_job"] else it["category"],
                                         summary=it["summary"], job=job))
-            progress(len(out), f"Đã phân loại {len(out)}/{len(posts)}")
-        return out
+            return res
+
+        # Các lô độc lập nhau -> gửi song song để nhanh hơn, giữ nguyên thứ tự bài
+        batches = [posts[i:i + BATCH_SIZE] for i in range(0, len(posts), BATCH_SIZE)]
+        results: list[list[AnalyzedPost] | None] = [None] * len(batches)
+        done = 0
+        with ThreadPoolExecutor(max_workers=min(PARALLEL_BATCHES, len(batches) or 1)) as pool:
+            futures = {pool.submit(run_batch, b): i for i, b in enumerate(batches)}
+            for fut in as_completed(futures):
+                results[futures[fut]] = fut.result()
+                done += len(batches[futures[fut]])
+                progress(done, f"Đã phân loại {done}/{len(posts)}")
+        return [p for r in results for p in (r or [])]
 
     def digest(self, posts: list[AnalyzedPost], job_mode: bool) -> Digest:
         counts = Counter(p.category for p in posts)

@@ -152,7 +152,11 @@ def test_default_model_follows_available_list():
     assert pick_default("gemini", models) == "gemini-3.8-flash"
     assert pick_default("gemini", ["gemini-3.7-flash", "gemini-3.10-flash"]) == "gemini-3.10-flash"
     assert pick_default("gemini", ["gemini-x-pro"]) == "gemini-x-pro"
-    assert pick_default("gemini", []) == "gemini-2.5-flash"
+    assert pick_default("gemini", []) == "gemini-3.5-flash-lite"
+    # model mặc định của app có trong danh sách -> đứng đầu, các bản flash mới hơn làm dự phòng
+    from feedlens.ai.registry import default_candidates
+    assert default_candidates("gemini", models + ["gemini-3.5-flash-lite"])[:3] == \
+        ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash"]
 
 
 def test_default_model_env_override(monkeypatch):
@@ -219,3 +223,17 @@ def test_cloud_blocks_browser_endpoints_and_push_ingest(cloud):
     run_id = c.post("/api/ingest", headers=ag, json=body).json()["id"]
     assert _wait(c, a, run_id)["status"] == "done"
     assert c.post("/api/ingest", headers=ag, json={**body, "posts": []}).status_code == 422
+
+
+def test_preferences_saved_per_user(cloud):
+    c = cloud()
+    a, b = _signup(c, "a@x.io"), _signup(c, "b@x.io")
+    assert c.get("/api/preferences", headers=a).json() == {}
+    prefs = {"composer": {"platform": "facebook", "count": 60},
+             "groups": {"facebook": [{"url": "https://www.facebook.com/groups/vieclamit", "enabled": True}]}}
+    assert c.put("/api/preferences", headers=a, json=prefs).status_code == 200
+    assert c.get("/api/preferences", headers=a).json() == prefs
+    assert c.get("/api/preferences", headers=b).json() == {}
+    assert c.put("/api/preferences", headers=a, json=[1, 2]).status_code == 400
+    assert c.put("/api/preferences", headers=a, content=b"x" * 70_000).status_code == 413
+    assert c.get("/api/preferences").status_code == 401

@@ -14,6 +14,7 @@ from typing import Iterator
 from playwright.sync_api import BrowserContext, sync_playwright
 
 from .config import settings
+from .scrapers import is_blocked_url
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,7 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
             headless=headless,
             viewport=None if not headless else {"width": 1280, "height": 900},
             locale="vi-VN",
+            chromium_sandbox=True,  # giữ sandbox của Chrome (Playwright mặc định thêm --no-sandbox)
         )
         channel = settings.browser_channel
         try:
@@ -70,22 +72,33 @@ def _has_session(ctx: BrowserContext, info: PlatformInfo) -> bool:
                for c in ctx.cookies())
 
 
-def interactive_login(platform: str, timeout_s: int = 300) -> bool:
-    """Mở cửa sổ Chrome để người dùng tự đăng nhập. Trả về True nếu phát hiện phiên."""
+def _verification_pending(ctx: BrowserContext, platform: str) -> bool:
+    """Còn tab nào đang ở trang đăng nhập / xác minh 2 bước / checkpoint không."""
+    return any(is_blocked_url(platform, p.url) for p in ctx.pages)
+
+
+def interactive_login(platform: str, timeout_s: int = 600) -> bool:
+    """Mở cửa sổ Chrome để người dùng tự đăng nhập (và tự hoàn tất xác minh 2 bước nếu có).
+
+    Chỉ coi là xong khi đã có cookie phiên VÀ không còn tab nào ở trang xác minh: Facebook đặt
+    cookie c_user ngay trước bước 2FA, nên chỉ nhìn cookie sẽ đóng cửa sổ quá sớm."""
     info = PLATFORMS[platform]
     with open_context(platform, headless=False) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        if not _has_session(ctx, info):
-            page.goto(info.login_url)
+        page.goto(info.home_url if _has_session(ctx, info) else info.login_url)
         deadline = time.time() + timeout_s
+        stable = 0
         while time.time() < deadline:
-            if _has_session(ctx, info):
-                time.sleep(2)  # cho trang ghi nốt cookie
-                return True
             if not ctx.pages:  # người dùng đóng cửa sổ
                 break
+            if _has_session(ctx, info) and not _verification_pending(ctx, platform):
+                stable += 1
+                if stable >= 3:  # ổn định ~3 giây, tránh bắt nhầm lúc đang chuyển trang
+                    return True
+            else:
+                stable = 0
             time.sleep(1)
-        return _has_session(ctx, info)
+        return _has_session(ctx, info) and not (ctx.pages and _verification_pending(ctx, platform))
 
 
 def check_session(platform: str) -> bool:

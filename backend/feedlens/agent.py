@@ -16,7 +16,7 @@ from .models import RunRequest
 from .pipeline import scrape
 
 CONFIG = Path.home() / ".feedlens" / "agent.json"
-POLL_SECONDS = 4
+POLL_SECONDS = 2
 
 
 def load_config() -> dict:

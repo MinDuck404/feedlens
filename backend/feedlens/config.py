@@ -61,7 +61,7 @@ def load_settings() -> Settings:
         database_url=_normalize_db_url(os.getenv("DATABASE_URL") or "")
         or f"sqlite:///{(data_dir / 'feedlens.db').as_posix()}",
         browser_channel=os.getenv("FEEDLENS_BROWSER_CHANNEL", "chrome"),
-        max_posts=int(os.getenv("FEEDLENS_MAX_POSTS", "300")),
+        max_posts=int(os.getenv("FEEDLENS_MAX_POSTS", "500")),
         default_ai=os.getenv("FEEDLENS_AI_PROVIDER", "auto"),
         cors_origins=[o.strip() for o in os.getenv(
             "FEEDLENS_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()],

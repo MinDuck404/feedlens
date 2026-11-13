@@ -19,22 +19,41 @@ _platform_locks: dict[str, threading.Lock] = {p: threading.Lock() for p in SCRAP
 def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None]) -> list[RawPost]:
     from .browser import open_context  # chỉ cần Playwright khi lướt trên máy
 
+    from .scrapers import NeedsVerification
+
     scraper = SCRAPERS[req.platform]()
     targets = scraper.urls(req.source_type, req.sources)
-    target_total = min(req.count, settings.max_posts)
-    per_source = max(1, target_total // len(targets))
+    total_cap = total_target(req)
     posts: list[RawPost] = []
+    skipped: list[str] = []
     with open_context(req.platform, headless=req.headless) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         for i, (label, url) in enumerate(targets):
-            remaining = target_total - len(posts)
+            remaining = total_cap - len(posts)
             if remaining <= 0:
                 break
-            quota = remaining if i == len(targets) - 1 else min(per_source, remaining)
+            quota = min(req.count, remaining)  # số bài là "mỗi nguồn"
             base = len(posts)
-            posts += scraper.collect(page, url, label, quota, seen,
-                                     lambda n, msg: on_progress(base + n, msg))
+            prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
+            try:
+                posts += scraper.collect(page, url, label, quota, seen,
+                                         lambda n, msg: on_progress(base + n, prefix + msg),
+                                         speed=req.speed, interactive=not req.headless)
+            except NeedsVerification:
+                raise
+            except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
+                if page.is_closed():
+                    raise RuntimeError("Cửa sổ Chrome đã bị đóng giữa chừng.") from e
+                skipped.append(f"{label}: {str(e)[:120]}")
+                on_progress(base, f"{prefix}Bỏ qua {label}: {str(e)[:120]}")
+    if not posts and skipped:
+        raise RuntimeError("Không lướt được nguồn nào. " + " | ".join(skipped))
     return posts
+
+
+def total_target(req: RunRequest) -> int:
+    n = 1 if req.source_type == "feed" else max(1, len(req.sources))
+    return min(req.count * n, settings.max_posts)
 
 
 def _keys(db: Database, user_id: int | None):
@@ -44,7 +63,7 @@ def _keys(db: Database, user_id: int | None):
 def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None = None) -> None:
     """Chế độ local: lướt bằng trình duyệt trên chính máy này rồi phân tích."""
     prog = PROGRESS.setdefault(run_id, {})
-    target = min(req.count, settings.max_posts)
+    target = total_target(req)
 
     def report(phase: str):
         def _fn(n: int, msg: str):

@@ -1,4 +1,5 @@
 import os
+import time
 
 for _k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
     os.environ[_k] = ""  # test luôn chạy không gọi API thật
@@ -139,6 +140,31 @@ def test_llm_analyzer_retries_transient_errors(monkeypatch):
     assert len(calls) == 1  # lỗi không tạm thời thì không thử lại
 
 
+def test_llm_batches_run_in_parallel_and_keep_order(monkeypatch):
+    import threading
+    import feedlens.analyzer as an
+
+    monkeypatch.setattr(an, "BATCH_SIZE", 1)
+    active, peak, lock = [0], [0], threading.Lock()
+
+    class Slow(FakeProvider):
+        def complete_json(self, system, prompt, schema, effort="low"):
+            with lock:
+                active[0] += 1
+                peak[0] = max(peak[0], active[0])
+            time.sleep(0.05)
+            with lock:
+                active[0] -= 1
+            return {"items": [{"id": 0, "category": "news", "summary": prompt.split("<post")[1][:40],
+                               "is_job": False, "job": dict.fromkeys(["title", "company", "location", "salary",
+                               "work_mode", "contact", "match_reason"], "") | {"match_score": 0}}]}
+
+    posts = [RawPost(platform="x", source="s", text=f"bài số {i} " * 3) for i in range(8)]
+    out = LLMAnalyzer(Slow()).classify(posts, False, [], "", lambda *x: None)
+    assert peak[0] > 1  # thật sự chạy song song
+    assert [p.text for p in out] == [p.text for p in posts]  # thứ tự giữ nguyên
+
+
 def test_llm_analyzer_with_any_provider():
     a = LLMAnalyzer(FakeProvider())
     out = a.classify(SAMPLE, True, ["python"], "", lambda *x: None)
@@ -201,3 +227,58 @@ def test_api_smoke(db, monkeypatch):
     r = c.post("/api/runs", json={"platform": "facebook", "ai_provider": "gemini"})
     assert r.status_code == 400 and "Gemini" in r.json()["detail"]
     api.app.state.db = original_db
+
+
+def test_migration_adds_missing_columns(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(320), password_hash VARCHAR(200),
+                            created_at DATETIME, agent_token_hash VARCHAR(64), agent_last_seen DATETIME);
+        CREATE TABLE runs (id INTEGER PRIMARY KEY, created_at DATETIME, request JSON, status VARCHAR(20),
+                           collected INTEGER, ai_label VARCHAR(120), error TEXT, digest JSON);
+    """)
+    con.close()
+    db = Database(f"sqlite:///{path.as_posix()}")
+    uid = db.local_user_id()
+    db.set_preferences(uid, {"x": 1})
+    assert db.get_preferences(uid) == {"x": 1}
+    assert db.create_run(RunRequest(platform="x"), uid)
+
+
+class FakePage:
+    def __init__(self, urls):
+        self.urls, self.visited = list(urls), []
+
+    @property
+    def url(self):
+        return self.urls[0]
+
+    def wait_for_timeout(self, ms):
+        if len(self.urls) > 1:
+            self.urls.pop(0)  # người dùng đang xác minh, trang chuyển dần
+
+    def goto(self, url, **kw):
+        self.visited.append(url)
+
+
+def test_waits_for_user_verification_instead_of_returning_nothing():
+    from feedlens.scrapers import FacebookScraper, NeedsVerification
+    s = FacebookScraper()
+    msgs = []
+    page = FakePage(["https://www.facebook.com/two_step_verification/authentication/?x=1",
+                     "https://www.facebook.com/checkpoint/123", "https://www.facebook.com/"])
+    assert s.ensure_access(page, "https://www.facebook.com/groups/g", lambda n, m: msgs.append(m), True)
+    assert page.visited == ["https://www.facebook.com/groups/g"]  # mở lại trang cần lướt
+    assert any("xác minh" in m for m in msgs)
+    assert not s.ensure_access(FakePage(["https://www.facebook.com/groups/g"]), "u", lambda *a: None, True)
+    with pytest.raises(NeedsVerification):
+        s.ensure_access(FakePage(["https://www.facebook.com/login/"]), "u", lambda *a: None, False)
+
+
+def test_count_is_per_source():
+    from feedlens.pipeline import total_target
+    assert total_target(RunRequest(platform="facebook", count=40)) == 40
+    assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a", "b", "c"], count=40)) == 120
+    assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a"] * 30, count=100)) == 500

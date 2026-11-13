@@ -37,11 +37,19 @@ class Database:
         self.Session = sessionmaker(self.engine, expire_on_commit=False)
 
     def _migrate(self) -> None:
-        """Nâng cấp nhẹ cho DB tạo từ phiên bản trước (chưa có user_id trên runs)."""
-        cols = {c["name"] for c in inspect(self.engine).get_columns("runs")}
-        if "user_id" not in cols:
-            with self.engine.begin() as conn:
-                conn.execute(text("ALTER TABLE runs ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"))
+        """Nâng cấp nhẹ cho DB tạo từ phiên bản trước: thêm cột còn thiếu."""
+        json_type = "JSONB" if self.engine.dialect.name == "postgresql" else "JSON"
+        wanted = {
+            "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE"},
+            "users": {"preferences": json_type},
+        }
+        insp = inspect(self.engine)
+        for table, cols in wanted.items():
+            have = {c["name"] for c in insp.get_columns(table)}
+            for col, ddl in cols.items():
+                if col not in have:
+                    with self.engine.begin() as conn:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
 
     # ---------------------------------------------------------------- users
     def create_user(self, email: str, password_hash: str) -> int:
@@ -71,6 +79,15 @@ class Database:
             return self.create_user(LOCAL_EMAIL, "!")
         except EmailTaken:
             return self.get_user_by_email(LOCAL_EMAIL).id
+
+    def get_preferences(self, user_id: int) -> dict:
+        with self.Session() as s:
+            u = s.get(UserRow, user_id)
+            return dict(u.preferences or {}) if u else {}
+
+    def set_preferences(self, user_id: int, prefs: dict) -> None:
+        with self.Session.begin() as s:
+            s.get(UserRow, user_id).preferences = prefs
 
     def set_agent_token_hash(self, user_id: int, token_hash: str) -> None:
         with self.Session.begin() as s:

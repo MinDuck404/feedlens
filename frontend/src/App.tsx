@@ -5,7 +5,7 @@ import Login from "./components/Login";
 import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import Sidebar from "./components/Sidebar";
-import type { Me, Meta, PlatformState, Run } from "./types";
+import type { Me, Meta, PlatformState, Preferences, Run } from "./types";
 
 export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -42,12 +42,16 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
+  const [prefs, setPrefs] = useState<Preferences | null>(null);
 
   const refreshMe = useCallback(() => api.me().then(setMe).catch(() => {}), []);
   const refreshPlatforms = useCallback(() => api.platforms().then(setPlatforms).catch(() => {}), []);
   const refreshRuns = useCallback(() => api.runs().then(setRuns).catch(() => {}), []);
 
-  useEffect(() => { refreshPlatforms(); refreshRuns(); refreshMe(); }, [refreshPlatforms, refreshRuns, refreshMe]);
+  useEffect(() => {
+    refreshPlatforms(); refreshRuns(); refreshMe();
+    api.preferences().then(setPrefs).catch(() => setPrefs({}));
+  }, [refreshPlatforms, refreshRuns, refreshMe]);
 
   // Cập nhật định kỳ khi có lượt đang chạy, đang chờ đăng nhập, hoặc ở cloud (bot ở máy có thể đẩy lượt mới bất cứ lúc nào)
   const busy = runs.some((r) => !["done", "error"].includes(r.status));
@@ -86,11 +90,13 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           <EmptyState cloud={cloud} hasRuns={runs.length > 0} onNewRun={() => setComposerOpen(true)} />
         )}
       </main>
-      {composerOpen && (
+      {composerOpen && prefs && (
         <Composer
           meta={meta}
           me={me}
           platforms={platforms}
+          prefs={prefs}
+          onPrefsChange={setPrefs}
           onClose={() => setComposerOpen(false)}
           onCreated={(id) => { setComposerOpen(false); setSelected(id); refreshRuns(); }}
           onOpenSettings={() => { setComposerOpen(false); setSettingsOpen(true); }}

@@ -24,6 +24,8 @@ class UserRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     agent_token_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     agent_last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Cài đặt "Lướt mới" lần trước + danh sách group đã lưu (frontend quyết định cấu trúc)
+    preferences: Mapped[Optional[dict]] = mapped_column(JSON)
 
 
 class ApiKeyRow(Base):

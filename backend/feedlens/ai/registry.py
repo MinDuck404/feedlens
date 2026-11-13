@@ -95,9 +95,11 @@ def forget_models(user_id: int, key: str) -> None:
 
 # Khi user không chọn model:
 #  1. model đặt qua biến môi trường (ANTHROPIC_MODEL/OPENAI_MODEL/GEMINI_MODEL), nếu có;
-#  2. model mới nhất thuộc dòng "nhanh, rẻ" của nhà cung cấp trong danh sách key dùng được;
-#  3. model đầu danh sách; 4. mặc định ghi trong code nếu không lấy được danh sách.
-# Không tin vào việc model có tên trong danh sách: Google vẫn liệt kê model đã khóa với user mới.
+#  2. model mặc định của app (ProviderInfo.default_model) nếu có trong danh sách key dùng được;
+#  3. các model mới nhất thuộc dòng "nhanh" của nhà cung cấp (dùng làm dự phòng khi quá tải);
+#  4. model đầu danh sách; 5. mặc định ghi trong code nếu không lấy được danh sách.
+# Có tên trong danh sách chưa chắc gọi được (Google vẫn liệt kê model đã khóa với user mới),
+# nên luôn kèm model dự phòng.
 _PREFER = {"gemini": ("flash",), "openai": ("mini",), "anthropic": ("opus",)}
 _AVOID = ("lite", "preview", "exp", "nano", "thinking", "image", "tts", "live")
 
@@ -116,7 +118,9 @@ def default_candidates(key: str, models: list[str]) -> list[str]:
     good = sorted((m for m in models
                    if any(p in m for p in _PREFER.get(key, ())) and not any(a in m for a in _AVOID)),
                   key=_version_key, reverse=True)
-    return good or models[:1]
+    # Model mặc định của app (vd gemini-3.5-flash-lite: nhanh, rẻ, đủ tốt để phân loại) đứng đầu nếu key dùng được
+    first = [cls.info.default_model] if cls.info.default_model in models else []
+    return first + [m for m in good if m not in first] or models[:1]
 
 
 def pick_default(key: str, models: list[str]) -> str:

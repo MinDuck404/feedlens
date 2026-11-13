@@ -52,6 +52,19 @@ export interface RunRequest {
   ai_model: string;
   only_new: boolean;
   headless: boolean;
+  speed: "fast" | "careful";
+}
+
+export interface SavedGroup {
+  url: string;
+  enabled: boolean;
+}
+
+/** Cài đặt lưu theo tài khoản (server chỉ lưu nguyên JSON này). */
+export interface Preferences {
+  composer?: Partial<RunRequest> & { keywords_text?: string };
+  groups?: Partial<Record<Platform, SavedGroup[]>>;
+  searches?: Partial<Record<Platform, string>>;
 }
 
 export interface Job {

@@ -6,6 +6,7 @@ tạo lượt ở trạng thái `pending`, agent trên máy người dùng (`fee
 """
 from __future__ import annotations
 
+import json
 import re
 import threading
 import time
@@ -148,6 +149,30 @@ def login(body: Credentials, request: Request):
 @private.get("/auth/me")
 def me(user: User = Depends(current_user)):
     return {"email": user.email, "agent": _agent_info(user.id)}
+
+
+PREFS_MAX_BYTES = 64_000
+
+
+@private.get("/preferences")
+def get_preferences(user: User = Depends(current_user)):
+    return db().get_preferences(user.id)
+
+
+@private.put("/preferences")
+async def put_preferences(request: Request, user: User = Depends(current_user)):
+    """Lưu cài đặt của form "Lướt mới" và danh sách group. Frontend quyết định cấu trúc; server chỉ giới hạn kích thước."""
+    raw = await request.body()
+    if len(raw) > PREFS_MAX_BYTES:
+        raise HTTPException(413, "Cài đặt quá lớn.")
+    try:
+        prefs = json.loads(raw or b"{}")
+    except ValueError:
+        raise HTTPException(400, "JSON không hợp lệ.")
+    if not isinstance(prefs, dict):
+        raise HTTPException(400, "Cài đặt phải là một object JSON.")
+    db().set_preferences(user.id, prefs)
+    return {"ok": True}
 
 
 @private.post("/agent/token")
