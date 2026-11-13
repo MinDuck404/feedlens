@@ -12,7 +12,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml ./
 COPY feedlens ./feedlens
-RUN pip install ".[postgres]" \
+# libatomic1: Node đi kèm Playwright cần nó để chạy được lệnh `playwright install` trên image slim
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
+ && pip install ".[postgres]" \
  && python -m playwright install --with-deps --only-shell chromium \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home app && mkdir -p /app/data && chown app /app/data
