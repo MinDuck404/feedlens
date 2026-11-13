@@ -1,3 +1,4 @@
+"""Chế độ cloud: nhiều tài khoản, API key mã hóa theo user, hàng đợi việc cho agent."""
 import dataclasses
 import os
 
@@ -9,29 +10,50 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from feedlens import api, auth, config
+from feedlens import ai, api, auth, config, crypto
+from feedlens.ai import registry
 from feedlens.config import _normalize_db_url
 from feedlens.db import Database
 
 SECRET = "s" * 40
+POSTS = [{"platform": "facebook", "source": "g", "text": "Tuyển Python dev remote, lương 30tr"},
+         {"platform": "facebook", "source": "g", "text": "Thanh lý xe máy giá rẻ"}]
 
 
 @pytest.fixture
 def cloud(tmp_path, monkeypatch):
+    original_db = api.app.state.db
+
     def make(**over):
-        fields = {"mode": "cloud", "password": "pw-test", "secret": SECRET, "api_token": "agent-token", **over}
-        s = dataclasses.replace(config.settings, **fields)
-        monkeypatch.setattr(auth, "settings", s)
-        monkeypatch.setattr(api, "settings", s)
-        monkeypatch.setattr(api, "db", Database(f"sqlite:///{(tmp_path / 'c.db').as_posix()}"))
-        api._failed_logins.clear()
+        s = dataclasses.replace(config.settings, **{"mode": "cloud", "secret": SECRET, "allow_signup": True, **over})
+        for mod in (auth, api, crypto, registry):
+            monkeypatch.setattr(mod, "settings", s)
+        api.app.state.db = Database(f"sqlite:///{(tmp_path / 'c.db').as_posix()}")
+        api._attempts.clear()
+        registry._MODEL_CACHE.clear()
         return TestClient(api.app)
-    return make
+
+    yield make
+    api.app.state.db = original_db
 
 
-def _login(c) -> dict:
-    tok = c.post("/api/auth/login", json={"password": "pw-test"}).json()["token"]
-    return {"Authorization": f"Bearer {tok}"}
+def _signup(c, email="a@x.io", pw="password1") -> dict:
+    r = c.post("/api/auth/register", json={"email": email, "password": pw})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def _agent(c, h) -> dict:
+    return {"Authorization": f"Bearer {c.post('/api/agent/token', headers=h).json()['token']}"}
+
+
+def _wait(c, h, run_id, until=("done", "error")):
+    for _ in range(100):
+        r = c.get(f"/api/runs/{run_id}", headers=h).json()
+        if r["status"] in until:
+            return r
+        time.sleep(0.03)
+    return r
 
 
 def test_db_url_normalized():
@@ -40,57 +62,160 @@ def test_db_url_normalized():
     assert _normalize_db_url("sqlite:///x.db") == "sqlite:///x.db"
 
 
-def test_cloud_requires_auth(cloud):
+def test_password_hash_and_encryption(monkeypatch):
+    monkeypatch.setattr(crypto, "settings", dataclasses.replace(config.settings, secret=SECRET))
+    h = crypto.hash_password("hunter22")
+    assert crypto.verify_password("hunter22", h) and not crypto.verify_password("nope", h)
+    enc = crypto.encrypt("sk-secret-123")
+    assert "sk-secret" not in enc and crypto.decrypt(enc) == "sk-secret-123"
+    monkeypatch.setattr(crypto, "settings", dataclasses.replace(config.settings, secret="t" * 40))
+    assert crypto.decrypt(enc) is None  # đổi secret -> key cũ không đọc được, không crash
+
+
+def test_register_login_and_lockout(cloud):
     c = cloud()
-    assert c.get("/api/health").status_code == 200
-    m = c.get("/api/meta").json()
-    assert m["mode"] == "cloud" and m["auth_required"] and m["config_error"] is None
     assert c.get("/api/runs").status_code == 401
-    assert c.get("/api/runs", headers={"Authorization": "Bearer nope"}).status_code == 401
-    assert c.post("/api/auth/login", json={"password": "wrong"}).status_code == 401
-    assert c.get("/api/runs", headers=_login(c)).status_code == 200
-    assert c.get("/api/runs", headers={"Authorization": "Bearer agent-token"}).status_code == 200
-
-
-def test_cloud_fails_closed_without_password(cloud):
-    c = cloud(password="")
-    assert c.get("/api/runs").status_code == 503
-    assert c.post("/api/auth/login", json={"password": ""}).status_code == 503
-    assert "FEEDLENS_PASSWORD" in c.get("/api/meta").json()["config_error"]
-
-
-def test_login_rate_limited(cloud):
-    c = cloud()
+    h = _signup(c)
+    assert c.get("/api/auth/me", headers=h).json()["email"] == "a@x.io"
+    assert c.post("/api/auth/register", json={"email": "A@x.io", "password": "password1"}).status_code == 409
+    assert c.post("/api/auth/register", json={"email": "bad", "password": "password1"}).status_code == 400
+    assert c.post("/api/auth/register", json={"email": "b@x.io", "password": "short"}).status_code == 400
+    assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "wrong"}).status_code == 401
+    assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "password1"}).status_code == 200
     for _ in range(api.LOGIN_MAX_FAILS):
-        c.post("/api/auth/login", json={"password": "x"})
-    assert c.post("/api/auth/login", json={"password": "pw-test"}).status_code == 429
+        c.post("/api/auth/login", json={"email": "a@x.io", "password": "wrong"})
+    assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "password1"}).status_code == 429
+
+
+def test_signup_can_be_closed(cloud):
+    c = cloud(allow_signup=False)
+    assert c.post("/api/auth/register", json={"email": "a@x.io", "password": "password1"}).status_code == 403
+    assert c.get("/api/meta").json()["signup_open"] is False
+
+
+def test_fails_closed_without_secret(cloud):
+    c = cloud(secret="")
+    assert c.get("/api/runs").status_code == 503
+    assert "FEEDLENS_SECRET" in c.get("/api/meta").json()["config_error"]
 
 
 def test_expired_token_rejected(cloud, monkeypatch):
     c = cloud()
-    h = _login(c)
+    h = _signup(c)
     monkeypatch.setattr(time, "time", lambda: 10**12)
     assert c.get("/api/runs", headers=h).status_code == 401
 
 
-def test_cloud_blocks_browser_endpoints_and_accepts_ingest(cloud):
-    c = cloud()
-    h = {"Authorization": "Bearer agent-token"}
-    assert c.post("/api/platforms/facebook/login", headers=h).status_code == 409
-    assert c.post("/api/runs", headers=h, json={"platform": "facebook"}).status_code == 409
-    assert c.get("/api/platforms", headers=h).json() == []
+class StubProvider(ai.AIProvider):
+    info = ai.ProviderInfo("gemini", "Gemini", "GEMINI_API_KEY", "GEMINI_MODEL", "gemini-x", "")
 
-    body = {"request": {"platform": "facebook", "source_type": "group", "sources": ["g"],
-                        "job_mode": True, "keywords": ["python"], "ai_provider": "offline"},
-            "posts": [{"platform": "facebook", "source": "g", "text": "Tuyển Python dev remote, lương 30tr"},
-                      {"platform": "facebook", "source": "g", "text": "Thanh lý xe máy giá rẻ"}]}
-    run_id = c.post("/api/ingest", headers=h, json=body).json()["id"]
-    for _ in range(50):
-        r = c.get(f"/api/runs/{run_id}", headers=h).json()
-        if r["status"] in ("done", "error"):
-            break
-        time.sleep(0.05)
+    def complete_json(self, *a, **k):
+        raise AssertionError("không gọi AI trong test này")
+
+    def list_models(self):
+        if self.api_key != "good-key-1234":
+            raise RuntimeError("API key not valid")
+        return ["gemini-x", "gemini-y"]
+
+
+def test_api_keys_are_per_user_encrypted_and_masked(cloud, monkeypatch):
+    monkeypatch.setitem(registry.PROVIDERS, "gemini", StubProvider)
+    monkeypatch.setitem(api.PROVIDERS, "gemini", StubProvider)
+    monkeypatch.setenv("GEMINI_API_KEY", "owner-env-key")  # cloud KHÔNG được dùng key của chủ server
+    c = cloud()
+    a, b = _signup(c, "a@x.io"), _signup(c, "b@x.io")
+    st = {p["key"]: p for p in c.get("/api/ai/providers", headers=a).json()}
+    assert st["gemini"]["configured"] is False
+
+    assert c.put("/api/ai/keys/gemini", headers=a, json={"api_key": "bad-key-0000"}).status_code == 400
+    r = c.put("/api/ai/keys/gemini", headers=a, json={"api_key": "good-key-1234"})
+    assert r.status_code == 200 and r.json()["models"] == ["gemini-x", "gemini-y"]
+
+    st = {p["key"]: p for p in c.get("/api/ai/providers", headers=a).json()}
+    assert st["gemini"]["configured"] and st["gemini"]["hint"] == "…1234"
+    assert "good-key" not in c.get("/api/ai/providers", headers=a).text
+    row = api.app.state.db.list_keys(1)[0]
+    assert "good-key" not in row.ciphertext
+
+    assert c.get("/api/ai/models/gemini", headers=a).json()["models"] == ["gemini-x", "gemini-y"]
+    assert c.get("/api/ai/models/gemini", headers=b).status_code == 400  # user B chưa có key
+    assert c.post("/api/runs", headers=b, json={"platform": "facebook", "ai_provider": "gemini"}).status_code == 400
+    assert c.delete("/api/ai/keys/gemini", headers=a).status_code == 200
+    assert c.get("/api/ai/models/gemini", headers=a).status_code == 400
+
+
+def test_default_model_follows_available_list():
+    from feedlens.ai import pick_default
+    # model mặc định đã bị khai tử -> chọn bản "flash" mới nhất còn dùng được, tránh lite/preview
+    models = ["gemini-omni-flash-preview", "gemini-4-argon", "gemini-3.8-pro", "gemini-3.8-flash-lite",
+              "gemini-3.8-flash", "gemini-3.10-flash-image", "gemini-3.5-flash", "gemini-2.5-flash"]
+    assert pick_default("gemini", models) == "gemini-3.8-flash"
+    assert pick_default("gemini", ["gemini-3.7-flash", "gemini-3.10-flash"]) == "gemini-3.10-flash"
+    assert pick_default("gemini", ["gemini-x-pro"]) == "gemini-x-pro"
+    assert pick_default("gemini", []) == "gemini-2.5-flash"
+
+
+def test_default_model_env_override(monkeypatch):
+    from feedlens.ai import pick_default
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-custom")
+    assert pick_default("gemini", ["gemini-3.8-flash"]) == "gemini-custom"
+
+
+def test_agent_queue_end_to_end_and_isolation(cloud):
+    c = cloud()
+    a, b = _signup(c, "a@x.io"), _signup(c, "b@x.io")
+    ag = _agent(c, a)
+    assert c.get("/api/agent/next", headers=a).status_code == 403  # token web không dùng cho agent
+    assert c.get("/api/auth/me", headers=a).json()["agent"]["online"] is False
+    assert c.get("/api/agent/next", headers=ag).json() == {"job": None}
+    assert c.get("/api/auth/me", headers=a).json()["agent"]["online"] is True
+
+    req = {"platform": "facebook", "source_type": "group", "sources": ["g"], "count": 5,
+           "job_mode": True, "keywords": ["python"], "ai_provider": "offline"}
+    run_id = c.post("/api/runs", headers=a, json=req).json()["id"]
+    assert c.get(f"/api/runs/{run_id}", headers=a).json()["status"] == "pending"
+    assert c.get(f"/api/runs/{run_id}", headers=b).status_code == 404       # B không thấy lượt của A
+    assert c.get("/api/runs", headers=b).json() == []
+
+    job = c.get("/api/agent/next", headers=ag).json()["job"]
+    assert job["id"] == run_id and job["request"]["sources"] == ["g"]
+    assert c.get("/api/agent/next", headers=ag).json() == {"job": None}     # không nhận trùng
+    assert c.post(f"/api/agent/runs/{run_id}/progress", headers=ag,
+                  json={"done": 1, "target": 5, "message": "1/5"}).status_code == 200
+    assert c.get(f"/api/runs/{run_id}", headers=a).json()["progress"]["message"] == "1/5"
+    assert c.post(f"/api/agent/runs/{run_id}/posts", headers=ag, json={"posts": POSTS}).status_code == 200
+
+    r = _wait(c, a, run_id)
     assert r["status"] == "done", r["error"]
     assert r["collected"] == 2 and any(p["job"] for p in r["posts"])
-    assert c.get(f"/api/runs/{run_id}/export?fmt=csv", headers=h).status_code == 200
-    assert c.post("/api/ingest", headers=h, json={**body, "posts": []}).status_code == 422
+    assert c.post(f"/api/agent/runs/{run_id}/posts", headers=ag, json={"posts": POSTS}).status_code == 409
+    assert c.get(f"/api/runs/{run_id}/export?fmt=csv", headers=a).status_code == 200
+    assert c.delete(f"/api/runs/{run_id}", headers=b).status_code == 404
+    assert c.delete(f"/api/runs/{run_id}", headers=a).status_code == 200
+
+
+def test_agent_reports_failure_and_token_rotation(cloud):
+    c = cloud()
+    a = _signup(c)
+    ag = _agent(c, a)
+    run_id = c.post("/api/runs", headers=a, json={"platform": "x", "ai_provider": "offline"}).json()["id"]
+    c.get("/api/agent/next", headers=ag)
+    c.post(f"/api/agent/runs/{run_id}/fail", headers=ag, json={"error": "selector hỏng"})
+    r = c.get(f"/api/runs/{run_id}", headers=a).json()
+    assert r["status"] == "error" and "selector hỏng" in r["error"]
+
+    new = _agent(c, a)
+    assert c.get("/api/agent/next", headers=ag).status_code == 401           # token cũ hết hiệu lực
+    assert c.get("/api/agent/next", headers=new).status_code == 200
+
+
+def test_cloud_blocks_browser_endpoints_and_push_ingest(cloud):
+    c = cloud()
+    a = _signup(c)
+    assert c.post("/api/platforms/facebook/login", headers=a).status_code == 409
+    assert c.get("/api/platforms", headers=a).json() == []
+    ag = _agent(c, a)
+    body = {"request": {"platform": "facebook", "ai_provider": "offline"}, "posts": POSTS}
+    run_id = c.post("/api/ingest", headers=ag, json=body).json()["id"]
+    assert _wait(c, a, run_id)["status"] == "done"
+    assert c.post("/api/ingest", headers=ag, json={**body, "posts": []}).status_code == 422

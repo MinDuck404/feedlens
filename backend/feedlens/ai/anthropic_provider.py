@@ -8,15 +8,14 @@ from .base import AIError, AIProvider, Effort, ProviderInfo
 class AnthropicProvider(AIProvider):
     info = ProviderInfo(
         key="anthropic", name="Claude", env_key="ANTHROPIC_API_KEY", model_env="ANTHROPIC_MODEL",
-        default_model="claude-opus-5-5",
-        suggested_models=("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"),
+        default_model="claude-opus-5-5", key_url="https://console.anthropic.com/settings/keys",
     )
 
-    def __init__(self, model: str | None = None):
-        super().__init__(model)
+    def __init__(self, model: str | None = None, api_key: str | None = None):
+        super().__init__(model, api_key)
         import anthropic
 
-        self.client = anthropic.Anthropic()
+        self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         resp = self.client.beta.messages.create(
@@ -34,3 +33,6 @@ class AnthropicProvider(AIProvider):
         if resp.stop_reason == "max_tokens":
             raise AIError("Phản hồi của Claude bị cắt (max_tokens)")
         return json.loads(next(b.text for b in resp.content if b.type == "text"))
+
+    def list_models(self) -> list[str]:
+        return [m.id for m in self.client.models.list(limit=100)]  # API trả mới nhất trước

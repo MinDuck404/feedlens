@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -15,13 +15,38 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class UserRow(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    agent_token_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    agent_last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ApiKeyRow(Base):
+    __tablename__ = "api_keys"
+    __table_args__ = (UniqueConstraint("user_id", "provider"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    hint: Mapped[str] = mapped_column(String(16), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class RunRow(Base):
     __tablename__ = "runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     request: Mapped[dict] = mapped_column(JSON)
-    status: Mapped[str] = mapped_column(String(20), default="queued")  # queued|scraping|analyzing|done|error
+    # pending (chờ agent) | queued | scraping | analyzing | done | error
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     collected: Mapped[int] = mapped_column(Integer, default=0)
     ai_label: Mapped[str] = mapped_column(String(120), default="")
     error: Mapped[Optional[str]] = mapped_column(Text)

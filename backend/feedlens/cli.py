@@ -1,4 +1,4 @@
-"""feedlens serve | login <platform> | run <platform> [...]"""
+"""feedlens serve | login | run | push | agent | demo"""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +21,7 @@ def _push(a) -> None:
     from .pipeline import scrape
 
     if not a.server or not a.token:
-        sys.exit("Thiếu --server/--token (hoặc biến FEEDLENS_SERVER / FEEDLENS_API_TOKEN).")
+        sys.exit("Thiếu --server/--token (hoặc biến FEEDLENS_SERVER / FEEDLENS_AGENT_TOKEN).")
     server = a.server.rstrip("/")
     req = _request_from_args(a)
     headers = {"Authorization": f"Bearer {a.token}"}
@@ -67,9 +67,13 @@ def main(argv: list[str] | None = None) -> None:
     common.add_argument("--model", default="", help="Ghi đè model của nhà cung cấp AI")
 
     sub.add_parser("run", parents=[common], help="Lướt + tóm tắt ngay trên máy này")
-    p = sub.add_parser("push", parents=[common], help="Lướt trên máy này rồi gửi bài lên server FeedLens cloud")
+    p = sub.add_parser("push", parents=[common], help="Lướt một lần trên máy này rồi gửi bài lên server cloud")
     p.add_argument("--server", default=os.getenv("FEEDLENS_SERVER", ""), help="URL backend cloud (hoặc FEEDLENS_SERVER)")
-    p.add_argument("--token", default=os.getenv("FEEDLENS_API_TOKEN", ""), help="API token (hoặc FEEDLENS_API_TOKEN)")
+    p.add_argument("--token", default=os.getenv("FEEDLENS_AGENT_TOKEN", ""), help="Token agent (hoặc FEEDLENS_AGENT_TOKEN)")
+
+    ag = sub.add_parser("agent", help="Chạy nền: nhận việc từ web FeedLens cloud, lướt trên máy này")
+    ag.add_argument("--server", default="", help="URL backend cloud (lưu lại cho lần sau)")
+    ag.add_argument("--token", default="", help="Token agent tạo trong phần Cài đặt (lưu lại cho lần sau)")
 
     sub.add_parser("demo", help="Tạo một lượt mẫu (dữ liệu giả) để xem giao diện")
 
@@ -87,7 +91,25 @@ def main(argv: list[str] | None = None) -> None:
         print("Đăng nhập trong cửa sổ Chrome vừa mở. FeedLens chỉ lưu cookie phiên, không lưu mật khẩu.")
         print("✅ Đã đăng nhập" if interactive_login(a.platform) else "❌ Chưa phát hiện phiên đăng nhập")
     elif a.cmd == "push":
+        if not a.server or not a.token:
+            from .agent import load_config
+            cfg = load_config()
+            a.server, a.token = a.server or cfg.get("server", ""), a.token or cfg.get("token", "")
         _push(a)
+    elif a.cmd == "agent":
+        from .agent import Agent, load_config, save_config
+
+        cfg = load_config()
+        server = a.server or cfg.get("server") or os.getenv("FEEDLENS_SERVER", "")
+        token = a.token or cfg.get("token") or os.getenv("FEEDLENS_AGENT_TOKEN", "")
+        if not server or not token:
+            sys.exit("Lần đầu chạy: feedlens agent --server <URL backend> --token <token tạo trên web>")
+        if a.server or a.token:
+            save_config(server, token)
+        try:
+            Agent(server, token).run_forever()
+        except KeyboardInterrupt:
+            print("\nĐã dừng agent.")
     elif a.cmd == "demo":
         from . import pipeline
         from .config import settings
@@ -99,8 +121,9 @@ def main(argv: list[str] | None = None) -> None:
         req = RunRequest(platform="facebook", source_type="group", sources=[DEMO_POSTS[0].source],
                          count=len(DEMO_POSTS), job_mode=True, keywords=["python", "remote"], ai_provider="offline")
         pipeline.scrape = lambda *_: list(DEMO_POSTS)
-        run_id = db.create_run(req)
-        pipeline.execute_run(db, run_id, req)
+        uid = db.local_user_id()
+        run_id = db.create_run(req, uid)
+        pipeline.execute_run(db, run_id, req, uid)
         print(f"Đã tạo lượt mẫu #{run_id}. Chạy `feedlens serve` để xem.")
     elif a.cmd == "run":
         from .config import settings
@@ -111,8 +134,9 @@ def main(argv: list[str] | None = None) -> None:
 
         db = Database(settings.database_url)
         req = _request_from_args(a)
-        run_id = db.create_run(req)
-        execute_run(db, run_id, req)
+        uid = db.local_user_id()
+        run_id = db.create_run(req, uid)
+        execute_run(db, run_id, req, uid)
         run = db.get_run(run_id)
         if run["status"] == "error":
             print("Lỗi:", run["error"]); sys.exit(1)

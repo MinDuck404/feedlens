@@ -1,10 +1,11 @@
-import { Loader2, LogIn, Plus, RefreshCw, Search, X as XIcon } from "lucide-react";
+import { Loader2, LogIn, Plus, RefreshCw, Search, Settings as SettingsIcon, X as XIcon } from "lucide-react";
 import { useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import type { PlatformState, Run } from "../types";
 
 const STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Chờ agent", cls: "text-ink-soft" },
   queued: { label: "Đang chờ", cls: "text-ink-soft" },
   scraping: { label: "Đang lướt", cls: "text-cobalt" },
   analyzing: { label: "Đang đọc", cls: "text-cobalt" },
@@ -14,6 +15,9 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 
 interface Props {
   cloud: boolean;
+  email?: string;
+  agentOnline?: boolean;
+  onOpenSettings: () => void;
   platforms: PlatformState[];
   runs: Run[];
   selected: number | null;
@@ -23,7 +27,7 @@ interface Props {
   onLogout?: () => void;
 }
 
-export default function Sidebar({ cloud, platforms, runs, selected, onSelect, onNewRun, onPlatformChanged, onLogout }: Props) {
+export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, platforms, runs, selected, onSelect, onNewRun, onPlatformChanged, onLogout }: Props) {
   return (
     <aside className="flex w-full shrink-0 flex-col border-line bg-surface md:h-full md:w-72 md:border-r">
       <div className="flex items-center justify-between px-5 pt-5 pb-4">
@@ -40,9 +44,10 @@ export default function Sidebar({ cloud, platforms, runs, selected, onSelect, on
       </div>
 
       {cloud ? (
-        <p className="px-5 pb-4 text-sm text-ink-soft">
-          Server cloud không giữ phiên mạng xã hội nào. Bot lướt trên máy bạn rồi gửi bài lên đây.
-        </p>
+        <button onClick={onOpenSettings} className="mx-5 mb-4 flex items-center gap-2 rounded-lg bg-sunken px-3 py-2 text-left text-sm">
+          <span className={`size-2 shrink-0 rounded-full ${agentOnline ? "bg-ok" : "bg-line"}`} />
+          <span className="flex-1">{agentOnline ? "Agent trên máy đang bật" : "Agent trên máy đang tắt"}</span>
+        </button>
       ) : (
         <section className="px-5 pb-4">
           <h2 className="mb-2 text-sm font-semibold text-ink-soft">Tài khoản</h2>
@@ -57,7 +62,7 @@ export default function Sidebar({ cloud, platforms, runs, selected, onSelect, on
         {runs.length === 0 ? (
           <p className="px-2 text-sm text-ink-soft">Chưa có lượt nào.</p>
         ) : (
-          <ul className="-mx-1 overflow-y-auto pb-4">
+          <ul className="-mx-1 max-h-40 overflow-y-auto pb-4 md:max-h-none">
             {runs.map((r) => {
               const s = STATUS[r.status];
               const q = r.request;
@@ -81,11 +86,16 @@ export default function Sidebar({ cloud, platforms, runs, selected, onSelect, on
           </ul>
         )}
       </section>
-      {onLogout && (
-        <button onClick={onLogout} className="border-t border-line px-5 py-3 text-left text-sm text-ink-soft hover:text-ink">
-          Đăng xuất
+      <div className="flex items-center gap-2 border-t border-line px-5 py-3 text-sm">
+        <span className="min-w-0 flex-1 truncate text-ink-soft">{email ?? "Máy này"}</span>
+        <button onClick={onOpenSettings} aria-label="Cài đặt" title="Cài đặt"
+          className="grid size-8 place-items-center rounded-md text-ink-soft hover:bg-sunken hover:text-ink">
+          <SettingsIcon className="size-4" />
         </button>
-      )}
+        {onLogout && (
+          <button onClick={onLogout} className="rounded-md px-2 py-1 text-ink-soft hover:bg-sunken hover:text-ink">Đăng xuất</button>
+        )}
+      </div>
     </aside>
   );
 }

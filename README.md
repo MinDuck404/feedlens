@@ -10,7 +10,9 @@ Nền tảng: Facebook, LinkedIn, X (Twitter), Reddit. AI: **Claude, ChatGPT, Ge
 backend/            Python, FastAPI: API, bot lướt (Playwright), lớp AI, DB
   feedlens/
     api.py          REST API (/api/...), phục vụ luôn frontend/dist nếu đã build
-    auth.py         mật khẩu + token phiên, API token cho bot (chế độ cloud)
+    auth.py         tài khoản, token phiên, token agent (chế độ cloud)
+    crypto.py       băm mật khẩu (scrypt), mã hóa API key (Fernet)
+    agent.py        `feedlens agent`: nhận việc từ cloud, lướt trên máy người dùng
     ai/             anthropic_provider · openai_provider · gemini_provider · registry
     db/             SQLAlchemy: tables.py (schema) + repository.py (truy vấn)
     browser.py      Chrome profile riêng cho từng nền tảng, đăng nhập tương tác
@@ -36,7 +38,7 @@ cd backend && uv venv && uv pip install -e ".[dev]"
 copy backend\.env.example backend\.env
 ```
 
-Mở `backend/.env`, điền ít nhất một key: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` hoặc `GEMINI_API_KEY`. Không điền gì thì app chạy chế độ offline.
+Chạy local thì có thể điền key AI vào `backend/.env` hoặc nhập trên web (Cài đặt → API key AI). Không có key nào thì app dùng bộ lọc từ khóa offline.
 
 **Frontend**
 
@@ -87,63 +89,62 @@ Bản đang chạy dùng gói miễn phí:
 Muốn dùng Railway thay thế thì `backend/railway.json`, `frontend/railway.json` và hai Dockerfile đã có sẵn.
 
 ```
- Máy bạn                                   Cloud
-┌──────────────────────────┐   HTTPS   ┌─────────────────────────┐   ┌──────────┐
-│ feedlens push            │ ────────▶ │ backend (FastAPI)        │──▶│ Postgres │
-│ Chrome + phiên đăng nhập │  API token│ FEEDLENS_MODE=cloud      │   └──────────┘
-└──────────────────────────┘           │ AI: phân loại + tóm tắt  │
-                                       └────────────▲────────────┘
-                                                    │ mật khẩu
-                                       ┌────────────┴────────────┐
-                                       │ frontend (nginx, tĩnh)   │
-                                       └─────────────────────────┘
+ Máy bạn                                     Cloud
+┌───────────────────────────┐  hỏi việc  ┌──────────────────────────┐   ┌──────────┐
+│ feedlens agent (chạy nền)  │ ◀────────▶ │ backend (FastAPI)         │──▶│ Postgres │
+│ Chrome + phiên đăng nhập   │  gửi bài   │ tài khoản, key mã hóa,    │   └──────────┘
+└───────────────────────────┘ token fla_ │ hàng đợi, AI tóm tắt      │
+                                          └─────────────▲────────────┘
+                                                        │ email + mật khẩu
+                                          ┌─────────────┴────────────┐
+                                          │ frontend (GitHub Pages)   │
+                                          └──────────────────────────┘
 ```
 
-Bot lướt **luôn chạy trên máy bạn**, vì nó cần Chrome thật, phiên đăng nhập của bạn và IP nhà (IP datacenter rất dễ bị Facebook/LinkedIn checkpoint). Server cloud không giữ cookie mạng xã hội nào; nó nhận bài, chạy AI, lưu vào Postgres và hiển thị qua web.
+Việc lướt **luôn chạy trên máy người dùng**, vì cần Chrome thật, phiên đăng nhập của họ và IP nhà (IP datacenter rất dễ bị Facebook/LinkedIn checkpoint). Server không giữ cookie mạng xã hội nào.
+
+Luồng sử dụng trên bản cloud:
+
+1. Đăng ký tài khoản trên web.
+2. **Cài đặt → API key AI:** dán key Gemini, ChatGPT hoặc Claude. Server kiểm tra key bằng cách lấy danh sách model, mã hóa key (Fernet, khóa suy ra từ `FEEDLENS_SECRET`) rồi lưu vào DB. Web chỉ hiện 4 ký tự cuối.
+3. **Cài đặt → Kết nối agent:** tạo token `fla_…` (chỉ hiện một lần; DB chỉ lưu hash) và copy lệnh chạy agent:
+
+```bash
+cd backend && .venv\Scripts\feedlens agent --server https://feedlens-api.onrender.com --token fla_xxx
+```
+
+4. Lần đầu, đăng nhập mạng xã hội cho agent: `.venv\Scripts\feedlens login facebook`.
+5. Bấm **Lướt mới → Bắt đầu lướt** trên web. Lượt được xếp vào hàng đợi; agent hỏi việc mỗi 4 giây, mở Chrome lướt, báo tiến độ, gửi bài lên; server phân tích bằng key của bạn. Lần sau chỉ cần chạy `feedlens agent`.
+
+Mỗi tài khoản chỉ thấy lượt, bài viết và key của chính mình. `feedlens push` (lướt một lần rồi gửi, không qua hàng đợi) vẫn dùng được với cùng token.
 
 Biến môi trường của service **backend**:
 
 | Biến | Giá trị |
 |---|---|
-| `DATABASE_URL` | chuỗi kết nối Postgres (Neon: `postgresql://…?sslmode=require`; Railway: `${{Postgres.DATABASE_URL}}`) |
-| `FEEDLENS_PASSWORD` | mật khẩu đăng nhập web |
-| `FEEDLENS_SECRET` | chuỗi ngẫu nhiên ≥ 32 ký tự, dùng để ký phiên |
-| `FEEDLENS_API_TOKEN` | chuỗi ngẫu nhiên, cho `feedlens push` |
+| `FEEDLENS_MODE` | `cloud` |
+| `DATABASE_URL` | chuỗi kết nối Postgres (Neon: `postgresql://…?sslmode=require`) |
+| `FEEDLENS_SECRET` | chuỗi ngẫu nhiên ≥ 32 ký tự; ký phiên đăng nhập và mã hóa API key. **Đừng đổi** sau khi đã có user |
+| `FEEDLENS_ALLOW_SIGNUP` | `true` (mở đăng ký) hoặc `false` |
 | `FEEDLENS_CORS` | origin của frontend, vd `https://minduck404.github.io` |
-| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | ít nhất một key |
 
-Service **frontend** chỉ cần `VITE_API_URL` = URL của backend. Biến này được đưa vào lúc build, nên đổi xong phải deploy lại.
+Ở chế độ cloud, server **không** dùng API key trong biến môi trường, để người dùng khác không tiêu quota của chủ server. Thiếu `FEEDLENS_SECRET` thì backend khóa toàn bộ API. Sai mật khẩu 10 lần trong 15 phút (theo IP hoặc theo email) sẽ bị chặn tạm thời.
 
-Thiếu `FEEDLENS_PASSWORD` hoặc `FEEDLENS_SECRET` thì backend khóa toàn bộ API. Đăng nhập sai quá 10 lần trong 15 phút sẽ bị chặn tạm thời.
-
-Lướt từ máy rồi gửi lên cloud:
-
-```bash
-cd backend && .venv\Scripts\feedlens login facebook
-```
-
-```bash
-$env:FEEDLENS_SERVER="https://<backend>.up.railway.app"; $env:FEEDLENS_API_TOKEN="<token>"
-```
-
-```bash
-.venv\Scripts\feedlens push facebook --type group --source https://www.facebook.com/groups/aaa -n 60 --jobs -k python
-```
-
-Nút "Lướt mới" trên web bản cloud tạo sẵn lệnh này để bạn copy.
+Frontend chỉ cần `VITE_API_URL` = URL của backend (đưa vào lúc build).
 
 ## Chọn AI
 
-| Nhà cung cấp | Biến key | Model mặc định | Đổi model |
-|---|---|---|---|
-| Claude | `ANTHROPIC_API_KEY` | `claude-opus-5-5` | `ANTHROPIC_MODEL` |
-| ChatGPT | `OPENAI_API_KEY` | `gpt-5-mini` | `OPENAI_MODEL` |
-| Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` | `GEMINI_MODEL` |
+| Nhà cung cấp | Lấy key ở | Ép model (local) |
+|---|---|---|
+| Claude | console.anthropic.com | `ANTHROPIC_MODEL` |
+| ChatGPT | platform.openai.com | `OPENAI_MODEL` |
+| Gemini | aistudio.google.com | `GEMINI_MODEL` |
 
-- `FEEDLENS_AI_PROVIDER=auto` chọn nhà cung cấp đầu tiên có key (Claude → OpenAI → Gemini). Trong form "Lướt mới" bạn đổi được AI và model cho từng lượt.
-- Server tương thích OpenAI (OpenRouter, LM Studio…): đặt `OPENAI_BASE_URL`. Server đó phải hỗ trợ Responses API và JSON schema.
-- Mọi nhà cung cấp đều dùng **structured output** theo cùng một JSON schema, nên kết quả có cùng định dạng.
-- Thêm nhà cung cấp mới: viết một lớp kế thừa `AIProvider` với hàm `complete_json()` rồi đăng ký trong `ai/registry.py`.
+- Danh sách model trong form "Lướt mới" lấy trực tiếp từ API của nhà cung cấp bằng key của bạn (cache 10 phút, có nút tải lại).
+- Để "Mặc định" thì app chọn model mới nhất thuộc dòng nhanh (Gemini *flash*, OpenAI *mini*, Claude *opus*). Nếu model đó quá tải (429/5xx), app thử lại 3 lần (3s, 6s, 12s) rồi tự chuyển sang model kế tiếp; trạng thái hiện trên web.
+- Mọi nhà cung cấp dùng **structured output** theo cùng một JSON schema, nên kết quả có cùng định dạng.
+- Server tương thích OpenAI (OpenRouter, LM Studio…): đặt `OPENAI_BASE_URL` (chỉ local).
+- Thêm nhà cung cấp: viết lớp kế thừa `AIProvider` với `complete_json()` và `list_models()`, đăng ký trong `ai/registry.py`.
 
 ## Database
 

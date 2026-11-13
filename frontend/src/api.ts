@@ -1,4 +1,4 @@
-import type { Meta, PlatformState, Run, RunRequest } from "./types";
+import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformState, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -39,13 +39,25 @@ const call = async <T>(path: string, init?: RequestInit): Promise<T> => (await r
 
 export const api = {
   meta: () => call<Meta>("/api/meta"),
-  login: (password: string) => call<{ token: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ password }) }),
+  login: (email: string, password: string) =>
+    call<{ token: string; email: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string) =>
+    call<{ token: string; email: string }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
+  me: () => call<Me>("/api/auth/me"),
+  newAgentToken: () => call<{ token: string }>("/api/agent/token", { method: "POST" }),
+  providers: () => call<AIProviderInfo[]>("/api/ai/providers"),
+  saveKey: (p: string, apiKey: string) =>
+    call<{ models: string[] }>(`/api/ai/keys/${p}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) }),
+  deleteKey: (p: string) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
+  models: (p: string, refresh = false) =>
+    call<{ models: string[]; default: string }>(`/api/ai/models/${p}${refresh ? "?refresh=true" : ""}`),
   platforms: () => call<PlatformState[]>("/api/platforms"),
   platformAction: (p: string, act: "login" | "check" | "logout") =>
     call(`/api/platforms/${p}/${act}`, { method: "POST" }),
   runs: () => call<Run[]>("/api/runs"),
   run: (id: number) => call<Run>(`/api/runs/${id}`),
-  createRun: (req: RunRequest) => call<{ id: number }>("/api/runs", { method: "POST", body: JSON.stringify(req) }),
+  createRun: (req: RunRequest) =>
+    call<{ id: number; agent?: AgentInfo }>("/api/runs", { method: "POST", body: JSON.stringify(req) }),
   deleteRun: (id: number) => call(`/api/runs/${id}`, { method: "DELETE" }),
   /** Tải file xuất kèm token (thẻ <a href> thường không gửi được header Authorization). */
   download: async (id: number, fmt: "md" | "csv" | "json") => {

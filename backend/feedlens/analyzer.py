@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import re
+import time
 from collections import Counter, defaultdict
 from typing import Callable
 
-from .ai import AIProvider, get_provider, resolve_provider_key
+from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost
 
 BATCH_SIZE = 20
@@ -83,16 +84,52 @@ DIGEST_SCHEMA = {
 
 # ============================================================ LLM backend (Claude / OpenAI / Gemini)
 
+RETRIES = 3              # mỗi model: 1 lần gọi + 3 lần thử lại (chờ 3s, 6s, 12s)
+RETRY_BASE_SECONDS = 3.0
+_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504, 529}
+
+
+def _is_transient(e: Exception) -> bool:
+    """Lỗi tạm thời của nhà cung cấp (quá tải, rate limit, 5xx) thì nên thử lại."""
+    for attr in ("status_code", "code", "status"):
+        v = getattr(e, attr, None)
+        if isinstance(v, int) and v in _TRANSIENT_CODES:
+            return True
+    msg = str(e).upper()
+    return any(s in msg for s in ("UNAVAILABLE", "OVERLOADED", "RESOURCE_EXHAUSTED", "RATE LIMIT", "TIMEOUT",
+                                  "TIMED OUT", "HIGH DEMAND"))
+
+
 class LLMAnalyzer:
-    def __init__(self, provider: AIProvider):
+    def __init__(self, provider: AIProvider, fallback_models: list[str] | None = None):
         self.provider = provider
+        self.fallback_models = list(fallback_models or [])
+        self.notify: Callable[[str], None] = lambda msg: None  # pipeline gắn vào để báo trạng thái lên web
 
     @property
     def label(self) -> str:
         return f"{self.provider.info.name} ({self.provider.model})"
 
     def _json_call(self, prompt: str, schema: dict, effort: str) -> dict:
-        return self.provider.complete_json(SYSTEM, prompt, schema, effort)
+        name = self.provider.info.name
+        while True:
+            for attempt in range(RETRIES + 1):
+                try:
+                    return self.provider.complete_json(SYSTEM, prompt, schema, effort)
+                except Exception as e:  # noqa: BLE001
+                    if not _is_transient(e):
+                        raise
+                    last = e
+                    if attempt < RETRIES:
+                        wait = RETRY_BASE_SECONDS * 2 ** attempt
+                        self.notify(f"{name} ({self.provider.model}) đang quá tải, thử lại sau {wait:.0f} giây "
+                                    f"(lần {attempt + 1}/{RETRIES})…")
+                        time.sleep(wait)
+            # Model này vẫn quá tải: chuyển sang model dự phòng nếu user để "Mặc định"
+            if not self.fallback_models:
+                raise last
+            old, self.provider.model = self.provider.model, self.fallback_models.pop(0)
+            self.notify(f"{old} quá tải, chuyển sang {self.provider.model}…")
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
                  profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
@@ -217,8 +254,10 @@ class HeuristicAnalyzer:
         )
 
 
-def get_analyzer(provider: str | None = None, model: str | None = None):
-    key = resolve_provider_key(provider)
+def get_analyzer(provider: str | None, model: str | None, keys: dict[str, tuple[str, str]], user_id: int = 0):
+    key = resolve_provider_key(provider, keys)
     if key == "offline":
         return HeuristicAnalyzer()
-    return LLMAnalyzer(get_provider(key, model))
+    api_key = keys[key][0]
+    models = resolve_models(user_id, key, api_key, model)
+    return LLMAnalyzer(get_provider(key, models[0], api_key), fallback_models=models[1:])

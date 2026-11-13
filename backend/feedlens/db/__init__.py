@@ -1,3 +1,3 @@
-from .repository import Database
+from .repository import Database, EmailTaken
 
-__all__ = ["Database"]
+__all__ = ["Database", "EmailTaken"]

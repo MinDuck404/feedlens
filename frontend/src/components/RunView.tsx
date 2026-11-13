@@ -77,14 +77,15 @@ export default function RunView({ runId, meta, onDeleted }: { runId: number; met
 function InProgress({ run }: { run: Run }) {
   const p = run.progress;
   const pct = p?.target ? Math.min(100, Math.round((p.done / p.target) * 100)) : 0;
-  const phase = run.status === "scraping" ? "Đang lướt và gom bài" : run.status === "analyzing" ? "AI đang đọc từng bài" : "Đang chuẩn bị";
+  const phase = run.status === "pending" ? "Đang chờ agent trên máy bạn nhận việc"
+    : run.status === "scraping" ? "Đang lướt và gom bài" : run.status === "analyzing" ? "AI đang đọc từng bài" : "Đang chuẩn bị";
   return (
     <div className="mt-10 max-w-lg">
       <p className="font-semibold">{phase}</p>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-sunken">
         <div className="h-full rounded-full bg-cobalt transition-[width] duration-500" style={{ width: `${pct}%` }} />
       </div>
-      <p className="mt-2 text-sm text-ink-soft">{p?.message || "Đang mở trình duyệt…"}</p>
+      <p className="mt-2 text-sm text-ink-soft">{p?.message || (run.status === "pending" ? "Lượt sẽ tự chạy khi agent bật. Xem cách bật trong phần Cài đặt." : "Đang mở trình duyệt…")}</p>
     </div>
   );
 }

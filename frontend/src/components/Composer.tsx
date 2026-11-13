@@ -1,8 +1,8 @@
-import { X as XIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { API_BASE, api } from "../api";
+import { Loader2, RefreshCw, X as XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
-import type { Meta, Platform, PlatformState, RunRequest, SourceType } from "../types";
+import type { AIProviderInfo, Me, Meta, Platform, PlatformState, RunRequest, SourceType } from "../types";
 
 const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label: string; ph: string }>> = {
   facebook: {
@@ -25,15 +25,18 @@ const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label:
 
 interface Props {
   meta: Meta;
+  me: Me | null;
   platforms: PlatformState[];
   onClose: () => void;
   onCreated: (id: number) => void;
+  onOpenSettings: () => void;
 }
 
-export default function Composer({ meta, platforms, onClose, onCreated }: Props) {
+export default function Composer({ meta, me, platforms, onClose, onCreated, onOpenSettings }: Props) {
+  const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
   const [f, setF] = useState<RunRequest>({
     platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false,
-    keywords: [], profile: "", ai_provider: meta.default_ai, ai_model: "", only_new: false, headless: false,
+    keywords: [], profile: "", ai_provider: "offline", ai_model: "", only_new: false, headless: false,
   });
   const [sourcesText, setSourcesText] = useState("");
   const [keywordsText, setKeywordsText] = useState("");
@@ -45,26 +48,23 @@ export default function Composer({ meta, platforms, onClose, onCreated }: Props)
   const platformOptions = platforms.length
     ? platforms.map((p) => ({ value: p.key, label: p.name.replace(" (Twitter)", "") }))
     : Object.entries(PLATFORM_LABEL).map(([value, label]) => ({ value, label }));
-  const pushCommand = buildPushCommand(f, sourcesText, keywordsText, API_BASE || window.location.origin);
-  const [copied, setCopied] = useState(false);
-  const provider = meta.ai_providers.find((p) => p.key === f.ai_provider);
   const platformState = platforms.find((p) => p.key === f.platform);
   const hint = f.source_type !== "feed" ? SOURCE_HINT[f.platform][f.source_type] : null;
+  const usable = (providers ?? []).filter((p) => p.configured);
 
   useEffect(() => {
+    api.providers().then((list) => {
+      setProviders(list);
+      const first = list.find((p) => p.configured && p.key !== "offline");
+      if (first) set("ai_provider", first.key);
+    });
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const notLoggedIn = useMemo(
-    () => platformState && !platformState.has_profile,
-    [platformState],
-  );
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cloud) return;
     setError("");
     setSending(true);
     try {
@@ -83,12 +83,8 @@ export default function Composer({ meta, platforms, onClose, onCreated }: Props)
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end bg-ink/30" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form
-        onSubmit={submit}
-        role="dialog"
-        aria-label="Lướt mới"
-        className="sheet flex h-full w-full max-w-md flex-col bg-surface shadow-2xl"
-      >
+      <form onSubmit={submit} role="dialog" aria-label="Lướt mới"
+        className="sheet flex h-full w-full max-w-md flex-col bg-surface shadow-2xl">
         <header className="flex items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-lg font-semibold">Lướt mới</h2>
           <button type="button" onClick={onClose} aria-label="Đóng" className="rounded-md p-1 text-ink-soft hover:bg-sunken">
@@ -98,24 +94,17 @@ export default function Composer({ meta, platforms, onClose, onCreated }: Props)
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           <Group label="Nền tảng">
-            <Segmented
-              value={f.platform}
-              onChange={(v) => set("platform", v as Platform)}
-              options={platformOptions}
-            />
-            {!cloud && notLoggedIn && (
+            <Segmented value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
+            {!cloud && platformState && !platformState.has_profile && (
               <p className="mt-2 text-sm text-ink-soft">
-                Bạn chưa đăng nhập {platformState?.name}. Đăng nhập ở cột bên trái trước, nếu không bot chỉ thấy nội dung công khai.
+                Bạn chưa đăng nhập {platformState.name}. Đăng nhập ở cột bên trái trước, nếu không bot chỉ thấy nội dung công khai.
               </p>
             )}
           </Group>
 
           <Group label="Lướt ở đâu">
-            <Segmented
-              value={f.source_type}
-              onChange={(v) => set("source_type", v as SourceType)}
-              options={[{ value: "feed", label: "Bảng tin" }, { value: "group", label: "Group" }, { value: "search", label: "Tìm kiếm" }]}
-            />
+            <Segmented value={f.source_type} onChange={(v) => set("source_type", v as SourceType)}
+              options={[{ value: "feed", label: "Bảng tin" }, { value: "group", label: "Group" }, { value: "search", label: "Tìm kiếm" }]} />
             {hint && (
               <label className="mt-3 block">
                 <span className="mb-1 block text-sm">{hint.label}, mỗi dòng một mục</span>
@@ -132,19 +121,25 @@ export default function Composer({ meta, platforms, onClose, onCreated }: Props)
           </Group>
 
           <Group label="AI đọc bài">
-            <select className="field" value={f.ai_provider}
-              onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); }}>
-              {meta.ai_providers.map((p) => (
-                <option key={p.key} value={p.key} disabled={!p.configured}>
-                  {p.name}{p.configured ? "" : ` (thiếu ${p.env_key})`}
-                </option>
-              ))}
-            </select>
-            {provider && provider.models.length > 0 && (
+            {providers === null ? (
+              <p className="text-sm text-ink-soft">Đang tải…</p>
+            ) : (
               <>
-                <input className="field mt-2" list="models" placeholder={`Model: ${provider.default_model}`}
-                  value={f.ai_model} onChange={(e) => set("ai_model", e.target.value)} aria-label="Model" />
-                <datalist id="models">{provider.models.map((m) => <option key={m} value={m} />)}</datalist>
+                <select className="field" value={f.ai_provider}
+                  onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); }}>
+                  {usable.map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+                </select>
+                {f.ai_provider !== "offline" && (
+                  <ModelPicker provider={f.ai_provider} value={f.ai_model} onChange={(m) => set("ai_model", m)} />
+                )}
+                {usable.length === 1 && (
+                  <p className="mt-2 text-sm text-ink-soft">
+                    Chưa có API key nào nên chỉ dùng được bộ lọc từ khóa.{" "}
+                    <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+                      Thêm key Gemini, ChatGPT hoặc Claude
+                    </button>
+                  </p>
+                )}
               </>
             )}
           </Group>
@@ -176,51 +171,54 @@ export default function Composer({ meta, platforms, onClose, onCreated }: Props)
         </div>
 
         <footer className="border-t border-line px-6 py-4">
-          {cloud ? (
-            <>
-              <p className="mb-2 text-sm">
-                Chạy lệnh này trong thư mục <code>backend</code> trên máy bạn. Đặt biến <code>FEEDLENS_API_TOKEN</code> trước khi chạy.
-              </p>
-              <pre className="max-h-32 overflow-auto rounded-lg bg-sunken p-3 text-xs whitespace-pre-wrap break-all">{pushCommand}</pre>
-              <button type="button"
-                onClick={() => navigator.clipboard.writeText(pushCommand).then(() => setCopied(true))}
-                className="mt-3 w-full rounded-lg bg-cobalt py-2.5 font-semibold text-cobalt-ink hover:opacity-90">
-                {copied ? "Đã copy lệnh" : "Copy lệnh"}
+          {cloud && me && !me.agent.online && (
+            <p className="mb-3 text-sm text-ink-soft">
+              Agent trên máy bạn đang tắt. Lượt sẽ chờ và tự chạy khi agent bật.{" "}
+              <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+                {me.agent.has_token ? "Xem cách bật" : "Kết nối agent"}
               </button>
-            </>
-          ) : (
-            <>
-              {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
-              <button disabled={sending}
-                className="w-full rounded-lg bg-cobalt py-2.5 font-semibold text-cobalt-ink hover:opacity-90 disabled:opacity-50">
-                {sending ? "Đang bắt đầu…" : "Bắt đầu lướt"}
-              </button>
-            </>
+            </p>
           )}
+          {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
+          <button disabled={sending}
+            className="w-full rounded-lg bg-cobalt py-2.5 font-semibold text-cobalt-ink hover:opacity-90 disabled:opacity-50">
+            {sending ? "Đang bắt đầu…" : "Bắt đầu lướt"}
+          </button>
         </footer>
       </form>
     </div>
   );
 }
 
-/** Lệnh PowerShell/bash cho bot ở máy: lướt rồi đẩy bài lên server cloud. */
-function buildPushCommand(f: RunRequest, sourcesText: string, keywordsText: string, server: string): string {
-  const q = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
-  const parts = [".venv/Scripts/feedlens push", f.platform];
-  if (f.source_type !== "feed") parts.push("--type", f.source_type);
-  sourcesText.split("\n").map((s) => s.trim()).filter(Boolean).forEach((s) => parts.push("--source", q(s)));
-  parts.push("-n", String(f.count));
-  if (f.job_mode) {
-    parts.push("--jobs");
-    keywordsText.split(",").map((s) => s.trim()).filter(Boolean).forEach((k) => parts.push("-k", q(k)));
-    if (f.profile.trim()) parts.push("--profile", q(f.profile.trim().replace(/\s+/g, " ")));
-  }
-  if (f.only_new) parts.push("--only-new");
-  if (f.headless) parts.push("--headless");
-  if (f.ai_provider !== "auto") parts.push("--ai", f.ai_provider);
-  if (f.ai_model) parts.push("--model", f.ai_model);
-  parts.push("--server", server);
-  return parts.join(" ");
+function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
+  const [models, setModels] = useState<string[]>([]);
+  const [def, setDef] = useState("");
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+  const [error, setError] = useState("");
+
+  const load = (refresh = false) => {
+    setState("loading");
+    api.models(provider, refresh)
+      .then((r) => { setModels(r.models); setDef(r.default); setState("ok"); })
+      .catch((e) => { setError((e as Error).message); setState("error"); });
+  };
+  useEffect(() => { load(); }, [provider]);
+
+  return (
+    <div className="mt-2 flex gap-2">
+      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}
+        disabled={state !== "ok"} aria-label="Model">
+        <option value="">
+          {state === "loading" ? "Đang lấy danh sách model…" : state === "error" ? error : `Mặc định (${def})`}
+        </option>
+        {models.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <button type="button" onClick={() => load(true)} title="Tải lại danh sách model" aria-label="Tải lại danh sách model"
+        className="grid w-10 shrink-0 place-items-center rounded-lg border border-line text-ink-soft hover:text-ink">
+        {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+      </button>
+    </div>
+  );
 }
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {

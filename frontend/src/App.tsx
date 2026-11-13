@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { api, auth } from "./api";
 import Composer from "./components/Composer";
 import Login from "./components/Login";
+import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import Sidebar from "./components/Sidebar";
-import type { Meta, PlatformState, Run } from "./types";
+import type { Me, Meta, PlatformState, Run } from "./types";
 
 export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -29,7 +30,7 @@ export default function App() {
   }
   if (!meta) return null;
   if (meta.auth_required && !authed) {
-    return <Login configError={meta.config_error} onDone={() => setAuthed(true)} />;
+    return <Login configError={meta.config_error} signupOpen={meta.signup_open} onDone={() => setAuthed(true)} />;
   }
   return <Workspace meta={meta} onLogout={meta.auth_required ? () => { auth.clear(); setAuthed(false); } : undefined} />;
 }
@@ -39,11 +40,14 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const [runs, setRuns] = useState<Run[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
 
+  const refreshMe = useCallback(() => api.me().then(setMe).catch(() => {}), []);
   const refreshPlatforms = useCallback(() => api.platforms().then(setPlatforms).catch(() => {}), []);
   const refreshRuns = useCallback(() => api.runs().then(setRuns).catch(() => {}), []);
 
-  useEffect(() => { refreshPlatforms(); refreshRuns(); }, [refreshPlatforms, refreshRuns]);
+  useEffect(() => { refreshPlatforms(); refreshRuns(); refreshMe(); }, [refreshPlatforms, refreshRuns, refreshMe]);
 
   // Cập nhật định kỳ khi có lượt đang chạy, đang chờ đăng nhập, hoặc ở cloud (bot ở máy có thể đẩy lượt mới bất cứ lúc nào)
   const busy = runs.some((r) => !["done", "error"].includes(r.status));
@@ -53,15 +57,19 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
     if (!busy && !waitingLogin && !cloud) return;
     const t = setInterval(() => {
       if (busy || cloud) refreshRuns();
+      if (cloud) refreshMe();
       if (waitingLogin) refreshPlatforms();
     }, busy || waitingLogin ? 2000 : 15000);
     return () => clearInterval(t);
-  }, [busy, waitingLogin, cloud, refreshRuns, refreshPlatforms]);
+  }, [busy, waitingLogin, cloud, refreshRuns, refreshPlatforms, refreshMe]);
 
   return (
     <div className="flex h-full flex-col md:flex-row">
       <Sidebar
         cloud={cloud}
+        email={meta.auth_required ? me?.email : undefined}
+        agentOnline={cloud ? !!me?.agent.online : undefined}
+        onOpenSettings={() => setSettingsOpen(true)}
         platforms={platforms}
         runs={runs}
         selected={selected}
@@ -81,10 +89,15 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
       {composerOpen && (
         <Composer
           meta={meta}
+          me={me}
           platforms={platforms}
           onClose={() => setComposerOpen(false)}
           onCreated={(id) => { setComposerOpen(false); setSelected(id); refreshRuns(); }}
+          onOpenSettings={() => { setComposerOpen(false); setSettingsOpen(true); }}
         />
+      )}
+      {settingsOpen && (
+        <Settings meta={meta} me={me} onClose={() => setSettingsOpen(false)} onChanged={refreshMe} />
       )}
     </div>
   );
@@ -98,7 +111,7 @@ function EmptyState({ cloud, hasRuns, onNewRun }: { cloud: boolean; hasRuns: boo
       </h1>
       <p className="mt-5 max-w-prose text-ink-soft">
         {cloud
-          ? "Bot chạy trên máy bạn, dùng Chrome và phiên đăng nhập của bạn, rồi gửi bài lên đây. Server chia bài theo loại, tóm tắt và lọc việc làm hợp với bạn."
+          ? "Agent trên máy bạn mở Chrome bằng phiên đăng nhập của bạn để lướt, rồi gửi bài lên đây. Thêm API key và kết nối agent trong phần Cài đặt, sau đó bấm Lướt mới."
           : "Đăng nhập một nền tảng ở cột bên trái, chọn bảng tin hoặc group, và FeedLens sẽ gom bài, chia theo loại, lọc ra việc làm hợp với bạn."}
       </p>
       <div className="mt-8 flex gap-3">

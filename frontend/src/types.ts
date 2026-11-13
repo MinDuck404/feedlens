@@ -1,24 +1,35 @@
 export type Platform = "facebook" | "linkedin" | "x" | "reddit";
 export type SourceType = "feed" | "group" | "search";
-export type RunStatus = "queued" | "scraping" | "analyzing" | "done" | "error";
+export type RunStatus = "pending" | "queued" | "scraping" | "analyzing" | "done" | "error";
 
 export interface AIProviderInfo {
   key: string;
   name: string;
   configured: boolean;
+  source: "db" | "env" | null;
+  hint: string;
   default_model: string;
-  models: string[];
-  env_key: string;
+  key_url: string;
+}
+
+export interface AgentInfo {
+  has_token: boolean;
+  online: boolean;
+  last_seen: string | null;
+}
+
+export interface Me {
+  email: string;
+  agent: AgentInfo;
 }
 
 export interface Meta {
   mode: "local" | "cloud";
   auth_required: boolean;
   config_error: string | null;
+  signup_open: boolean;
   categories: Record<string, string>;
   max_posts: number;
-  default_ai: string;
-  ai_providers: AIProviderInfo[];
 }
 
 export interface PlatformState {

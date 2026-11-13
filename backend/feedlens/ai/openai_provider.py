@@ -4,19 +4,21 @@ import json
 
 from .base import AIError, AIProvider, Effort, ProviderInfo
 
+# Model OpenAI không dùng được cho chat/văn bản
+_SKIP = ("audio", "realtime", "tts", "transcribe", "image", "embedding", "moderation", "search", "whisper", "dall-e")
+
 
 class OpenAIProvider(AIProvider):
     info = ProviderInfo(
         key="openai", name="ChatGPT", env_key="OPENAI_API_KEY", model_env="OPENAI_MODEL",
-        default_model="gpt-5-mini",
-        suggested_models=("gpt-5-mini", "gpt-5", "gpt-4.1-mini"),
+        default_model="gpt-5-mini", key_url="https://platform.openai.com/api-keys",
     )
 
-    def __init__(self, model: str | None = None):
-        super().__init__(model)
+    def __init__(self, model: str | None = None, api_key: str | None = None):
+        super().__init__(model, api_key)
         from openai import OpenAI
 
-        self.client = OpenAI()  # đọc OPENAI_API_KEY và OPENAI_BASE_URL từ môi trường
+        self.client = OpenAI(api_key=api_key) if api_key else OpenAI()
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         resp = self.client.responses.create(
@@ -32,3 +34,8 @@ class OpenAIProvider(AIProvider):
         if not text:
             raise AIError("OpenAI không trả nội dung (có thể đã từ chối)")
         return json.loads(text)
+
+    def list_models(self) -> list[str]:
+        models = [m for m in self.client.models.list()
+                  if m.id.startswith(("gpt-", "o1", "o3", "o4", "chatgpt")) and not any(s in m.id for s in _SKIP)]
+        return [m.id for m in sorted(models, key=lambda m: m.created, reverse=True)]
