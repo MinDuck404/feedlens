@@ -1,4 +1,4 @@
-import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -46,6 +46,11 @@ export const api = {
   me: () => call<Me>("/api/auth/me"),
   preferences: () => call<Preferences>("/api/preferences"),
   savePreferences: (p: Preferences) => call("/api/preferences", { method: "PUT", body: JSON.stringify(p) }),
+  sessions: () => call<PlatformSession[]>("/api/sessions"),
+  saveSession: (p: string, cookies: string) =>
+    call<PlatformSession>(`/api/sessions/${p}`, { method: "PUT", body: JSON.stringify({ cookies }) }),
+  deleteSession: (p: string) => call(`/api/sessions/${p}`, { method: "DELETE" }),
+  checkSession: (p: string) => call<PlatformSession>(`/api/sessions/${p}/check`, { method: "POST" }),
   newAgentToken: () => call<{ token: string }>("/api/agent/token", { method: "POST" }),
   providers: () => call<AIProviderInfo[]>("/api/ai/providers"),
   saveKey: (p: string, apiKey: string) =>

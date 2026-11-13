@@ -29,7 +29,8 @@ from .crypto import encrypt, hash_password, key_hint, new_agent_token, sha256, v
 from .db import Database, EmailTaken
 from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
-from .pipeline import PROGRESS, fail_run, start_analysis, start_ingest, start_run
+from .cookies import CookieError, cookie_hint, parse_cookies
+from .pipeline import PROGRESS, fail_run, start_analysis, start_ingest, start_run, start_server_run
 
 app = FastAPI(title="FeedLens API", version="0.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
@@ -92,13 +93,26 @@ def _agent_info(user_id: int) -> dict:
 # ================================================================== public
 @public.get("/health")
 def health():
-    return {"ok": True, "mode": settings.mode, "db": db().engine.dialect.name}
+    out = {"ok": True, "mode": settings.mode, "db": db().engine.dialect.name}
+    if settings.is_cloud and settings.server_scrape:
+        out["browser"] = _browser_installed()
+    return out
+
+
+def _browser_installed() -> bool:
+    """Chromium cho chế độ Server đã có trong image chưa (chỉ kiểm tra file, không khởi chạy)."""
+    import os
+    from pathlib import Path
+
+    root = Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", Path.home() / ".cache" / "ms-playwright"))
+    return root.exists() and any(p.name.startswith("chromium") for p in root.iterdir())
 
 
 @public.get("/meta")
 def meta():
     return {"mode": settings.mode, "auth_required": settings.auth_enabled, "config_error": misconfigured(),
-            "signup_open": settings.allow_signup, "categories": CATEGORIES, "max_posts": settings.max_posts}
+            "signup_open": settings.allow_signup, "server_scrape": settings.is_cloud and settings.server_scrape,
+            "categories": CATEGORIES, "max_posts": settings.max_posts}
 
 
 class Credentials(BaseModel):
@@ -173,6 +187,66 @@ async def put_preferences(request: Request, user: User = Depends(current_user)):
         raise HTTPException(400, "Cài đặt phải là một object JSON.")
     db().set_preferences(user.id, prefs)
     return {"ok": True}
+
+
+# ================================================================== cookie để lướt trên server
+def _session_dict(r) -> dict:
+    return {"platform": r.platform, "hint": r.hint, "saved_at": r.saved_at.isoformat(),
+            "status": r.status, "status_message": r.status_message,
+            "checked_at": r.checked_at.isoformat() if r.checked_at else None}
+
+
+def _server_scrape_on():
+    if not (settings.is_cloud and settings.server_scrape):
+        raise HTTPException(409, "Chế độ lướt trên server chỉ có ở bản cloud và đang bị tắt.")
+
+
+@private.get("/sessions")
+def list_sessions(user: User = Depends(current_user)):
+    return [_session_dict(r) for r in db().list_sessions(user.id)]
+
+
+class CookieBody(BaseModel):
+    cookies: str = Field(min_length=10, max_length=200_000)
+
+
+@private.put("/sessions/{p}")
+def save_session(p: str, body: CookieBody, user: User = Depends(current_user)):
+    """Nhận cookie (dán trên web hoặc `feedlens cookies push`), kiểm tra định dạng, mã hóa rồi lưu."""
+    _server_scrape_on()
+    _platform_or_404(p)
+    try:
+        cookies = parse_cookies(body.cookies, p)
+    except CookieError as e:
+        raise HTTPException(400, str(e))
+    db().upsert_session(user.id, p, encrypt(json.dumps(cookies)), cookie_hint(cookies, p))
+    return _session_dict(db().get_session(user.id, p))
+
+
+@private.delete("/sessions/{p}")
+def delete_session(p: str, user: User = Depends(current_user)):
+    _platform_or_404(p)
+    db().delete_session(user.id, p)
+    return {"ok": True}
+
+
+@private.post("/sessions/{p}/check")
+async def check_session_cookie(p: str, user: User = Depends(current_user)):
+    """Thử mở trang chủ bằng cookie từ server (mất ~10 giây, chờ nếu server đang lướt)."""
+    from .crypto import decrypt
+    from .server_runner import check_cookies
+
+    _server_scrape_on()
+    row = db().get_session(user.id, p)
+    cookies = json.loads(decrypt(row.ciphertext) or "null") if row else None
+    if not cookies:
+        raise HTTPException(404, "Chưa có cookie cho nền tảng này.")
+    try:
+        ok, msg = await run_in_threadpool(check_cookies, p, cookies)
+    except Exception as e:  # noqa: BLE001 — trình duyệt trên server lỗi (hết RAM...)
+        raise HTTPException(502, f"Server không mở được trình duyệt để kiểm tra: {str(e)[:200]}")
+    db().set_session_status(user.id, p, "ok" if ok else "invalid", msg)
+    return _session_dict(db().get_session(user.id, p))
 
 
 @private.post("/agent/token")
@@ -299,6 +373,17 @@ def create_run(req: RunRequest, user: User = Depends(current_user)):
         raise HTTPException(400, "Nhập ít nhất một group hoặc từ khóa.")
     req = req.model_copy(update={"count": min(req.count, settings.max_posts)})
     _check_ai(req, user.id)
+    if settings.is_cloud and req.runner == "server":
+        if not settings.server_scrape:
+            raise HTTPException(403, "Server này đã tắt chế độ lướt bằng cookie. Hãy chạy bằng agent.")
+        s = db().get_session(user.id, req.platform)
+        if not s:
+            raise HTTPException(400, f"Chưa có cookie {req.platform}. Thêm trong Cài đặt → Lướt trên server.")
+        if s.status == "invalid":
+            raise HTTPException(400, f"Cookie {req.platform} đã hết hiệu lực: {s.status_message} Hãy gửi cookie mới.")
+        req = req.model_copy(update={"headless": True})
+        run_id = start_server_run(db(), req, user.id)
+        return {"id": run_id}
     if settings.is_cloud:
         run_id = db().create_run(req, user.id, status="pending")
         PROGRESS[run_id] = {"phase": "pending", "done": 0, "target": req.count, "message": "Đang chờ agent nhận việc…"}

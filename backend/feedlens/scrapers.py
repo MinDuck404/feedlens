@@ -135,19 +135,24 @@ class Scraper:
     def blocked(self, url: str) -> bool:
         return is_blocked_url(self.platform, url)
 
+    def blocked_page(self, page: Page) -> bool:
+        """Bị đòi đăng nhập/xác minh: URL checkpoint, hoặc trang hiện form đăng nhập
+        (Facebook hiện form ngay tại facebook.com/ khi cookie hỏng, URL không đổi)."""
+        return self.blocked(page.url) or has_login_form(page)
+
     def ensure_access(self, page: Page, url: str, progress: ProgressFn, interactive: bool) -> bool:
         """Nếu nền tảng chuyển sang trang đăng nhập / xác minh 2 bước / checkpoint:
         - có cửa sổ: chờ người dùng tự xác minh (không tự giải CAPTCHA), rồi mở lại trang cần lướt;
         - chạy ẩn: báo lỗi rõ ràng thay vì lướt ra 0 bài.
         Trả về True nếu đã phải chờ và mở lại trang."""
-        if not self.blocked(page.url):
+        if not self.blocked_page(page):
             return False
         if not interactive:
             raise NeedsVerification(
                 f"{self.platform} đang yêu cầu đăng nhập hoặc xác minh. Tắt chế độ chạy ẩn để xác minh "
                 f"trong cửa sổ Chrome, hoặc chạy `feedlens login {self.platform}`.")
         deadline = time.time() + VERIFY_TIMEOUT
-        while self.blocked(page.url):
+        while self.blocked_page(page):
             left = int(deadline - time.time())
             if left <= 0:
                 raise NeedsVerification(f"Hết {VERIFY_TIMEOUT // 60} phút chờ xác minh {self.platform}. Hãy chạy lại.")
@@ -176,6 +181,14 @@ BLOCKED_PATHS: dict[str, tuple[str, ...]] = {
 
 def is_blocked_url(platform: str, url: str) -> bool:
     return any(p in url for p in BLOCKED_PATHS.get(platform, ()))
+
+
+def has_login_form(page) -> bool:
+    """Trang đang hiện ô nhập mật khẩu = chưa đăng nhập (dù URL trông bình thường)."""
+    try:
+        return page.locator("input[type=password]:visible").count() > 0
+    except Exception:  # noqa: BLE001 — trang đang chuyển hoặc đối tượng giả trong test
+        return False
 
 
 # Nhịp lướt. "fast": mặc định, đủ nhanh mà vẫn có quãng nghỉ; "careful": chậm hơn, ít bị nghi ngờ hơn.

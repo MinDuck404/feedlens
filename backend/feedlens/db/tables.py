@@ -40,6 +40,22 @@ class ApiKeyRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class PlatformSessionRow(Base):
+    """Cookie mạng xã hội (đã mã hóa) để server lướt thay user ở chế độ 'Server'."""
+    __tablename__ = "platform_sessions"
+    __table_args__ = (UniqueConstraint("user_id", "platform"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    platform: Mapped[str] = mapped_column(String(20))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    hint: Mapped[str] = mapped_column(String(32), default="")
+    saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    status: Mapped[str] = mapped_column(String(20), default="unchecked")  # unchecked | ok | invalid
+    status_message: Mapped[str] = mapped_column(Text, default="")
+    checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class RunRow(Base):
     __tablename__ = "runs"
 

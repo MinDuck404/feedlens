@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import type {
-  AIProviderInfo, Me, Meta, Platform, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
+  AIProviderInfo, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
 } from "../types";
 
 const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label: string; ph: string }>> = {
@@ -27,7 +27,7 @@ const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label:
 
 const DEFAULTS: RunRequest = {
   platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false, keywords: [], profile: "",
-  ai_provider: "offline", ai_model: "", only_new: false, headless: false, speed: "fast",
+  ai_provider: "offline", ai_model: "", only_new: false, headless: false, speed: "fast", runner: "agent",
 };
 
 const lines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -49,6 +49,7 @@ interface Props {
 export default function Composer({ meta, me, platforms, prefs, onPrefsChange, onClose, onCreated, onOpenSettings }: Props) {
   const saved = prefs.composer ?? {};
   const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
+  const [sessions, setSessions] = useState<PlatformSession[]>([]);
   const [f, setF] = useState<RunRequest>({ ...DEFAULTS, ...saved, sources: [], keywords: [] });
   const [groups, setGroups] = useState(prefs.groups ?? {});
   const [searches, setSearches] = useState(prefs.searches ?? {});
@@ -59,6 +60,8 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const set = <K extends keyof RunRequest>(k: K, v: RunRequest[K]) => setF((s) => ({ ...s, [k]: v }));
 
   const cloud = meta.mode === "cloud";
+  const serverMode = cloud && meta.server_scrape && f.runner === "server";
+  const session = sessions.find((x) => x.platform === f.platform);
   const platformOptions = platforms.length
     ? platforms.map((p) => ({ value: p.key, label: p.name.replace(" (Twitter)", "") }))
     : Object.entries(PLATFORM_LABEL).map(([value, label]) => ({ value, label }));
@@ -72,7 +75,9 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const nSources = f.source_type === "feed" ? 1 : Math.max(1, sources.length);
   const total = Math.min(f.count * nSources, meta.max_posts);
 
+  // Tải một lần khi mở form (không chạy lại khi App cập nhật, để không ghi đè lựa chọn đang chỉnh)
   useEffect(() => {
+    if (cloud && meta.server_scrape) api.sessions().then(setSessions).catch(() => {});
     api.providers().then((list) => {
       setProviders(list);
       const ok = (k?: string) => !!k && list.some((p) => p.key === k && p.configured);
@@ -80,10 +85,15 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       setF((s) => ({ ...s, ai_provider: ok(saved.ai_provider) ? saved.ai_provider! : first,
                      ai_model: ok(saved.ai_provider) ? saved.ai_model ?? "" : "" }));
     });
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+  }, []);
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   const snapshot = (next: Partial<Preferences> = {}): Preferences => ({
     composer: { ...f, sources: undefined, keywords: undefined, keywords_text: keywordsText },
@@ -157,6 +167,18 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
         </header>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {cloud && meta.server_scrape && (
+            <Group label="Chạy bằng">
+              <Segmented value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
+                options={[{ value: "agent", label: "Agent trên máy" }, { value: "server", label: "Server (cookie)" }]} />
+              <p className="mt-2 text-sm text-ink-soft">
+                {f.runner === "agent"
+                  ? "Agent mở Chrome trên máy bạn bằng phiên đăng nhập và IP nhà. An toàn nhất cho tài khoản."
+                  : "Server tự lướt bằng cookie đã lưu, không cần bật agent. Dễ bị nền tảng bắt xác minh hoặc khóa tài khoản."}
+              </p>
+            </Group>
+          )}
+
           <Group label="Nền tảng">
             <Segmented value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
             {!cloud && platformState && !platformState.has_profile && (
@@ -284,15 +306,23 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
 
           <Group label="Tùy chọn">
             <Toggle checked={f.only_new} onChange={(v) => set("only_new", v)}>Bỏ qua bài đã thấy ở lượt trước</Toggle>
-            <Toggle checked={!f.headless} onChange={(v) => set("headless", !v)}>Hiện cửa sổ trình duyệt khi lướt</Toggle>
-            {f.headless && (
+            {!serverMode && <Toggle checked={!f.headless} onChange={(v) => set("headless", !v)}>Hiện cửa sổ trình duyệt khi lướt</Toggle>}
+            {!serverMode && f.headless && (
               <p className="text-sm text-ink-soft">Chạy ẩn thì không xác minh 2 bước được; nếu nền tảng hỏi xác minh, lượt sẽ dừng và báo lỗi.</p>
             )}
           </Group>
         </div>
 
         <footer className="border-t border-line px-6 py-4">
-          {cloud && me && !me.agent.online && (
+          {serverMode && (!session || session.status === "invalid") && (
+            <p className="mb-3 text-sm text-danger">
+              {session ? `Cookie ${PLATFORM_LABEL[f.platform]} đã hết hiệu lực. ` : `Chưa có cookie ${PLATFORM_LABEL[f.platform]} trên server. `}
+              <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+                {session ? "Gửi cookie mới" : "Thêm cookie"}
+              </button>
+            </p>
+          )}
+          {!serverMode && cloud && me && !me.agent.online && (
             <p className="mb-3 text-sm text-ink-soft">
               Agent trên máy bạn đang tắt. Lượt sẽ chờ và tự chạy khi agent bật.{" "}
               <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">

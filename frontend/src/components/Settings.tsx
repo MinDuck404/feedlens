@@ -1,7 +1,8 @@
 import { Check, Copy, ExternalLink, Loader2, X as XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API_BASE, api } from "../api";
 import type { AIProviderInfo, Me, Meta } from "../types";
+import CookieSessions from "./CookieSessions";
 
 interface Props {
   meta: Meta;
@@ -14,12 +15,14 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const reload = () => api.providers().then(setProviders);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    reload();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    reload();  // một lần khi mở, không chạy lại mỗi lần App cập nhật
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end bg-ink/30" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -43,6 +46,7 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
             </ul>
           </div>
           {meta.mode === "cloud" && me && <AgentSection me={me} onChanged={onChanged} />}
+          {meta.server_scrape && <CookieSessions />}
         </div>
       </section>
     </div>

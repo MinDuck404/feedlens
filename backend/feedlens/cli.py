@@ -1,4 +1,4 @@
-"""feedlens serve | login | run | push | agent | demo"""
+"""feedlens serve | login | run | push | agent | cookies push | demo"""
 from __future__ import annotations
 
 import argparse
@@ -42,6 +42,32 @@ def _push(a) -> None:
     print(f"Đã gửi {len(posts)} bài, lượt #{r.json()['id']}. Server đang phân tích; mở giao diện web để xem.")
 
 
+def _push_cookies(a) -> None:
+    import json
+
+    import httpx
+
+    from .agent import load_config
+    from .browser import open_context, profile_dir
+    from .cookies import DOMAIN
+
+    cfg = load_config()
+    server = (a.server or cfg.get("server") or os.getenv("FEEDLENS_SERVER", "")).rstrip("/")
+    token = a.token or cfg.get("token") or os.getenv("FEEDLENS_AGENT_TOKEN", "")
+    if not server or not token:
+        sys.exit("Chưa có server/token. Chạy `feedlens agent --server ... --token ...` một lần, hoặc truyền --server --token.")
+    if not profile_dir(a.platform).exists():
+        sys.exit(f"Chưa đăng nhập {a.platform} trên máy này. Chạy `feedlens login {a.platform}` trước.")
+    with open_context(a.platform, headless=True) as ctx:
+        cookies = [c for c in ctx.cookies() if DOMAIN[a.platform] in c["domain"]]
+    print(f"Đọc được {len(cookies)} cookie {DOMAIN[a.platform]} từ profile FeedLens. Đang gửi (mã hóa trên server)…")
+    r = httpx.put(f"{server}/api/sessions/{a.platform}", timeout=60,
+                  headers={"Authorization": f"Bearer {token}"}, json={"cookies": json.dumps(cookies)})
+    if r.status_code != 200:
+        sys.exit(f"Server từ chối ({r.status_code}): {r.json().get('detail', r.text)[:300]}")
+    print(f"Đã lưu cookie {a.platform} ({r.json()['hint']}). Trên web chọn 'Chạy bằng: Server' để lướt không cần agent.")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="feedlens")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -74,6 +100,12 @@ def main(argv: list[str] | None = None) -> None:
     ag = sub.add_parser("agent", help="Chạy nền: nhận việc từ web FeedLens cloud, lướt trên máy này")
     ag.add_argument("--server", default="", help="URL backend cloud (lưu lại cho lần sau)")
     ag.add_argument("--token", default="", help="Token agent tạo trong phần Cài đặt (lưu lại cho lần sau)")
+
+    ck = sub.add_parser("cookies", help="Gửi cookie đăng nhập (từ profile FeedLens trên máy) lên server để lướt bằng server")
+    ck.add_argument("action", choices=["push"])
+    ck.add_argument("platform", choices=["facebook", "linkedin", "x", "reddit"])
+    ck.add_argument("--server", default="", help="URL backend cloud (mặc định lấy từ cấu hình agent)")
+    ck.add_argument("--token", default="", help="Token agent (mặc định lấy từ cấu hình agent)")
 
     sub.add_parser("demo", help="Tạo một lượt mẫu (dữ liệu giả) để xem giao diện")
 
@@ -110,6 +142,8 @@ def main(argv: list[str] | None = None) -> None:
             Agent(server, token).run_forever()
         except KeyboardInterrupt:
             print("\nĐã dừng agent.")
+    elif a.cmd == "cookies":
+        _push_cookies(a)
     elif a.cmd == "demo":
         from . import pipeline
         from .config import settings

@@ -17,8 +17,17 @@ _platform_locks: dict[str, threading.Lock] = {p: threading.Lock() for p in SCRAP
 
 
 def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None]) -> list[RawPost]:
-    from .browser import open_context  # chỉ cần Playwright khi lướt trên máy
+    """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
+    from .browser import open_context  # chỉ cần Playwright khi thật sự lướt
 
+    with open_context(req.platform, headless=req.headless) as ctx:
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        return collect_all(page, req, seen, on_progress, interactive=not req.headless)
+
+
+def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
+                interactive: bool) -> list[RawPost]:
+    """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
     scraper = SCRAPERS[req.platform]()
@@ -26,26 +35,24 @@ def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], No
     total_cap = total_target(req)
     posts: list[RawPost] = []
     skipped: list[str] = []
-    with open_context(req.platform, headless=req.headless) as ctx:
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        for i, (label, url) in enumerate(targets):
-            remaining = total_cap - len(posts)
-            if remaining <= 0:
-                break
-            quota = min(req.count, remaining)  # số bài là "mỗi nguồn"
-            base = len(posts)
-            prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
-            try:
-                posts += scraper.collect(page, url, label, quota, seen,
-                                         lambda n, msg: on_progress(base + n, prefix + msg),
-                                         speed=req.speed, interactive=not req.headless)
-            except NeedsVerification:
-                raise
-            except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
-                if page.is_closed():
-                    raise RuntimeError("Cửa sổ Chrome đã bị đóng giữa chừng.") from e
-                skipped.append(f"{label}: {str(e)[:120]}")
-                on_progress(base, f"{prefix}Bỏ qua {label}: {str(e)[:120]}")
+    for i, (label, url) in enumerate(targets):
+        remaining = total_cap - len(posts)
+        if remaining <= 0:
+            break
+        quota = min(req.count, remaining)  # số bài là "mỗi nguồn"
+        base = len(posts)
+        prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
+        try:
+            posts += scraper.collect(page, url, label, quota, seen,
+                                     lambda n, msg: on_progress(base + n, prefix + msg),
+                                     speed=req.speed, interactive=interactive)
+        except NeedsVerification:
+            raise
+        except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
+            if page.is_closed():
+                raise RuntimeError("Cửa sổ Chrome đã bị đóng giữa chừng.") from e
+            skipped.append(f"{label}: {str(e)[:120]}")
+            on_progress(base, f"{prefix}Bỏ qua {label}: {str(e)[:120]}")
     if not posts and skipped:
         raise RuntimeError("Không lướt được nguồn nào. " + " | ".join(skipped))
     return posts
@@ -138,6 +145,53 @@ def _spawn(target, run_id: int, *args) -> None:
 def start_run(db: Database, req: RunRequest, user_id: int | None = None) -> int:
     run_id = db.create_run(req, user_id)
     _spawn(execute_run, run_id, db, run_id, req, user_id)
+    return run_id
+
+
+def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int) -> None:
+    """Chế độ 'Server': lướt trên server bằng cookie đã lưu của user, rồi phân tích."""
+    import json
+
+    from .crypto import decrypt
+    from .server_runner import SERVER_SLOT, CookieInvalid, scrape_with_cookies
+
+    prog = PROGRESS.setdefault(run_id, {})
+    target = total_target(req)
+
+    def report(phase: str):
+        def _fn(n: int, msg: str):
+            prog.update(phase=phase, done=n, target=target, message=msg)
+        return _fn
+
+    try:
+        analyzer = get_analyzer(req.ai_provider, req.ai_model or None, _keys(db, user_id), user_id)
+        db.update_run(run_id, ai_label=analyzer.label)
+        row = db.get_session(user_id, req.platform)
+        cookies = json.loads(decrypt(row.ciphertext) or "null") if row else None
+        if not cookies:
+            raise RuntimeError(f"Chưa có cookie {req.platform} hợp lệ. Thêm cookie trong Cài đặt → Lướt trên server.")
+        if not SERVER_SLOT.acquire(blocking=False):
+            prog.update(phase="queued", message="Server đang lướt cho lượt khác, đang xếp hàng…")
+            SERVER_SLOT.acquire()
+        try:
+            db.update_run(run_id, status="scraping")
+            prog.update(phase="scraping", done=0, target=target, message="Server đang mở trình duyệt…")
+            seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
+            raw = scrape_with_cookies(req, cookies, seen, report("scraping"))
+        finally:
+            SERVER_SLOT.release()
+        db.set_session_status(user_id, req.platform, "ok", f"Lướt được {len(raw)} bài từ server.")
+        _analyze(db, run_id, req, raw, analyzer, report)
+    except CookieInvalid as e:
+        db.set_session_status(user_id, req.platform, "invalid", str(e))
+        _fail(db, run_id, e)
+    except Exception as e:  # noqa: BLE001
+        _fail(db, run_id, e)
+
+
+def start_server_run(db: Database, req: RunRequest, user_id: int) -> int:
+    run_id = db.create_run(req, user_id, status="queued")
+    _spawn(execute_server_run, run_id, db, run_id, req, user_id)
     return run_id
 
 

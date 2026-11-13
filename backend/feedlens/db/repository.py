@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from ..models import AnalyzedPost, Digest, JobInfo, RunRequest
-from .tables import ApiKeyRow, Base, PostRow, RunRow, UserRow
+from .tables import ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
 
@@ -117,6 +117,40 @@ class Database:
     def list_keys(self, user_id: int) -> list[ApiKeyRow]:
         with self.Session() as s:
             return list(s.scalars(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id)))
+
+    # ---------------------------------------------------------------- cookie mạng xã hội
+    def upsert_session(self, user_id: int, platform: str, ciphertext: str, hint: str) -> None:
+        with self.Session.begin() as s:
+            row = s.scalar(select(PlatformSessionRow).where(
+                PlatformSessionRow.user_id == user_id, PlatformSessionRow.platform == platform))
+            if not row:
+                row = PlatformSessionRow(user_id=user_id, platform=platform)
+                s.add(row)
+            row.ciphertext, row.hint = ciphertext, hint
+            row.saved_at = datetime.now(timezone.utc)
+            row.status, row.status_message, row.checked_at = "unchecked", "", None
+
+    def get_session(self, user_id: int, platform: str) -> PlatformSessionRow | None:
+        with self.Session() as s:
+            return s.scalar(select(PlatformSessionRow).where(
+                PlatformSessionRow.user_id == user_id, PlatformSessionRow.platform == platform))
+
+    def list_sessions(self, user_id: int) -> list[PlatformSessionRow]:
+        with self.Session() as s:
+            return list(s.scalars(select(PlatformSessionRow).where(PlatformSessionRow.user_id == user_id)))
+
+    def delete_session(self, user_id: int, platform: str) -> None:
+        with self.Session.begin() as s:
+            s.execute(delete(PlatformSessionRow).where(
+                PlatformSessionRow.user_id == user_id, PlatformSessionRow.platform == platform))
+
+    def set_session_status(self, user_id: int, platform: str, status: str, message: str = "") -> None:
+        with self.Session.begin() as s:
+            row = s.scalar(select(PlatformSessionRow).where(
+                PlatformSessionRow.user_id == user_id, PlatformSessionRow.platform == platform))
+            if row:
+                row.status, row.status_message = status, message[:500]
+                row.checked_at = datetime.now(timezone.utc)
 
     # ---------------------------------------------------------------- runs
     def create_run(self, req: RunRequest, user_id: int | None = None, status: str = "queued") -> int:

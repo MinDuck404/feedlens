@@ -22,6 +22,7 @@ class Settings:
     mode: str              # local | cloud
     secret: str            # khóa ký token phiên + mã hóa API key của user
     allow_signup: bool     # cloud: cho phép đăng ký tài khoản mới
+    server_scrape: bool    # cloud: cho phép chế độ 'Server' (lướt trên server bằng cookie user lưu)
 
     @property
     def is_cloud(self) -> bool:
@@ -68,6 +69,7 @@ def load_settings() -> Settings:
         mode=mode,
         secret=os.getenv("FEEDLENS_SECRET") or ("" if mode == "cloud" else _local_secret(data_dir)),
         allow_signup=os.getenv("FEEDLENS_ALLOW_SIGNUP", "true").lower() in ("1", "true", "yes"),
+        server_scrape=os.getenv("FEEDLENS_SERVER_SCRAPE", "true").lower() in ("1", "true", "yes"),
     )
 
 

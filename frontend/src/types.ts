@@ -28,6 +28,7 @@ export interface Meta {
   auth_required: boolean;
   config_error: string | null;
   signup_open: boolean;
+  server_scrape: boolean;
   categories: Record<string, string>;
   max_posts: number;
 }
@@ -53,6 +54,7 @@ export interface RunRequest {
   only_new: boolean;
   headless: boolean;
   speed: "fast" | "careful";
+  runner: "agent" | "server";
 }
 
 export interface SavedGroup {
@@ -115,4 +117,13 @@ export interface Run {
   digest: Digest | null;
   progress: Progress | null;
   posts?: Post[];
+}
+
+export interface PlatformSession {
+  platform: Platform;
+  hint: string;
+  saved_at: string;
+  status: "unchecked" | "ok" | "invalid";
+  status_message: string;
+  checked_at: string | null;
 }

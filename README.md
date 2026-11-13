@@ -125,6 +125,29 @@ Một số hành vi đáng biết:
 - **Xác minh 2 bước / checkpoint:** nếu nền tảng chuyển sang trang đăng nhập hoặc xác minh, bot dừng lại và chờ bạn tự hoàn tất trong cửa sổ Chrome (tối đa 10 phút), rồi lướt tiếp. Chạy ẩn thì không xác minh được nên lượt báo lỗi rõ ràng. `feedlens login` chỉ coi là xong khi đã qua hết bước xác minh.
 - **Tốc độ:** *Nhanh* (mặc định) cuộn mạnh, nghỉ ~1 giây; *Cẩn thận* cuộn chậm, nghỉ lâu như người đọc thật. AI đọc tối đa 4 lô (20 bài/lô) song song.
 
+### Chế độ "Server (cookie)": lướt không cần agent
+
+Server tự mở Chromium ẩn bằng cookie đăng nhập bạn đã lưu, nên không cần bật agent trên máy.
+
+> ⚠️ Cookie được dùng từ IP datacenter, khác máy bạn hay dùng. Facebook/LinkedIn có thể bắt xác minh, đăng xuất hoặc **khóa tài khoản**. Nên dùng tài khoản phụ. Cookie có quyền như mật khẩu.
+
+1. Trên máy: `feedlens login facebook` (tự qua xác minh 2 bước), rồi gửi cookie lên server:
+
+```bash
+cd backend && .venv\Scripts\feedlens cookies push facebook
+```
+
+   Lệnh đọc cookie từ profile Chrome riêng của FeedLens (không phải Chrome chính của bạn) và dùng server/token đã lưu của agent. Cách khác: **Cài đặt → Lướt trên server → Dán cookie** (JSON của extension Cookie-Editor, `cookies.txt`, hoặc `c_user=…; xs=…`).
+2. **Cài đặt → Kiểm tra:** server thử mở trang chủ bằng cookie (khoảng 10–30 giây).
+3. **Lướt mới → Chạy bằng: Server (cookie) → Bắt đầu lướt.**
+
+Chi tiết:
+
+- Cookie được mã hóa (Fernet) khi lưu, không bao giờ trả về web; chỉ hiện 4 số cuối ID tài khoản.
+- Server chặn tải ảnh/video/font để nhanh và nhẹ RAM, và chỉ chạy **một** trình duyệt mỗi lúc (các lượt khác xếp hàng).
+- Nếu nền tảng đòi đăng nhập/xác minh (URL checkpoint hoặc trang hiện form mật khẩu), lượt dừng và cookie bị đánh dấu **Hết hiệu lực**. Server không cố vượt; hãy đăng nhập lại trên máy rồi gửi cookie mới.
+- Chủ server tắt chế độ này bằng `FEEDLENS_SERVER_SCRAPE=false`. Image Docker có Chromium headless shell (Playwright), nên `/api/health` có thêm `"browser": true`.
+
 Biến môi trường của service **backend**:
 
 | Biến | Giá trị |

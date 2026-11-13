@@ -20,6 +20,9 @@ services:
         value: https://minduck404.github.io
       - key: FEEDLENS_ALLOW_SIGNUP
         value: "true"
+      # Chế độ "Server": lướt bằng cookie user lưu (mã hóa). Đặt "false" để tắt.
+      - key: FEEDLENS_SERVER_SCRAPE
+        value: "true"
       - key: FEEDLENS_SECRET
         generateValue: true
       - key: DATABASE_URL
