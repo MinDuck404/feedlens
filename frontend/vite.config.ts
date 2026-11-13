@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // Đường dẫn tương đối: chạy được cả dưới /<tên-repo>/ (GitHub Pages) lẫn ở gốc (local, nginx)
+  base: "./",
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,

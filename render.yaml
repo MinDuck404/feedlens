@@ -1,0 +1,28 @@
+# Render Blueprint cho backend FeedLens (chế độ cloud).
+# Mở: https://dashboard.render.com/blueprint/new?repo=https://github.com/MinDuck404/feedlens
+# Các biến `sync: false` sẽ được Render hỏi khi tạo; FEEDLENS_SECRET / FEEDLENS_API_TOKEN do Render tự sinh.
+services:
+  - type: web
+    name: feedlens-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: FEEDLENS_MODE
+        value: cloud
+      - key: FEEDLENS_CORS
+        value: https://minduck404.github.io
+      - key: FEEDLENS_SECRET
+        generateValue: true
+      - key: FEEDLENS_API_TOKEN
+        generateValue: true
+      - key: FEEDLENS_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

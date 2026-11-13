@@ -74,10 +74,20 @@ Dòng lệnh, ví dụ quét 2 group việc làm bằng ChatGPT:
 cd backend && .venv\Scripts\feedlens run facebook --type group --source https://www.facebook.com/groups/aaa --source bbb -n 60 --jobs -k python -k remote --ai openai
 ```
 
-## Deploy lên cloud (Railway)
+## Deploy lên cloud
+
+Bản đang chạy dùng gói miễn phí:
+
+| Phần | Nơi chạy | Cấu hình |
+|---|---|---|
+| Frontend | GitHub Pages: https://minduck404.github.io/feedlens/ | `.github/workflows/pages.yml`, biến repo `VITE_API_URL` |
+| Backend | Render (free, ngủ sau 15 phút không dùng) | `render.yaml` (Blueprint) |
+| Database | Neon Postgres (free) | `DATABASE_URL` trên Render |
+
+Muốn dùng Railway thay thế thì `backend/railway.json`, `frontend/railway.json` và hai Dockerfile đã có sẵn.
 
 ```
- Máy bạn                                   Railway
+ Máy bạn                                   Cloud
 ┌──────────────────────────┐   HTTPS   ┌─────────────────────────┐   ┌──────────┐
 │ feedlens push            │ ────────▶ │ backend (FastAPI)        │──▶│ Postgres │
 │ Chrome + phiên đăng nhập │  API token│ FEEDLENS_MODE=cloud      │   └──────────┘
@@ -95,11 +105,11 @@ Biến môi trường của service **backend**:
 
 | Biến | Giá trị |
 |---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (tham chiếu tới service Postgres) |
+| `DATABASE_URL` | chuỗi kết nối Postgres (Neon: `postgresql://…?sslmode=require`; Railway: `${{Postgres.DATABASE_URL}}`) |
 | `FEEDLENS_PASSWORD` | mật khẩu đăng nhập web |
 | `FEEDLENS_SECRET` | chuỗi ngẫu nhiên ≥ 32 ký tự, dùng để ký phiên |
 | `FEEDLENS_API_TOKEN` | chuỗi ngẫu nhiên, cho `feedlens push` |
-| `FEEDLENS_CORS` | URL của frontend, vd `https://feedlens-web.up.railway.app` |
+| `FEEDLENS_CORS` | origin của frontend, vd `https://minduck404.github.io` |
 | `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | ít nhất một key |
 
 Service **frontend** chỉ cần `VITE_API_URL` = URL của backend. Biến này được đưa vào lúc build, nên đổi xong phải deploy lại.
