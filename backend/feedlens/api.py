@@ -53,7 +53,7 @@ def _platform_or_404(p: str):
 # ================================================================== public
 @public.get("/health")
 def health():
-    return {"ok": True, "mode": settings.mode}
+    return {"ok": True, "mode": settings.mode, "db": db.engine.dialect.name}
 
 
 @public.get("/meta")
