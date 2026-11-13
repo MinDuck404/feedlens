@@ -1,0 +1,20 @@
+# Postgres cho FeedLens (tùy chọn — mặc định app dùng SQLite, không cần file này).
+# Backend vẫn chạy trên máy bạn vì cần mở Chrome thật để bạn đăng nhập.
+#   docker compose up -d
+#   DATABASE_URL=postgresql+psycopg://feedlens:feedlens@localhost:5432/feedlens  (trong backend/.env)
+#   uv pip install -e "backend[postgres]"
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: feedlens
+      POSTGRES_PASSWORD: feedlens
+      POSTGRES_DB: feedlens
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - feedlens-pg:/var/lib/postgresql/data
+
+volumes:
+  feedlens-pg:

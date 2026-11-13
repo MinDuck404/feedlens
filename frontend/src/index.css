@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ tokens
+   Nền xám xanh lạnh như bàn làm việc buổi sáng; cobalt là màu hành động;
+   màu sắc còn lại dành riêng cho LOẠI BÀI (xem src/categories.ts). */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --sunken: #e4e8ee;
+  --ink: #1a2230;
+  --ink-soft: #5d6b7e;
+  --line: #d5dbe3;
+  --cobalt: #2a44c8;
+  --cobalt-ink: #ffffff;
+  --danger: #b4233c;
+  --ok: #157a52;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121722;
+    --surface: #1a2130;
+    --sunken: #0e131c;
+    --ink: #e6eaf0;
+    --ink-soft: #95a1b3;
+    --line: #2a3344;
+    --cobalt: #7d93ff;
+    --cobalt-ink: #0b1030;
+    --danger: #ff7a8f;
+    --ok: #4fd39b;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-cobalt: var(--cobalt);
+  --color-cobalt-ink: var(--cobalt-ink);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 6px; }
+
+/* Panel "Lướt mới": khoảnh khắc chuyển động duy nhất, phản hồi hành động của người dùng */
+@keyframes sheet-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet { animation: sheet-in .22s cubic-bezier(.2,.7,.2,1); }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.field:focus { outline: 2px solid var(--cobalt); outline-offset: -1px; }

@@ -1,0 +1,146 @@
+import { Loader2, LogIn, Plus, RefreshCw, Search, X as XIcon } from "lucide-react";
+import { useState } from "react";
+import { api } from "../api";
+import { PLATFORM_LABEL } from "../categories";
+import type { PlatformState, Run } from "../types";
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  queued: { label: "Đang chờ", cls: "text-ink-soft" },
+  scraping: { label: "Đang lướt", cls: "text-cobalt" },
+  analyzing: { label: "Đang đọc", cls: "text-cobalt" },
+  done: { label: "Xong", cls: "text-ok" },
+  error: { label: "Lỗi", cls: "text-danger" },
+};
+
+interface Props {
+  cloud: boolean;
+  platforms: PlatformState[];
+  runs: Run[];
+  selected: number | null;
+  onSelect: (id: number) => void;
+  onNewRun: () => void;
+  onPlatformChanged: () => void;
+  onLogout?: () => void;
+}
+
+export default function Sidebar({ cloud, platforms, runs, selected, onSelect, onNewRun, onPlatformChanged, onLogout }: Props) {
+  return (
+    <aside className="flex w-full shrink-0 flex-col border-line bg-surface md:h-full md:w-72 md:border-r">
+      <div className="flex items-center justify-between px-5 pt-5 pb-4">
+        <div className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <Search className="size-5 text-cobalt" strokeWidth={2.75} />
+          FeedLens
+        </div>
+        <button
+          onClick={onNewRun}
+          className="flex items-center gap-1.5 rounded-lg bg-cobalt px-3 py-1.5 text-sm font-semibold text-cobalt-ink hover:opacity-90"
+        >
+          <Plus className="size-4" /> Lướt mới
+        </button>
+      </div>
+
+      {cloud ? (
+        <p className="px-5 pb-4 text-sm text-ink-soft">
+          Server cloud không giữ phiên mạng xã hội nào. Bot lướt trên máy bạn rồi gửi bài lên đây.
+        </p>
+      ) : (
+        <section className="px-5 pb-4">
+          <h2 className="mb-2 text-sm font-semibold text-ink-soft">Tài khoản</h2>
+          <ul className="divide-y divide-line">
+            {platforms.map((p) => <PlatformRow key={p.key} p={p} onChanged={onPlatformChanged} />)}
+          </ul>
+        </section>
+      )}
+
+      <section className="flex min-h-0 flex-1 flex-col border-t border-line px-3 pt-4">
+        <h2 className="mb-2 px-2 text-sm font-semibold text-ink-soft">Các lượt trước</h2>
+        {runs.length === 0 ? (
+          <p className="px-2 text-sm text-ink-soft">Chưa có lượt nào.</p>
+        ) : (
+          <ul className="-mx-1 overflow-y-auto pb-4">
+            {runs.map((r) => {
+              const s = STATUS[r.status];
+              const q = r.request;
+              const src = q.source_type === "feed" ? "Bảng tin" : q.sources[0] ?? "";
+              return (
+                <li key={r.id}>
+                  <button
+                    onClick={() => onSelect(r.id)}
+                    aria-current={selected === r.id}
+                    className="w-full rounded-lg px-3 py-2 text-left hover:bg-sunken aria-[current=true]:bg-sunken"
+                  >
+                    <span className="block truncate text-sm font-medium">{src}</span>
+                    <span className="flex justify-between gap-2 text-xs text-ink-soft">
+                      <span>{PLATFORM_LABEL[q.platform]}{q.job_mode ? ", tìm việc" : ""}</span>
+                      <span className={s.cls}>{s.label}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+      {onLogout && (
+        <button onClick={onLogout} className="border-t border-line px-5 py-3 text-left text-sm text-ink-soft hover:text-ink">
+          Đăng xuất
+        </button>
+      )}
+    </aside>
+  );
+}
+
+function PlatformRow({ p, onChanged }: { p: PlatformState; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const act = async (a: "login" | "check" | "logout") => {
+    if (a === "logout" && !confirm(`Xóa phiên đăng nhập ${p.name} đã lưu trên máy?`)) return;
+    setBusy(true);
+    try { await api.platformAction(p.key, a); } catch (e) { alert((e as Error).message); }
+    setBusy(false);
+    onChanged();
+  };
+  const waiting = p.login_state === "waiting";
+  const status = waiting ? "Đăng nhập trong cửa sổ Chrome…"
+    : p.logged_in === true ? "Đã đăng nhập"
+    : p.logged_in === false ? "Chưa đăng nhập"
+    : p.has_profile ? "Có phiên đã lưu" : "Chưa kết nối";
+  const dot = waiting ? "bg-cobalt animate-pulse" : p.logged_in ? "bg-ok" : p.has_profile ? "bg-ink-soft" : "bg-line";
+
+  return (
+    <li className="flex items-center justify-between gap-2 py-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <span className={`size-2 rounded-full ${dot}`} />
+          {p.name}
+        </div>
+        <div className="truncate pl-4 text-xs text-ink-soft">{status}</div>
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {busy ? (
+          <Loader2 className="size-4 animate-spin text-ink-soft" />
+        ) : (
+          <>
+            {p.has_profile && (
+              <IconBtn label="Kiểm tra phiên" onClick={() => act("check")}><RefreshCw className="size-3.5" /></IconBtn>
+            )}
+            {!p.logged_in && !waiting && (
+              <IconBtn label={`Đăng nhập ${p.name}`} onClick={() => act("login")}><LogIn className="size-3.5" /></IconBtn>
+            )}
+            {p.has_profile && (
+              <IconBtn label="Xóa phiên" onClick={() => act("logout")}><XIcon className="size-3.5" /></IconBtn>
+            )}
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button aria-label={label} title={label} onClick={onClick}
+      className="grid size-7 place-items-center rounded-md text-ink-soft hover:bg-sunken hover:text-ink">
+      {children}
+    </button>
+  );
+}

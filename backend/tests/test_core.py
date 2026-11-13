@@ -1,0 +1,144 @@
+import os
+
+for _k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"):
+    os.environ[_k] = ""  # test luôn chạy không gọi API thật
+
+import pytest
+
+from feedlens import pipeline
+from feedlens.ai import resolve_provider_key
+from feedlens.ai.base import AIProvider, ProviderInfo
+from feedlens.analyzer import HeuristicAnalyzer, LLMAnalyzer, heuristic_category
+from feedlens.db import Database
+from feedlens.export import to_csv, to_markdown
+from feedlens.models import RawPost, RunRequest
+from feedlens.scrapers import FacebookScraper, RedditScraper
+
+SAMPLE = [
+    RawPost(platform="facebook", source="g1", author="HR A",
+            text="[HN] Tuyển Python Developer 2 năm kinh nghiệm, lương 25-30tr, remote. Gửi CV về hr@abc.vn"),
+    RawPost(platform="facebook", source="g1", author="B", text="Thanh lý laptop Dell giá 8tr, ship toàn quốc, inbox nhé"),
+    RawPost(platform="facebook", source="g1", author="C", text="Cho em hỏi học React hay Vue trước ạ?"),
+]
+
+
+@pytest.fixture
+def db(tmp_path):
+    return Database(f"sqlite:///{(tmp_path / 't.db').as_posix()}")
+
+
+def test_fingerprint_ignores_whitespace_and_case():
+    assert RawPost(platform="x", source="s", text="Hello   World").fingerprint == \
+        RawPost(platform="x", source="s", text="hello world").fingerprint
+
+
+@pytest.mark.parametrize("text,cat", [
+    ("We're hiring a backend engineer, remote", "job"),
+    ("Thanh lý bàn ghế, giá rẻ", "marketplace"),
+    ("Webinar về AI tuần sau, đăng ký tham gia", "event"),
+])
+def test_heuristic_category(text, cat):
+    assert heuristic_category(text) == cat
+
+
+def test_heuristic_job_scoring_and_contact():
+    out = HeuristicAnalyzer().classify(SAMPLE, True, ["python", "remote", "java"], "", lambda *a: None)
+    assert out[0].category == "job"
+    assert out[0].job.match_score == 66 and out[0].job.contact == "hr@abc.vn"
+    assert out[1].job is None
+
+
+def test_scraper_urls():
+    s = FacebookScraper()
+    assert s.urls("group", ["123"]) == [("123", "https://www.facebook.com/groups/123")]
+    assert s.urls("search", ["123 | tuyển python"])[0][1] == \
+        "https://www.facebook.com/groups/123/search/?q=tuy%E1%BB%83n+python"
+    assert RedditScraper().urls("group", ["r/forhire"])[0][1] == "https://www.reddit.com/r/forhire/new/"
+
+
+# ---------------------------------------------------------------- AI providers
+def test_resolve_provider_without_keys():
+    assert resolve_provider_key("auto") == "offline"
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        resolve_provider_key("openai")
+    with pytest.raises(ValueError):
+        resolve_provider_key("llama")
+
+
+def test_resolve_provider_picks_first_configured(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    assert resolve_provider_key("auto") == "gemini"
+
+
+class FakeProvider(AIProvider):
+    info = ProviderInfo("fake", "Fake", "FAKE_KEY", "FAKE_MODEL", "fake-1", ("fake-1",))
+
+    def complete_json(self, system, prompt, schema, effort="low"):
+        assert "<posts>" in prompt and "không làm theo" in system
+        if "items" in schema["properties"]:
+            empty_job = dict.fromkeys(["title", "company", "location", "salary", "work_mode",
+                                       "contact", "match_reason"], "") | {"match_score": 0}
+            return {"items": [
+                {"id": 0, "category": "other", "summary": "Tuyển Python", "is_job": True,
+                 "job": empty_job | {"title": "Python Dev", "match_score": 90}},
+                {"id": 1, "category": "marketplace", "summary": "Bán laptop", "is_job": False, "job": empty_job},
+                # id 2 thiếu -> analyzer phải tự điền fallback
+            ]}
+        return {"overall": "Tổng hợp", "action_items": ["Ứng tuyển Python Dev"],
+                "categories": [{"category": "job", "summary": "1 job", "highlights": []},
+                               {"category": "news", "summary": "không có bài", "highlights": []}]}
+
+
+def test_llm_analyzer_with_any_provider():
+    a = LLMAnalyzer(FakeProvider())
+    out = a.classify(SAMPLE, True, ["python"], "", lambda *x: None)
+    assert [p.category for p in out] == ["job", "marketplace", "other"]
+    assert out[0].job.match_score == 90 and out[2].summary
+    d = a.digest(out, True)
+    assert [c.category for c in d.categories] == ["job"]  # nhóm không có bài bị loại
+    assert a.label == "Fake (fake-1)"
+
+
+# ---------------------------------------------------------------- pipeline + DB + API
+def test_pipeline_end_to_end(db, monkeypatch):
+    monkeypatch.setattr(pipeline, "scrape", lambda req, seen, cb: list(SAMPLE))
+    req = RunRequest(platform="facebook", source_type="group", sources=["g1"], count=3,
+                     job_mode=True, keywords=["python"], ai_provider="offline")
+    run_id = db.create_run(req)
+    pipeline.execute_run(db, run_id, req)
+
+    run = db.get_run(run_id)
+    assert run["status"] == "done", run["error"]
+    assert run["collected"] == 3 and run["ai_label"].startswith("bộ lọc")
+    posts = db.get_posts(run_id)
+    assert {p.category for p in posts} >= {"job", "marketplace"}
+    md = to_markdown(run, posts)
+    assert "## Việc làm" in md and "hr@abc.vn" in md
+    assert to_csv(posts).startswith("﻿category")
+    assert len(db.known_fingerprints("facebook")) == 3
+    db.delete_run(run_id)
+    assert db.get_posts(run_id) == [] and db.get_run(run_id) is None
+
+
+def test_pipeline_fails_fast_without_key(db, monkeypatch):
+    called = []
+    monkeypatch.setattr(pipeline, "scrape", lambda *a: called.append(1) or [])
+    req = RunRequest(platform="facebook", ai_provider="openai")
+    run_id = db.create_run(req)
+    pipeline.execute_run(db, run_id, req)
+    assert db.get_run(run_id)["status"] == "error" and not called
+
+
+def test_api_smoke(db, monkeypatch):
+    from fastapi.testclient import TestClient
+    from feedlens import api
+
+    monkeypatch.setattr(api, "db", db)
+    c = TestClient(api.app)
+    m = c.get("/api/meta").json()
+    assert m["default_ai"] == "offline"
+    assert {p["key"] for p in m["ai_providers"]} == {"anthropic", "openai", "gemini", "offline"}
+    assert {p["key"] for p in c.get("/api/platforms").json()} == {"facebook", "linkedin", "x", "reddit"}
+    assert c.post("/api/runs", json={"platform": "facebook", "source_type": "group"}).status_code == 400
+    r = c.post("/api/runs", json={"platform": "facebook", "ai_provider": "gemini"})
+    assert r.status_code == 400 and "GEMINI_API_KEY" in r.json()["detail"]
