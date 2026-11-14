@@ -35,7 +35,7 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
     <main className="grid min-h-full place-items-center px-4 py-16">
       <form onSubmit={submit} className="w-full max-w-sm">
         <div className="flex items-center gap-2 text-xl font-bold tracking-tight">
-          <Search className="size-6 text-cobalt" strokeWidth={2.75} /> FeedLens
+          <Search className="size-6 text-link" strokeWidth={2.75} /> FeedLens
         </div>
         <h1 className="mt-8 font-serif text-3xl font-medium">
           {registering ? "Tạo tài khoản để bắt đầu." : "Bản tóm tắt của bạn đang chờ."}
@@ -62,14 +62,14 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
             </label>
             {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
             <button disabled={busy || !email || !pw}
-              className="mt-5 w-full rounded-lg bg-cobalt py-2.5 font-semibold text-cobalt-ink hover:opacity-90 disabled:opacity-50">
+              className="mt-5 w-full rounded-full bg-primary py-2.5 font-semibold text-primary-ink hover:opacity-90 disabled:opacity-50">
               {busy ? "Đang xử lý…" : registering ? "Tạo tài khoản" : "Đăng nhập"}
             </button>
             {signupOpen && (
               <p className="mt-4 text-center text-sm text-ink-soft">
                 {registering ? "Đã có tài khoản?" : "Chưa có tài khoản?"}{" "}
                 <button type="button" onClick={() => { setMode(registering ? "login" : "register"); setError(""); }}
-                  className="font-medium text-cobalt hover:underline">
+                  className="font-medium text-link hover:underline">
                   {registering ? "Đăng nhập" : "Tạo tài khoản"}
                 </button>
               </p>

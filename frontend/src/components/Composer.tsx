@@ -198,15 +198,15 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                   <>
                     <div className="mb-1.5 flex items-center justify-between text-sm">
                       <span>{sources.length}/{myGroups.length} nhóm được chọn</span>
-                      <button type="button" className="text-cobalt hover:underline"
+                      <button type="button" className="text-link hover:underline"
                         onClick={() => updateGroups(myGroups.map((g) => ({ ...g, enabled: sources.length < myGroups.length })))}>
                         {sources.length < myGroups.length ? "Chọn tất cả" : "Bỏ chọn tất cả"}
                       </button>
                     </div>
-                    <ul className="max-h-48 divide-y divide-line overflow-y-auto rounded-lg bg-sunken">
+                    <ul className="paper-card max-h-48 divide-y divide-line overflow-y-auto rounded-xl">
                       {myGroups.map((g, i) => (
                         <li key={g.url} className="flex items-center gap-2 px-3 py-2 text-sm">
-                          <input type="checkbox" checked={g.enabled} className="accent-[var(--cobalt)]"
+                          <input type="checkbox" checked={g.enabled} className="accent-[var(--accent)]"
                             aria-label={`Lướt ${g.url}`}
                             onChange={(e) => updateGroups(myGroups.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x))} />
                           <span className="min-w-0 flex-1 truncate" title={g.url}>{shortUrl(g.url)}</span>
@@ -224,7 +224,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                     onChange={(e) => setNewGroups(e.target.value)} />
                 </label>
                 <button type="button" onClick={addGroups} disabled={!lines(newGroups).length}
-                  className="mt-2 rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-cobalt disabled:opacity-50">
+                  className="mt-2 rounded-full border border-line px-4 py-1.5 text-sm font-medium hover:border-ink disabled:opacity-50">
                   Lưu vào danh sách
                 </button>
               </div>
@@ -242,7 +242,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           <Group label={f.source_type === "feed" ? `Số bài: ${f.count}` : `Số bài mỗi ${f.source_type === "group" ? "nhóm" : "từ khóa"}: ${f.count}`}>
             <input type="range" min={10} max={Math.min(200, meta.max_posts)} step={10} value={f.count}
               onChange={(e) => set("count", Number(e.target.value))}
-              className="w-full accent-[var(--cobalt)]" aria-label="Số bài" />
+              className="w-full accent-[var(--accent)]" aria-label="Số bài" />
             {nSources > 1 && (
               <p className="mt-1 text-sm text-ink-soft">
                 Tổng tối đa {total} bài từ {nSources} {f.source_type === "group" ? "nhóm" : "từ khóa"}
@@ -275,7 +275,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 {usable.length === 1 && (
                   <p className="mt-2 text-sm text-ink-soft">
                     Chưa có API key nào nên chỉ dùng được bộ lọc từ khóa.{" "}
-                    <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+                    <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
                       Thêm key Gemini, ChatGPT hoặc Claude
                     </button>
                   </p>
@@ -317,7 +317,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           {serverMode && (!session || session.status === "invalid") && (
             <p className="mb-3 text-sm text-danger">
               {session ? `Cookie ${PLATFORM_LABEL[f.platform]} đã hết hiệu lực. ` : `Chưa có cookie ${PLATFORM_LABEL[f.platform]} trên server. `}
-              <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+              <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
                 {session ? "Gửi cookie mới" : "Thêm cookie"}
               </button>
             </p>
@@ -325,14 +325,14 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           {!serverMode && cloud && me && !me.agent.online && (
             <p className="mb-3 text-sm text-ink-soft">
               Agent trên máy bạn đang tắt. Lượt sẽ chờ và tự chạy khi agent bật.{" "}
-              <button type="button" onClick={onOpenSettings} className="font-medium text-cobalt hover:underline">
+              <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
                 {me.agent.has_token ? "Xem cách bật" : "Kết nối agent"}
               </button>
             </p>
           )}
           {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
           <button disabled={sending}
-            className="w-full rounded-lg bg-cobalt py-2.5 font-semibold text-cobalt-ink hover:opacity-90 disabled:opacity-50">
+            className="w-full rounded-full bg-primary py-2.5 font-semibold text-primary-ink hover:opacity-90 disabled:opacity-50">
             {sending ? "Đang bắt đầu…" : "Bắt đầu lướt"}
           </button>
         </footer>
@@ -386,10 +386,10 @@ function Segmented({ value, onChange, options }: {
   value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
 }) {
   return (
-    <div className="flex rounded-lg bg-sunken p-1" role="radiogroup">
+    <div className="flex rounded-full border border-line bg-sunken p-1" role="radiogroup">
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className="flex-1 rounded-md px-2 py-1.5 text-sm text-ink-soft aria-checked:bg-surface aria-checked:font-semibold aria-checked:text-ink aria-checked:shadow-sm">
+          className="flex-1 rounded-full px-2 py-1.5 text-sm text-ink-soft aria-checked:bg-surface aria-checked:font-semibold aria-checked:text-ink aria-checked:shadow-sm">
           {o.label}
         </button>
       ))}
@@ -402,7 +402,7 @@ function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (
     <label className="flex cursor-pointer items-center justify-between gap-4 py-1 text-sm">
       <span>{children}</span>
       <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span aria-hidden className="relative h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-cobalt peer-focus-visible:outline-2 peer-focus-visible:outline-cobalt
+      <span aria-hidden className="relative h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
         after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform peer-checked:after:translate-x-4" />
     </label>
   );

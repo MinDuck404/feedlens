@@ -80,7 +80,7 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
   };
 
   return (
-    <li className="rounded-lg bg-sunken p-3">
+    <li className="paper-card rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <div className="font-medium">{p.name}</div>
@@ -92,7 +92,7 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
         </div>
         <div className="flex items-center gap-2 text-sm">
           {!editing && (
-            <button onClick={() => setEditing(true)} className="font-medium text-cobalt hover:underline">
+            <button onClick={() => setEditing(true)} className="font-medium text-link hover:underline">
               {p.source === "db" ? "Đổi key" : "Thêm key"}
             </button>
           )}
@@ -108,14 +108,14 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
           {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
           <div className="mt-2 flex items-center justify-between gap-2">
             <a href={p.key_url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-cobalt hover:underline">
+              className="flex items-center gap-1 text-xs text-link hover:underline">
               Lấy key ở đâu? <ExternalLink className="size-3" />
             </a>
             <div className="flex gap-2">
               <button onClick={() => { setEditing(false); setError(""); setValue(""); }}
                 className="rounded-md px-3 py-1.5 text-sm text-ink-soft hover:bg-surface">Hủy</button>
               <button onClick={save} disabled={busy || value.trim().length < 8}
-                className="flex items-center gap-1.5 rounded-md bg-cobalt px-3 py-1.5 text-sm font-semibold text-cobalt-ink disabled:opacity-50">
+                className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink disabled:opacity-50">
                 {busy && <Loader2 className="size-3.5 animate-spin" />} {busy ? "Đang kiểm tra" : "Lưu key"}
               </button>
             </div>
@@ -157,7 +157,7 @@ function AgentSection({ me, onChanged }: { me: Me; onChanged: () => void }) {
           <p className="text-sm font-medium">Chạy lệnh này trong thư mục <code>backend</code> của FeedLens trên máy bạn:</p>
           <pre className="mt-2 rounded-lg bg-sunken p-3 text-xs break-all whitespace-pre-wrap">{command}</pre>
           <button onClick={() => navigator.clipboard.writeText(command).then(() => setCopied(true))}
-            className="mt-2 flex items-center gap-1.5 rounded-md bg-cobalt px-3 py-1.5 text-sm font-semibold text-cobalt-ink">
+            className="mt-2 flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink">
             {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied ? "Đã copy" : "Copy lệnh"}
           </button>
           <p className="mt-2 text-xs text-ink-soft">
@@ -165,7 +165,7 @@ function AgentSection({ me, onChanged }: { me: Me; onChanged: () => void }) {
           </p>
         </div>
       ) : (
-        <button onClick={create} className="mt-4 rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-cobalt">
+        <button onClick={create} className="mt-4 rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-ink">
           {me.agent.has_token ? "Tạo token mới" : "Kết nối agent"}
         </button>
       )}

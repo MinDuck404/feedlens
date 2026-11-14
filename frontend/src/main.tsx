@@ -7,6 +7,8 @@ import "@fontsource/be-vietnam-pro/600.css";
 import "@fontsource/be-vietnam-pro/700.css";
 import "@fontsource/lora/400.css";
 import "@fontsource/lora/500.css";
+import "@fontsource/geist-mono/400.css";
+import "@fontsource/geist-mono/500.css";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(

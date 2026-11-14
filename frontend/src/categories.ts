@@ -1,16 +1,16 @@
 // Mỗi loại bài có một màu cố định, dùng ở thanh phân loại, chấm màu, viền bài viết.
-// Tông trung tính độ sáng vừa phải để đọc được trên cả nền sáng lẫn tối.
+// Bảng màu "mực in" cho vibe Paper: đậm vừa, hơi trầm, đọc rõ trên cả nền giấy lẫn nền mực.
 export const CATEGORY_COLOR: Record<string, string> = {
-  job: "#1f9d6b",
-  news: "#3b73e0",
-  tech: "#7a5bdc",
-  marketplace: "#d4537e",
-  question: "#13a0ad",
-  event: "#c8901a",
-  promotion: "#e06a3c",
-  personal: "#8a97ab",
-  entertainment: "#b8b021",
-  other: "#a3adba",
+  job: "#1f7a4d",
+  news: "#2f5fb3",
+  tech: "#6a4fc4",
+  marketplace: "#c2477a",
+  question: "#0f8a95",
+  event: "#b7851a",
+  promotion: "#ff5a36",
+  personal: "#8a8578",
+  entertainment: "#9a9622",
+  other: "#b3aea3",
 };
 
 export const colorOf = (c: string) => CATEGORY_COLOR[c] ?? CATEGORY_COLOR.other;

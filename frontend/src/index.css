@@ -1,56 +1,69 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ tokens
-   Nền xám xanh lạnh như bàn làm việc buổi sáng; cobalt là màu hành động;
-   màu sắc còn lại dành riêng cho LOẠI BÀI (xem src/categories.ts). */
+/* ------------------------------------------------------------------ vibe: Paper (tham khảo uberdesigner.ai)
+   Nền giấy ấm, chữ mực, nét kẻ mảnh, nút hình viên thuốc. Mực là màu hành động chính;
+   cam (#FF5A36) chỉ dùng điểm xuyết: tab đang chọn, focus, tiến độ, điểm việc làm cao.
+   Màu theo LOẠI BÀI nằm ở src/categories.ts. Chế độ tối là bản "mực": nền mực, chữ giấy. */
 :root {
-  --bg: #eef1f4;
-  --surface: #ffffff;
-  --sunken: #e4e8ee;
-  --ink: #1a2230;
-  --ink-soft: #5d6b7e;
-  --line: #d5dbe3;
-  --cobalt: #2a44c8;
-  --cobalt-ink: #ffffff;
+  --paper: #f2f1ee;      /* nền trang */
+  --sheet: #faf9f7;      /* tờ giấy đặt lên trên: thẻ, panel */
+  --sunken: #e9e7e2;     /* ô nhập, nền phụ */
+  --ink: #0a0a0b;
+  --ink-soft: #66645f;
+  --line: #dcd9d2;       /* nét kẻ mảnh */
+  --primary: #0a0a0b;    /* nút chính = mực */
+  --primary-ink: #f2f1ee;
+  --accent: #ff5a36;     /* cam điểm xuyết (nền, vạch) */
+  --link: #b93a19;       /* cam đậm cho chữ, đủ tương phản trên giấy */
   --danger: #b4233c;
-  --ok: #157a52;
+  --ok: #1f7a4d;
+  --grain: 0.035;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121722;
-    --surface: #1a2130;
-    --sunken: #0e131c;
-    --ink: #e6eaf0;
-    --ink-soft: #95a1b3;
-    --line: #2a3344;
-    --cobalt: #7d93ff;
-    --cobalt-ink: #0b1030;
+    --paper: #0a0a0b;
+    --sheet: #141416;
+    --sunken: #1d1d22;
+    --ink: #f1f0ee;
+    --ink-soft: #9b9993;
+    --line: #2a2a2f;
+    --primary: #f1f0ee;
+    --primary-ink: #0a0a0b;
+    --accent: #ff5a36;
+    --link: #ff8a6b;
     --danger: #ff7a8f;
     --ok: #4fd39b;
+    --grain: 0.05;
     color-scheme: dark;
   }
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
+  --color-bg: var(--paper);
+  --color-surface: var(--sheet);
   --color-sunken: var(--sunken);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-line: var(--line);
-  --color-cobalt: var(--cobalt);
-  --color-cobalt-ink: var(--cobalt-ink);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-link: var(--link);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
   --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
   --font-serif: "Lora", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 }
 
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--paper);
+  /* thớ giấy: nhiễu rất nhẹ, không ảnh hưởng độ đọc */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-blend-mode: normal;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -58,10 +71,21 @@ body {
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
+body::before {
+  /* phủ màu giấy lên lớp nhiễu để nhiễu chỉ còn ~3–5% */
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: var(--paper);
+  opacity: calc(1 - var(--grain));
+  pointer-events: none;
+  z-index: -1;
+}
 
-:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; border-radius: 6px; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
-/* Panel "Lướt mới": khoảnh khắc chuyển động duy nhất, phản hồi hành động của người dùng */
+/* Panel trượt "Lướt mới" / "Cài đặt": khoảnh khắc chuyển động duy nhất, phản hồi hành động người dùng */
 @keyframes sheet-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet { animation: sheet-in .22s cubic-bezier(.2,.7,.2,1); }
 @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
@@ -69,10 +93,18 @@ body {
 .field {
   width: 100%;
   border: 1px solid var(--line);
-  background: var(--sunken);
+  background: var(--sheet);
   color: var(--ink);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 10px;
+  padding: 8px 12px;
   font: inherit;
 }
-.field:focus { outline: 2px solid var(--cobalt); outline-offset: -1px; }
+.field::placeholder { color: color-mix(in srgb, var(--ink-soft) 75%, transparent); }
+.field:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+
+/* Tờ giấy: nền sáng hơn trang, viền mảnh, bóng rất nhẹ như giấy đặt chồng */
+.paper-card {
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent);
+}

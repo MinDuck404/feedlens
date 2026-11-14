@@ -7,8 +7,8 @@ import type { PlatformState, Run } from "../types";
 const STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: "Chờ agent", cls: "text-ink-soft" },
   queued: { label: "Đang chờ", cls: "text-ink-soft" },
-  scraping: { label: "Đang lướt", cls: "text-cobalt" },
-  analyzing: { label: "Đang đọc", cls: "text-cobalt" },
+  scraping: { label: "Đang lướt", cls: "text-link" },
+  analyzing: { label: "Đang đọc", cls: "text-link" },
   done: { label: "Xong", cls: "text-ok" },
   error: { label: "Lỗi", cls: "text-danger" },
 };
@@ -29,28 +29,31 @@ interface Props {
 
 export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, platforms, runs, selected, onSelect, onNewRun, onPlatformChanged, onLogout }: Props) {
   return (
-    <aside className="flex w-full shrink-0 flex-col border-line bg-surface md:h-full md:w-72 md:border-r">
+    <aside className="flex w-full shrink-0 flex-col border-line md:h-full md:w-72 md:border-r">
       <div className="flex items-center justify-between px-5 pt-5 pb-4">
-        <div className="flex items-center gap-2 text-lg font-bold tracking-tight">
-          <Search className="size-5 text-cobalt" strokeWidth={2.75} />
+        <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          <span aria-hidden className="relative grid size-6 place-items-center rounded-full bg-primary">
+            <Search className="size-3.5 text-primary-ink" strokeWidth={3} />
+            <span className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full bg-accent ring-2 ring-[var(--paper)]" />
+          </span>
           FeedLens
         </div>
         <button
           onClick={onNewRun}
-          className="flex items-center gap-1.5 rounded-lg bg-cobalt px-3 py-1.5 text-sm font-semibold text-cobalt-ink hover:opacity-90"
+          className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink hover:opacity-90"
         >
           <Plus className="size-4" /> Lướt mới
         </button>
       </div>
 
       {cloud ? (
-        <button onClick={onOpenSettings} className="mx-5 mb-4 flex items-center gap-2 rounded-lg bg-sunken px-3 py-2 text-left text-sm">
+        <button onClick={onOpenSettings} className="paper-card mx-5 mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm">
           <span className={`size-2 shrink-0 rounded-full ${agentOnline ? "bg-ok" : "bg-line"}`} />
           <span className="flex-1">{agentOnline ? "Agent trên máy đang bật" : "Agent trên máy đang tắt"}</span>
         </button>
       ) : (
         <section className="px-5 pb-4">
-          <h2 className="mb-2 text-sm font-semibold text-ink-soft">Tài khoản</h2>
+          <h2 className="mb-1 font-mono text-xs text-ink-soft">tài khoản</h2>
           <ul className="divide-y divide-line">
             {platforms.map((p) => <PlatformRow key={p.key} p={p} onChanged={onPlatformChanged} />)}
           </ul>
@@ -58,7 +61,7 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
       )}
 
       <section className="flex min-h-0 flex-1 flex-col border-t border-line px-3 pt-4">
-        <h2 className="mb-2 px-2 text-sm font-semibold text-ink-soft">Các lượt trước</h2>
+        <h2 className="mb-2 px-2 font-mono text-xs text-ink-soft">các lượt trước ({runs.length})</h2>
         {runs.length === 0 ? (
           <p className="px-2 text-sm text-ink-soft">Chưa có lượt nào.</p>
         ) : (
@@ -72,12 +75,12 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
                   <button
                     onClick={() => onSelect(r.id)}
                     aria-current={selected === r.id}
-                    className="w-full rounded-lg px-3 py-2 text-left hover:bg-sunken aria-[current=true]:bg-sunken"
+                    className="w-full rounded-xl border border-transparent px-3 py-2 text-left hover:bg-surface aria-[current=true]:border-line aria-[current=true]:bg-surface aria-[current=true]:shadow-sm"
                   >
                     <span className="block truncate text-sm font-medium">{src}</span>
                     <span className="flex justify-between gap-2 text-xs text-ink-soft">
                       <span>{PLATFORM_LABEL[q.platform]}{q.job_mode ? ", tìm việc" : ""}</span>
-                      <span className={s.cls}>{s.label}</span>
+                      <span className={`font-mono ${s.cls}`}>{s.label}</span>
                     </span>
                   </button>
                 </li>
@@ -114,7 +117,7 @@ function PlatformRow({ p, onChanged }: { p: PlatformState; onChanged: () => void
     : p.logged_in === true ? "Đã đăng nhập"
     : p.logged_in === false ? "Chưa đăng nhập"
     : p.has_profile ? "Có phiên đã lưu" : "Chưa kết nối";
-  const dot = waiting ? "bg-cobalt animate-pulse" : p.logged_in ? "bg-ok" : p.has_profile ? "bg-ink-soft" : "bg-line";
+  const dot = waiting ? "bg-accent animate-pulse" : p.logged_in ? "bg-ok" : p.has_profile ? "bg-ink-soft" : "bg-line";
 
   return (
     <li className="flex items-center justify-between gap-2 py-2">
@@ -135,7 +138,7 @@ function PlatformRow({ p, onChanged }: { p: PlatformState; onChanged: () => void
             )}
             {!p.logged_in && !waiting && (
               <button onClick={() => act("login")} title={`Mở cửa sổ đăng nhập ${p.name}`}
-                className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-cobalt hover:text-cobalt">
+                className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-ink hover:text-link">
                 <LogIn className="size-3.5" /> {p.has_profile ? "Đăng nhập lại" : "Đăng nhập"}
               </button>
             )}

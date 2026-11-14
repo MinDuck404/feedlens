@@ -87,7 +87,8 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           <RunView key={selected} runId={selected} meta={meta}
             onDeleted={() => { setSelected(null); refreshRuns(); }} />
         ) : (
-          <EmptyState cloud={cloud} hasRuns={runs.length > 0} onNewRun={() => setComposerOpen(true)} />
+          <EmptyState cloud={cloud} hasRuns={runs.length > 0} onNewRun={() => setComposerOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)} />
         )}
       </main>
       {composerOpen && prefs && (
@@ -109,23 +110,38 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   );
 }
 
-function EmptyState({ cloud, hasRuns, onNewRun }: { cloud: boolean; hasRuns: boolean; onNewRun: () => void }) {
+function EmptyState({ cloud, hasRuns, onNewRun, onOpenSettings }: {
+  cloud: boolean; hasRuns: boolean; onNewRun: () => void; onOpenSettings: () => void;
+}) {
+  const steps = cloud
+    ? ["Thêm API key AI và kết nối agent trong Cài đặt.", "Bật agent trên máy (hoặc lưu cookie để lướt bằng server).", "Bấm Lướt mới, chọn bảng tin hoặc nhóm."]
+    : ["Bấm Đăng nhập cạnh Facebook ở cột trái, đăng nhập trong cửa sổ hiện ra.", "Dán API key Gemini, ChatGPT hoặc Claude trong Cài đặt.", "Bấm Lướt mới, chọn bảng tin hoặc các nhóm cần lướt."];
   return (
-    <div className="mx-auto flex h-full max-w-xl flex-col justify-center px-6 py-16">
-      <h1 className="font-serif text-4xl leading-tight font-medium tracking-tight text-ink md:text-5xl">
-        Để bot lướt thay bạn, rồi đọc bản tóm tắt trong năm phút.
+    <div className="mx-auto flex h-full max-w-2xl flex-col justify-center px-6 py-16">
+      <h1 className="text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-ink md:text-7xl">
+        đọc ít hơn,<br />biết nhiều hơn.
       </h1>
-      <p className="mt-5 max-w-prose text-ink-soft">
-        {cloud
-          ? "Agent trên máy bạn mở Chrome bằng phiên đăng nhập của bạn để lướt, rồi gửi bài lên đây. Thêm API key và kết nối agent trong phần Cài đặt, sau đó bấm Lướt mới."
-          : "Đăng nhập một nền tảng ở cột bên trái, chọn bảng tin hoặc group, và FeedLens sẽ gom bài, chia theo loại, lọc ra việc làm hợp với bạn."}
+      <p className="mt-6 max-w-[52ch] text-lg text-ink-soft">
+        FeedLens lướt bảng tin và các nhóm thay bạn, chia bài theo loại, tóm tắt, và lọc ra việc làm hợp với bạn.
       </p>
-      <div className="mt-8 flex gap-3">
+      <ol className="paper-card mt-10 divide-y divide-line rounded-2xl">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-4 px-5 py-3.5 text-sm">
+            <span className="font-mono text-ink-soft">{String(i + 1).padStart(2, "0")}</span>
+            <span>{s}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-8 flex flex-wrap items-center gap-3">
         <button onClick={onNewRun}
-          className="rounded-lg bg-cobalt px-5 py-2.5 font-semibold text-cobalt-ink hover:opacity-90">
+          className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-ink hover:opacity-90">
           Lướt mới
         </button>
-        {hasRuns && <span className="self-center text-sm text-ink-soft">hoặc mở một lượt trong lịch sử</span>}
+        <button onClick={onOpenSettings}
+          className="rounded-full border border-line px-5 py-3 font-medium hover:border-ink">
+          Cài đặt
+        </button>
+        {hasRuns && <span className="text-sm text-ink-soft">hoặc mở một lượt ở cột trái</span>}
       </div>
     </div>
   );

@@ -75,7 +75,7 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
   };
 
   return (
-    <li className="rounded-lg bg-sunken p-3">
+    <li className="paper-card rounded-xl p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium">{name}</div>
@@ -93,11 +93,11 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
           <div className="flex shrink-0 items-center gap-2 text-sm">
             {s && (
               <button onClick={() => run("check", () => api.checkSession(platform))} disabled={!!busy}
-                className="flex items-center gap-1 font-medium text-cobalt hover:underline disabled:opacity-50">
+                className="flex items-center gap-1 font-medium text-link hover:underline disabled:opacity-50">
                 {busy === "check" && <Loader2 className="size-3.5 animate-spin" />} Kiểm tra
               </button>
             )}
-            <button onClick={() => setEditing(true)} className="font-medium text-cobalt hover:underline">
+            <button onClick={() => setEditing(true)} className="font-medium text-link hover:underline">
               {s ? "Thay" : "Dán cookie"}
             </button>
             {s && <button onClick={remove} className="text-ink-soft hover:text-danger">Xóa</button>}
@@ -113,7 +113,7 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
             <button onClick={() => { setEditing(false); setValue(""); setError(""); }}
               className="rounded-md px-3 py-1.5 text-sm text-ink-soft hover:bg-surface">Hủy</button>
             <button onClick={() => run("save", () => api.saveSession(platform, value))} disabled={!!busy || value.trim().length < 10}
-              className="flex items-center gap-1.5 rounded-md bg-cobalt px-3 py-1.5 text-sm font-semibold text-cobalt-ink disabled:opacity-50">
+              className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink disabled:opacity-50">
               {busy === "save" && <Loader2 className="size-3.5 animate-spin" />} Lưu cookie
             </button>
           </div>

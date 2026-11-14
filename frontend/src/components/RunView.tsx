@@ -40,7 +40,7 @@ export default function RunView({ runId, meta, onDeleted }: { runId: number; met
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-10">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm text-ink-soft">
+          <p className="font-mono text-xs text-ink-soft">
             {when.toLocaleString("vi-VN", { dateStyle: "medium", timeStyle: "short" })}
             {run.ai_label && <>, đọc bởi {run.ai_label}</>}
           </p>
@@ -49,19 +49,19 @@ export default function RunView({ runId, meta, onDeleted }: { runId: number; met
         <div className="flex items-center gap-1">
           {run.status === "done" && (["md", "csv", "json"] as const).map((f) => (
             <button key={f} onClick={() => api.download(run.id, f).catch((e) => alert(e.message))}
-              className="rounded-md px-2.5 py-1.5 text-sm text-ink-soft hover:bg-surface hover:text-ink">
-              Tải {f.toUpperCase()}
+              className="rounded-full border border-line px-3 py-1 font-mono text-xs text-ink-soft hover:border-ink hover:text-ink">
+              .{f}
             </button>
           ))}
           <button onClick={remove} aria-label="Xóa lượt" title="Xóa lượt"
-            className="rounded-md p-2 text-ink-soft hover:bg-surface hover:text-danger">
+            className="ml-1 grid size-8 place-items-center rounded-full border border-line text-ink-soft hover:border-danger hover:text-danger">
             <Trash2 className="size-4" />
           </button>
         </div>
       </header>
 
       {run.status === "error" ? (
-        <div className="mt-8 rounded-xl border border-danger/40 bg-surface p-5">
+        <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">Lượt này dừng giữa chừng</p>
           <p className="mt-2 whitespace-pre-wrap text-sm">{run.error}</p>
         </div>
@@ -82,8 +82,8 @@ function InProgress({ run }: { run: Run }) {
   return (
     <div className="mt-10 max-w-lg">
       <p className="font-semibold">{phase}</p>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-sunken">
-        <div className="h-full rounded-full bg-cobalt transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-sunken">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-2 text-sm text-ink-soft">{p?.message || (run.status === "pending" ? "Lượt sẽ tự chạy khi agent bật. Xem cách bật trong phần Cài đặt." : "Đang mở trình duyệt…")}</p>
     </div>
@@ -112,12 +112,12 @@ function Done({ run, meta, tab, setTab, filter, setFilter }: {
     <>
       {/* Thanh phân loại: điểm nhấn của trang, đồng thời là bộ lọc */}
       <section className="mt-8" aria-label="Thành phần bảng tin">
-        <p className="mb-2 text-sm text-ink-soft">{posts.length} bài, chia theo loại</p>
-        <div className="flex h-11 w-full gap-0.5 overflow-hidden rounded-xl">
+        <p className="mb-2 text-sm text-ink-soft"><span className="font-mono text-ink">{posts.length}</span> bài, chia theo loại</p>
+        <div className="flex h-12 w-full gap-1 overflow-hidden rounded-full border border-line bg-surface p-1">
           {counts.map(([c, n]) => (
             <button key={c} onClick={() => pick(c)} title={`${name(c)}: ${n} bài`}
               aria-label={`${name(c)}: ${n} bài`}
-              className="h-full transition-opacity hover:opacity-80 focus-visible:z-10"
+              className="h-full rounded-full transition-opacity hover:opacity-80 focus-visible:z-10"
               style={{ flexGrow: n, flexBasis: 0, minWidth: 6, background: colorOf(c), opacity: filter && filter !== c ? 0.3 : 1 }} />
           ))}
         </div>
@@ -125,8 +125,8 @@ function Done({ run, meta, tab, setTab, filter, setFilter }: {
           {counts.map(([c, n]) => (
             <li key={c}>
               <button onClick={() => pick(c)} className="flex items-center gap-2 text-sm hover:underline">
-                <span className="size-2.5 rounded-sm" style={{ background: colorOf(c) }} />
-                {name(c)} <span className="text-ink-soft">{n}</span>
+                <span className="size-2.5 rounded-full" style={{ background: colorOf(c) }} />
+                {name(c)} <span className="font-mono text-xs text-ink-soft">{n}</span>
               </button>
             </li>
           ))}
@@ -137,7 +137,7 @@ function Done({ run, meta, tab, setTab, filter, setFilter }: {
         {([["digest", "Tóm tắt"], ...(jobs.length ? [["jobs", `Việc làm (${jobs.length})`]] : []), ["posts", "Bài viết"]] as [Tab, string][])
           .map(([k, l]) => (
             <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-              className="-mb-px border-b-2 border-transparent pb-2.5 text-sm text-ink-soft aria-selected:border-cobalt aria-selected:font-semibold aria-selected:text-ink">
+              className="-mb-px border-b-2 border-transparent pb-2.5 text-sm text-ink-soft aria-selected:border-accent aria-selected:font-semibold aria-selected:text-ink">
               {l}
             </button>
           ))}
@@ -161,7 +161,7 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
           {d.categories.map((c) => (
             <section key={c.category} className="border-l-[3px] pl-5" style={{ borderColor: colorOf(c.category) }}>
               <h3 className="font-semibold">
-                {name(c.category)} <span className="font-normal text-ink-soft">{c.count} bài</span>
+                {name(c.category)} <span className="font-mono text-xs font-normal text-ink-soft">{c.count} bài</span>
               </h3>
               <p className="mt-1 max-w-[68ch] text-ink-soft">{c.summary}</p>
               {c.highlights.length > 0 && (
@@ -174,13 +174,13 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         </div>
       </div>
       {d.action_items.length > 0 && (
-        <aside className="h-fit rounded-xl bg-surface p-5 lg:sticky lg:top-6">
+        <aside className="paper-card h-fit rounded-2xl p-5 lg:sticky lg:top-6">
           <h3 className="font-semibold">Nên làm tiếp</h3>
           <ul className="mt-3 space-y-2.5">
             {d.action_items.map((a, i) => (
               <li key={i}>
                 <label className="flex gap-2.5 text-sm">
-                  <input type="checkbox" className="mt-1 accent-[var(--cobalt)]" />
+                  <input type="checkbox" className="mt-1 accent-[var(--accent)]" />
                   <span>{a}</span>
                 </label>
               </li>
@@ -193,10 +193,10 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
 }
 
 function Score({ v }: { v: number }) {
-  const tone = v >= 70 ? "text-ok" : v >= 40 ? "text-[#c8901a]" : "text-ink-soft";
+  const tone = v >= 70 ? "text-ok" : v >= 40 ? "text-[#b7851a]" : "text-ink-soft";
   return (
     <div className={`w-14 ${tone}`} aria-label={`Độ phù hợp ${v}/100`}>
-      <span className="text-lg font-bold">{v}</span>
+      <span className="font-mono text-lg font-medium">{v}</span>
       <div className="mt-0.5 h-1 rounded-full bg-sunken">
         <div className="h-full rounded-full bg-current" style={{ width: `${v}%` }} />
       </div>
@@ -206,7 +206,7 @@ function Score({ v }: { v: number }) {
 
 function JobsTable({ jobs }: { jobs: Post[] }) {
   return (
-    <ul className="divide-y divide-line overflow-hidden rounded-xl bg-surface">
+    <ul className="paper-card divide-y divide-line overflow-hidden rounded-2xl">
       {jobs.map((p) => {
         const j = p.job!;
         const facts = [j.company, [j.location, j.work_mode].filter(Boolean).join(", "), j.salary].filter(Boolean);
@@ -218,7 +218,7 @@ function JobsTable({ jobs }: { jobs: Post[] }) {
                 <h3 className="font-semibold">{j.title || p.summary}</h3>
                 {p.url && (
                   <a href={p.url} target="_blank" rel="noopener noreferrer"
-                    className="flex shrink-0 items-center gap-1 text-sm text-cobalt hover:underline">
+                    className="flex shrink-0 items-center gap-1 text-sm text-link hover:underline">
                     Mở bài <ExternalLink className="size-3.5" />
                   </a>
                 )}
@@ -243,19 +243,19 @@ function PostList({ posts, filter, setFilter, name }: {
       {filter && (
         <p className="mb-4 text-sm">
           Đang xem {shown.length} bài loại <b>{name(filter)}</b>.{" "}
-          <button onClick={() => setFilter(null)} className="text-cobalt hover:underline">Xem tất cả</button>
+          <button onClick={() => setFilter(null)} className="text-link hover:underline">Xem tất cả</button>
         </p>
       )}
       <ul className="space-y-2">
         {shown.map((p) => (
-          <li key={p.id} className="rounded-lg border-l-[3px] bg-surface px-4 py-3" style={{ borderColor: colorOf(p.category) }}>
+          <li key={p.id} className="paper-card rounded-xl px-4 py-3" style={{ borderLeft: `3px solid ${colorOf(p.category)}` }}>
             <details>
               <summary className="cursor-pointer list-none">
                 <span className="block font-medium">{p.summary}</span>
                 <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-soft">
                   <span>{p.author || "Không rõ tác giả"}</span>
                   <span>{p.source}</span>
-                  {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-cobalt hover:underline"
+                  {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-link hover:underline"
                     onClick={(e) => e.stopPropagation()}>Mở bài gốc</a>}
                 </span>
               </summary>
