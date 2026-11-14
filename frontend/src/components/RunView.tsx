@@ -113,11 +113,12 @@ function Done({ run, meta, tab, setTab, filter, setFilter }: {
       {/* Thanh phân loại: điểm nhấn của trang, đồng thời là bộ lọc */}
       <section className="mt-8" aria-label="Thành phần bảng tin">
         <p className="mb-2 text-sm text-ink-soft"><span className="font-mono text-ink">{posts.length}</span> bài, chia theo loại</p>
-        <div className="flex h-12 w-full gap-1 overflow-hidden rounded-full border border-line bg-surface p-1">
+        {/* Một dải liền: chỉ bo hai đầu, các loại nối nhau bằng vạch mảnh màu giấy */}
+        <div className="flex h-9 w-full overflow-hidden rounded-full">
           {counts.map(([c, n]) => (
             <button key={c} onClick={() => pick(c)} title={`${name(c)}: ${n} bài`}
               aria-label={`${name(c)}: ${n} bài`}
-              className="h-full rounded-full transition-opacity hover:opacity-80 focus-visible:z-10"
+              className="h-full transition-opacity not-first:border-l-2 not-first:border-[var(--paper)] hover:opacity-80 focus-visible:z-10 focus-visible:outline-offset-[-2px]"
               style={{ flexGrow: n, flexBasis: 0, minWidth: 6, background: colorOf(c), opacity: filter && filter !== c ? 0.3 : 1 }} />
           ))}
         </div>
