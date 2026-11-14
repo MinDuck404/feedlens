@@ -27,6 +27,7 @@ export interface Meta {
   mode: "local" | "cloud";
   auth_required: boolean;
   config_error: string | null;
+  config_error_code?: string;
   signup_open: boolean;
   server_scrape: boolean;
   categories: Record<string, string>;
@@ -106,6 +107,7 @@ export interface Progress {
   done: number;
   target: number;
   message: string;
+  message_code?: string;
 }
 
 export interface Run {
@@ -116,6 +118,7 @@ export interface Run {
   collected: number;
   ai_label: string;
   error: string | null;
+  error_code?: string;
   digest: Digest | null;
   progress: Progress | null;
   posts?: Post[];
@@ -127,5 +130,6 @@ export interface PlatformSession {
   saved_at: string;
   status: "unchecked" | "ok" | "invalid";
   status_message: string;
+  status_message_code?: string;
   checked_at: string | null;
 }

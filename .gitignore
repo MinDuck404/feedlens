@@ -2,6 +2,8 @@
 .claude/
 .impeccable/
 **/.impeccable/
+.omc/
+**/.omc/
 
 # backend
 backend/.env

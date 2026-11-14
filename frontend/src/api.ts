@@ -1,4 +1,5 @@
-import { translate } from "./i18n";
+import { serverMessage, translate } from "./i18n";
+import { serialWriter } from "./logic";
 import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
@@ -12,31 +13,47 @@ export const auth = {
   clear: () => { try { localStorage.removeItem(TOKEN_KEY); } catch { /* bỏ qua */ } },
 };
 
-export class UnauthorizedError extends Error {}
+export class ApiError extends Error {
+  constructor(public status: number, public code: string | undefined, public detail: unknown, message: string) {
+    super(message);
+  }
+}
+export class UnauthorizedError extends ApiError {}
 
 async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   const token = auth.get();
-  const r = await fetch(API_BASE + path, {
+  let r: Response;
+  try { r = await fetch(API_BASE + path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
-  });
-  if (r.status === 401) {
+  }); } catch { throw new ApiError(0, undefined, "", translate("api.network")); }
+  if (r.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/register") {
     auth.clear();
     window.dispatchEvent(new Event("feedlens:logout"));
-    throw new UnauthorizedError(translate("api.sessionExpired"));
+    throw new UnauthorizedError(401, "error.session_expired", "", translate("api.sessionExpired"));
   }
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
-    throw new Error(typeof body.detail === "string" ? body.detail : translate("api.error", { status: r.status, text: r.statusText }));
+    const code = body.code ?? (path === "/api/auth/login" && r.status === 401 ? "error.invalid_credentials" : undefined);
+    const message = code || typeof body.detail === "string"
+      ? serverMessage(code, body.detail, { status: r.status })
+      : translate("api.requestFailed", { status: r.status });
+    throw new ApiError(r.status, code, body.detail, message);
   }
   return r;
 }
 
 const call = async <T>(path: string, init?: RequestInit): Promise<T> => (await raw(path, init)).json();
+
+const savePreferences = serialWriter<{ body: string; token: string }>(({ body, token }) => {
+  // A queued write from a previous account must never use the next account's token.
+  if (auth.get() !== token) throw new UnauthorizedError(401, "error.session_expired", "", translate("api.sessionExpired"));
+  return call("/api/preferences", { method: "PUT", body });
+});
 
 export const api = {
   meta: () => call<Meta>("/api/meta"),
@@ -46,7 +63,7 @@ export const api = {
     call<{ token: string; email: string }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => call<Me>("/api/auth/me"),
   preferences: () => call<Preferences>("/api/preferences"),
-  savePreferences: (p: Preferences) => call("/api/preferences", { method: "PUT", body: JSON.stringify(p) }),
+  savePreferences: (p: Preferences) => savePreferences({ body: JSON.stringify(p), token: auth.get() }),
   sessions: () => call<PlatformSession[]>("/api/sessions"),
   saveSession: (p: string, cookies: string) =>
     call<PlatformSession>(`/api/sessions/${p}`, { method: "PUT", body: JSON.stringify({ cookies }) }),

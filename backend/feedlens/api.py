@@ -16,7 +16,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -29,6 +32,7 @@ from .crypto import encrypt, hash_password, key_hint, new_agent_token, sha256, v
 from .db import Database, EmailTaken
 from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
+from .messages import error_code, progress_message
 from .cookies import CookieError, cookie_hint, parse_cookies
 from .pipeline import PROGRESS, fail_run, start_analysis, start_ingest, start_run, start_server_run
 
@@ -37,6 +41,17 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
                    allow_methods=["*"], allow_headers=["*"])
 app.state.db = Database(settings.database_url)
 app.state.db.fail_interrupted()
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(_request: Request, exc: StarletteHTTPException):
+    return JSONResponse({"detail": exc.detail, "code": error_code(str(exc.detail), exc.status_code)},
+                        status_code=exc.status_code, headers=exc.headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError):
+    return JSONResponse({"detail": jsonable_encoder(exc.errors()), "code": "error.validation"}, status_code=422)
+
 
 public = APIRouter(prefix="/api")
 private = APIRouter(prefix="/api")
@@ -111,6 +126,7 @@ def _browser_installed() -> bool:
 @public.get("/meta")
 def meta():
     return {"mode": settings.mode, "auth_required": settings.auth_enabled, "config_error": misconfigured(),
+            "config_error_code": "error.config" if misconfigured() else None,
             "signup_open": settings.allow_signup, "server_scrape": settings.is_cloud and settings.server_scrape,
             "categories": CATEGORIES, "max_posts": settings.max_posts}
 
@@ -193,6 +209,7 @@ async def put_preferences(request: Request, user: User = Depends(current_user)):
 def _session_dict(r) -> dict:
     return {"platform": r.platform, "hint": r.hint, "saved_at": r.saved_at.isoformat(),
             "status": r.status, "status_message": r.status_message,
+            "status_message_code": {"ok": "ck.statusOk", "invalid": "ck.statusInvalid"}.get(r.status, "ck.statusUnchecked"),
             "checked_at": r.checked_at.isoformat() if r.checked_at else None}
 
 
@@ -393,13 +410,14 @@ def create_run(req: RunRequest, user: User = Depends(current_user)):
 
 @private.get("/runs")
 def runs(user: User = Depends(current_user)):
-    return [{**r, "progress": PROGRESS.get(r["id"])} for r in db().list_runs(user.id)]
+    return [{**r, "progress": progress_message(PROGRESS.get(r["id"])), "error_code": error_code(r["error"], run_error=True) if r.get("error") else None} for r in db().list_runs(user.id)]
 
 
 @private.get("/runs/{run_id}")
 def run_detail(run_id: int, user: User = Depends(current_user)):
     r = _own_run(run_id, user)
-    return {**r, "progress": PROGRESS.get(run_id), "posts": [p.model_dump() for p in db().get_posts(run_id)]}
+    return {**r, "progress": progress_message(PROGRESS.get(run_id)),
+            "error_code": error_code(r["error"], run_error=True) if r.get("error") else None, "posts": [p.model_dump() for p in db().get_posts(run_id)]}
 
 
 @private.delete("/runs/{run_id}")

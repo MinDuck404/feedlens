@@ -1,9 +1,11 @@
-import { Check, Copy, ExternalLink, Loader2, X as XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, Copy, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { parseTimestamp } from "../logic";
 import { API_BASE, api } from "../api";
 import type { AIProviderInfo, Me, Meta } from "../types";
 import CookieSessions from "./CookieSessions";
 import { useI18n } from "../i18n";
+import { Sheet, Button, SkeletonCard } from "./ui";
 
 interface Props {
   meta: Meta;
@@ -13,47 +15,50 @@ interface Props {
 }
 
 export default function Settings({ meta, me, onClose, onChanged }: Props) {
+  const [open, setOpen] = useState(true);
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
   const { t } = useI18n();
-  const reload = () => api.providers().then(setProviders);
+  const reload = () => api.providers().then((p) => { setProviders(p); setLoadError(""); }).finally(() => setLoading(false));
 
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(() => {
+      onClose();
+    }, 200);
+  }, [onClose]);
+
   useEffect(() => {
-    reload();  // một lần khi mở, không chạy lại mỗi lần App cập nhật
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    reload().catch((e) => setLoadError(e.message));  // một lần khi mở, không chạy lại mỗi lần App cập nhật
   }, []);
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end bg-ink/30" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section role="dialog" aria-label={t("set.title")} className="sheet flex h-full w-full max-w-md flex-col bg-surface shadow-2xl">
-        <header className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold">{t("set.title")}</h2>
-          <button onClick={onClose} aria-label={t("act.close")} className="rounded-md p-1 text-ink-soft hover:bg-sunken">
-            <XIcon className="size-5" />
-          </button>
-        </header>
-        <div className="flex-1 space-y-8 overflow-x-hidden overflow-y-auto px-6 py-5">
-          <div>
-            <h3 className="font-semibold">{t("set.keys")}</h3>
-            <p className="mt-1 text-sm text-ink-soft">{t("set.keysHint")}</p>
-            <ul className="mt-4 space-y-3">
-              {providers.filter((p) => p.key !== "offline").map((p) => (
-                <KeyRow key={p.key} p={p} onChanged={() => { reload(); onChanged(); }} />
-              ))}
-            </ul>
-          </div>
-          {meta.mode === "cloud" && me && <AgentSection me={me} onChanged={onChanged} />}
-          {meta.server_scrape && <CookieSessions />}
-        </div>
-      </section>
-    </div>
+    <Sheet
+      open={open}
+      onClose={handleClose}
+      title={t("set.title")}
+      closeAriaLabel={t("act.close")}
+      maxWidth="max-w-lg"
+    >
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">{t("set.keys")}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.keysHint")}</p>
+        <ul className="mt-4 space-y-3">
+          {loadError && <li role="alert" className="mt-2 text-sm text-danger">{loadError} <button onClick={() => reload().catch((e) => setLoadError(e.message))}>{t("act.retry")}</button></li>}
+          {loading && <li role="status" aria-label={t("act.loading")}><div aria-hidden="true"><SkeletonCard /></div></li>}
+          {providers.filter((p) => p.key !== "offline").map((p) => (
+            <KeyRow key={p.key} p={p} onChanged={async () => { await reload(); onChanged(); }} />
+          ))}
+        </ul>
+      </div>
+      {meta.mode === "cloud" && me && <AgentSection me={me} onChanged={onChanged} />}
+      {meta.server_scrape && <CookieSessions />}
+    </Sheet>
   );
 }
 
-function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) {
+function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,7 +72,7 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
       await api.saveKey(p.key, value);
       setValue("");
       setEditing(false);
-      onChanged();
+      await onChanged();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -76,13 +81,16 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
   };
   const remove = async () => {
     if (!confirm(t("set.confirmDeleteKey", { name: p.name }))) return;
-    await api.deleteKey(p.key);
-    onChanged();
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await api.deleteKey(p.key); await onChanged(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
 
   return (
-    <li className="paper-card rounded-xl p-3">
-      <div className="flex items-center justify-between gap-2">
+    <li className="paper-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-medium">{p.name}</div>
           <div className="text-xs text-ink-soft">
@@ -93,32 +101,31 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
         </div>
         <div className="flex items-center gap-2 text-sm">
           {!editing && (
-            <button onClick={() => setEditing(true)} className="font-medium text-link hover:underline">
+            <Button onClick={() => setEditing(true)} variant="outline" className="min-h-10">
               {p.source === "db" ? t("set.changeKey") : t("set.addKey")}
-            </button>
+            </Button>
           )}
           {p.source === "db" && !editing && (
-            <button onClick={remove} className="text-ink-soft hover:text-danger">{t("act.delete")}</button>
+            <Button onClick={remove} busy={busy} variant="ghost" className="min-h-10 hover:text-danger">{t("act.delete")}</Button>
           )}
         </div>
       </div>
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       {editing && (
-        <div className="mt-3">
-          <input type="password" className="field" autoFocus placeholder={t("set.pasteKey", { name: p.name })}
+        <div className="page-enter mt-4 border-t border-line pt-4">
+          <label className="mb-2 block text-sm font-medium" htmlFor={`api-key-${p.key}`}>{t("set.pasteKey", { name: p.name })}</label>
+          <input id={`api-key-${p.key}`} type="password" className="field" autoFocus placeholder={t("set.pasteKey", { name: p.name })}
             value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" />
-          {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <a href={p.key_url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-link hover:underline">
+              className="inline-flex min-h-11 items-center gap-1 text-sm text-link underline-offset-4 hover:underline">
               {t("set.whereKey")} <ExternalLink className="size-3" />
             </a>
             <div className="flex gap-2">
-              <button onClick={() => { setEditing(false); setError(""); setValue(""); }}
-                className="rounded-md px-3 py-1.5 text-sm text-ink-soft hover:bg-surface">{t("act.cancel")}</button>
-              <button onClick={save} disabled={busy || value.trim().length < 8}
-                className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink disabled:opacity-50">
-                {busy && <Loader2 className="size-3.5 animate-spin" />} {busy ? t("set.checking") : t("set.saveKey")}
-              </button>
+              <Button onClick={() => { setEditing(false); setError(""); setValue(""); }} disabled={busy} variant="ghost">{t("act.cancel")}</Button>
+              <Button onClick={save} busy={busy} disabled={value.trim().length < 8}>
+                {busy ? t("set.checking") : t("set.saveKey")}
+              </Button>
             </div>
           </div>
         </div>
@@ -130,43 +137,54 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => void }) 
 function AgentSection({ me, onChanged }: { me: Me; onChanged: () => void }) {
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const { t, locale } = useI18n();
   const server = API_BASE || window.location.origin;
   const command = `.venv\\Scripts\\feedlens agent --server ${server} --token ${token}`;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(command); setCopied(true); }
+    catch { setError(t("act.copyFailed")); }
+  };
 
   const create = async () => {
     if (me.agent.has_token && !confirm(t("set.newTokenConfirm"))) return;
-    setToken((await api.newAgentToken()).token);
-    setCopied(false);
-    onChanged();
+    if (busy) return;
+    setBusy(true); setError("");
+    try {
+      setToken((await api.newAgentToken()).token);
+      setCopied(false);
+      onChanged();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
 
   return (
-    <div>
-      <h3 className="font-semibold">{t("set.agent")}</h3>
-      <p className="mt-1 text-sm text-ink-soft">{t("set.agentHint")}</p>
-      <p className="mt-3 flex items-center gap-2 text-sm">
-        <span className={`size-2 rounded-full ${me.agent.online ? "bg-ok" : "bg-line"}`} />
+    <section className="border-t border-line pt-6">
+      <h3 className="text-lg font-semibold tracking-tight">{t("set.agent")}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.agentHint")}</p>
+      <p className="mt-4 flex items-start gap-2 text-sm [overflow-wrap:anywhere]">
+        <span className={`mt-1.5 size-2 shrink-0 rounded-full ${me.agent.online ? "bg-ok" : "bg-line"}`} />
         {me.agent.online ? t("set.agentOn")
-          : me.agent.last_seen ? t("set.agentLast", { when: new Date(me.agent.last_seen).toLocaleString(locale) })
+          : me.agent.last_seen ? t("set.agentLast", { when: parseTimestamp(me.agent.last_seen).toLocaleString(locale) })
           : t("set.agentNever")}
       </p>
 
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       {token ? (
         <div className="mt-4">
           <p className="text-sm font-medium">{t("set.runThis")}</p>
           <pre className="mt-2 rounded-lg bg-sunken p-3 text-xs break-all whitespace-pre-wrap">{command}</pre>
-          <button onClick={() => navigator.clipboard.writeText(command).then(() => setCopied(true))}
-            className="mt-2 flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink">
-            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied ? t("act.copied") : t("set.copyCmd")}
-          </button>
+          <Button onClick={copy} className="mt-3 gap-2" icon={copied ? <Check className="size-4" /> : <Copy className="size-4" />}>
+            {copied ? t("act.copied") : t("set.copyCmd")}
+          </Button>
           <p className="mt-2 text-xs text-ink-soft">{t("set.tokenOnce")}</p>
         </div>
       ) : (
-        <button onClick={create} className="mt-4 rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-ink">
+        <Button onClick={create} busy={busy} variant="outline" className="mt-4">
           {me.agent.has_token ? t("set.newToken") : t("set.connect")}
-        </button>
+        </Button>
       )}
-    </div>
+    </section>
   );
 }

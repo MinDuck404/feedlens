@@ -1,78 +1,185 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ vibe: Paper (tham khảo uberdesigner.ai)
-   Nền giấy ấm, chữ mực, nét kẻ mảnh, nút hình viên thuốc. Mực là màu hành động chính;
-   cam (#FF5A36) chỉ dùng điểm xuyết: tab đang chọn, focus, tiến độ, điểm việc làm cao.
-   Màu theo LOẠI BÀI nằm ở src/categories.ts. Chế độ tối là bản "mực": nền mực, chữ giấy. */
+/* ------------------------------------------------------------------ FeedLens Design Tokens (Ultra-Crisp Minimalist Paper)
+   Tham chiếu: uberdesigner.ai + FeedLens Coral Accent (#ff5a36).
+   Nền giấy sáng tinh tế, chữ mực đậm rõ nét, đường viền hairline 1px inset,
+   nút bo tròn viên thuốc (pill), tương tác mượt mà chuẩn motion-foundations. */
+
 :root {
-  --paper: #f2f1ee;      /* nền trang */
-  --sheet: #faf9f7;      /* tờ giấy đặt lên trên: thẻ, panel */
-  --sunken: #e9e7e2;     /* ô nhập, nền phụ */
-  --ink: #0a0a0b;
-  --ink-soft: #66645f;
-  --line: #dcd9d2;       /* nét kẻ mảnh */
-  --primary: #0a0a0b;    /* nút chính = mực */
-  --primary-ink: #f2f1ee;
-  --accent: #ff5a36;     /* cam điểm xuyết (nền, vạch) */
-  --link: #b93a19;       /* cam đậm cho chữ, đủ tương phản trên giấy */
-  --danger: #b4233c;
-  --ok: #1f7a4d;
-  --grain: 0.035;
+  /* Surfaces & Canvas */
+  --paper: #faf9f7;               /* Nền trang sáng, sạch, crisp */
+  --sheet: #ffffff;               /* Nền thẻ nội dung, panel nổi */
+  --sunken: #f2f0ea;              /* Ô nhập liệu, vùng trũng phụ */
+  --sunken-hover: #ebe8e1;        /* Hover trên vùng trũng */
+
+  /* Text & Ink */
+  --ink: #0a0a0b;                 /* Mực đen đậm cho tiêu đề và chữ chính */
+  --ink-soft: #66645f;            /* Mực mờ cho phụ đề, nhãn phụ */
+  --ink-faint: #99968f;           /* Mực rất mờ cho placeholder, hint */
+
+  /* Hairlines & Dividers */
+  --line: #e2dfd7;                /* Nét kẻ mảnh hairline mặc định (1px) */
+  --line-subtle: rgba(0, 0, 0, 0.05); /* Vạch phân chia cực nhẹ */
+
+  /* Actions & Primary */
+  --primary: #0a0a0b;             /* Nút chính = Mực đen */
+  --primary-ink: #ffffff;         /* Chữ trên nút chính = Giấy trắng */
+
+  /* Brand Accent: Cam San Hô (User duyệt #ff5a36) */
+  --accent: #ff5a36;              /* Cam san hô thương hiệu chính */
+  --accent-fill: #e84c2a;         /* Cam đậm hơn khi nhấn (active) */
+  --accent-ink: #ffffff;          /* Chữ trên nền cam */
+  --accent-glow: rgba(255, 90, 54, 0.16); /* Ánh sáng mờ quanh focus/chip */
+  --link: #b93a19;                /* Cam đậm cho chữ link, đảm bảo tương phản */
+
+  /* Semantic Status */
+  --danger: #b4233c;              /* Đỏ cảnh báo, lỗi, xóa */
+  --ok: #1f7a4d;                  /* Xanh lục thành công, khớp việc cao */
+  --warning: #b7851a;             /* Vàng hổ phách cho match score trung bình */
+
+  /* Surface Radius Tokens */
+  --radius-control: 999px;        /* Nút bấm, chip, pills */
+  --radius-pill: 999px;
+  --radius-card: 14px;            /* Card bài viết, panel tóm tắt */
+  --radius-field: 10px;           /* Ô input, textarea, select */
+  --radius-modal: 20px;           /* Sheet drawer, dialog */
+  --radius-tag: 4px;              /* Tag phân loại nhỏ */
+
+  /* Motion & Duration Tokens (Chuẩn motion-foundations) */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --duration-spring: 350ms;
+  --duration-shimmer: 1.6s;
+
+  /* Easing Curves (Trích xuất toán học từ uberdesigner.ai) */
+  --ease-micro: cubic-bezier(0.215, 0.61, 0.355, 1);     /* Deceleration tự nhiên cho hover/press */
+  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19);    /* Gia tốc thoát nhanh cho modal close */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);           /* Đàn hồi mềm mại cho drawer/enter */
+
+  /* Paper Grain Intensity */
+  --grain: 0.02;                  /* Giảm nhẹ grain để trang luôn tinh tươm */
+
   color-scheme: light;
 }
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]):not(.light) {
     --paper: #0a0a0b;
     --sheet: #141416;
     --sunken: #1d1d22;
-    --ink: #f1f0ee;
+    --sunken-hover: #26262d;
+
+    --ink: #f4f4f4;
     --ink-soft: #9b9993;
+    --ink-faint: #66645f;
+
     --line: #2a2a2f;
-    --primary: #f1f0ee;
+    --line-subtle: rgba(255, 255, 255, 0.06);
+
+    --primary: #f4f4f4;
     --primary-ink: #0a0a0b;
-    --accent: #ff5a36;
+
+    --accent: #ff6b4a;
+    --accent-fill: #ff5a36;
+    --accent-ink: #ffffff;
+    --accent-glow: rgba(255, 107, 74, 0.22);
     --link: #ff8a6b;
+
     --danger: #ff7a8f;
     --ok: #4fd39b;
-    --grain: 0.05;
+    --warning: #eab308;
+
+    --grain: 0.035;
+
     color-scheme: dark;
   }
+}
+
+:root.dark,
+[data-theme="dark"] {
+  --paper: #0a0a0b;
+  --sheet: #141416;
+  --sunken: #1d1d22;
+  --sunken-hover: #26262d;
+
+  --ink: #f4f4f4;
+  --ink-soft: #9b9993;
+  --ink-faint: #66645f;
+
+  --line: #2a2a2f;
+  --line-subtle: rgba(255, 255, 255, 0.06);
+
+  --primary: #f4f4f4;
+  --primary-ink: #0a0a0b;
+
+  --accent: #ff6b4a;
+  --accent-fill: #ff5a36;
+  --accent-ink: #ffffff;
+  --accent-glow: rgba(255, 107, 74, 0.22);
+  --link: #ff8a6b;
+
+  --danger: #ff7a8f;
+  --ok: #4fd39b;
+  --warning: #eab308;
+
+  --grain: 0.035;
+
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--paper);
   --color-surface: var(--sheet);
   --color-sunken: var(--sunken);
+  --color-sunken-hover: var(--sunken-hover);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
   --color-line: var(--line);
+  --color-line-subtle: var(--line-subtle);
   --color-primary: var(--primary);
   --color-primary-ink: var(--primary-ink);
   --color-accent: var(--accent);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-ink: var(--accent-ink);
   --color-link: var(--link);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
-  --font-sans: "Be Vietnam Pro", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
-  --font-serif: "Lora", "Songti SC", "SimSun", "Noto Serif SC", Georgia, serif;
-  --font-mono: "Geist Mono", ui-monospace, "PingFang SC", "Microsoft YaHei", monospace;
+  --color-warning: var(--warning);
+
+  --radius-control: var(--radius-control);
+  --radius-pill: var(--radius-pill);
+  --radius-card: var(--radius-card);
+  --radius-field: var(--radius-field);
+  --radius-modal: var(--radius-modal);
+  --radius-tag: var(--radius-tag);
+
+  /* Typography Stack: Instrument Sans + Be Vietnam Pro + Noto Sans SC + JetBrains Mono (Loại bỏ SimSun) */
+  --font-sans: "Instrument Sans", "Be Vietnam Pro", system-ui, -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Lora", "Songti SC", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "Noto Sans SC", "Microsoft YaHei", monospace;
 }
 
-html, body, #root { height: 100%; }
+html, body, #root {
+  height: 100%;
+}
+
 body {
   margin: 0;
   background-color: var(--paper);
-  /* thớ giấy: nhiễu rất nhẹ, không ảnh hưởng độ đọc */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
   background-blend-mode: normal;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
 }
+
 body::before {
-  /* phủ màu giấy lên lớp nhiễu để nhiễu chỉ còn ~3–5% */
   content: "";
   position: fixed;
   inset: 0;
@@ -82,29 +189,288 @@ body::before {
   z-index: -1;
 }
 
-::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
-
-/* Panel trượt "Lướt mới" / "Cài đặt": khoảnh khắc chuyển động duy nhất, phản hồi hành động người dùng */
-@keyframes sheet-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-.sheet { animation: sheet-in .22s cubic-bezier(.2,.7,.2,1); }
-@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
-
-.field {
-  width: 100%;
-  border: 1px solid var(--line);
-  background: var(--sheet);
-  color: var(--ink);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font: inherit;
+::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: inherit;
 }
-.field::placeholder { color: color-mix(in srgb, var(--ink-soft) 75%, transparent); }
-.field:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
 
-/* Tờ giấy: nền sáng hơn trang, viền mảnh, bóng rất nhẹ như giấy đặt chồng */
-.paper-card {
-  background: var(--sheet);
-  border: 1px solid var(--line);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 4%, transparent);
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ------------------------------------------------------------------ @layer components
+   Đưa .field, .paper-card... vào @layer components để các utility class của Tailwind
+   như border-danger/40, bg-sunken, text-xs... có thể ghi đè một cách tự nhiên (Code-audit #2) */
+@layer components {
+  .field {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: var(--sheet);
+    color: var(--ink);
+    border-radius: var(--radius-field);
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: border-color var(--duration-fast) var(--ease-micro),
+                box-shadow var(--duration-fast) var(--ease-micro);
+  }
+
+  .field::placeholder {
+    color: var(--ink-faint);
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .field:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--sunken);
+  }
+
+  /* Tờ giấy (Paper Card): Nền sáng sắc nét, viền hairline, đổ bóng vi mô */
+  .paper-card {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+    transition: border-color var(--duration-fast) var(--ease-micro),
+                box-shadow var(--duration-fast) var(--ease-micro),
+                transform var(--duration-fast) var(--ease-micro);
+  }
+
+  /* Paper Card có tương tác hover */
+  .paper-card-interactive {
+    cursor: pointer;
+  }
+  .paper-card-interactive:hover {
+    border-color: color-mix(in srgb, var(--ink) 25%, var(--line));
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+    transform: translateY(-1px);
+  }
+  .paper-card-interactive:active {
+    transform: scale(0.995);
+  }
+
+  /* Kính mờ siêu thực (Frosted Glass cho Header & Bar) */
+  .paper-glass {
+    background: color-mix(in srgb, var(--paper) 85%, transparent);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+  }
+
+  /* Pattern chấm giấy can (Dot Matrix) */
+  .paper-dots {
+    background-image: radial-gradient(var(--line) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+}
+
+/* ------------------------------------------------------------------ Animation & Motion System */
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-out-left {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dialog-fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(8px);
+  }
+}
+
+/* Classes hiệu ứng */
+.sheet {
+  animation: sheet-in var(--duration-spring) var(--ease-spring) forwards;
+}
+
+.sheet-exit {
+  animation: sheet-out var(--duration-fast) var(--ease-exit) forwards;
+}
+
+.sheet-left {
+  animation: sheet-in-left var(--duration-spring) var(--ease-spring) forwards;
+}
+
+.sheet-left-exit {
+  animation: sheet-out-left var(--duration-fast) var(--ease-exit) forwards;
+}
+
+.backdrop-in {
+  animation: backdrop-in var(--duration-fast) var(--ease-micro) forwards;
+}
+
+.backdrop-out {
+  animation: backdrop-out var(--duration-fast) var(--ease-exit) forwards;
+}
+
+.page-enter {
+  animation: page-enter var(--duration-normal) var(--ease-micro) both;
+}
+
+.dialog-modal-in {
+  animation: dialog-fade-in var(--duration-normal) var(--ease-spring) forwards;
+}
+
+.dialog-modal-out {
+  animation: dialog-fade-out var(--duration-fast) var(--ease-exit) forwards;
+}
+
+/* Micro-interaction tap phản hồi xúc giác */
+.interactive-tap {
+  transition: transform var(--duration-fast) var(--ease-micro),
+              opacity var(--duration-fast) var(--ease-micro);
+}
+.interactive-tap:hover {
+  transform: translateY(-0.5px);
+}
+.interactive-tap:active {
+  transform: scale(0.975);
+}
+
+/* Stagger List Animation cho danh sách bài viết / lịch sử */
+.stagger-item {
+  animation: page-enter var(--duration-normal) var(--ease-micro) both;
+}
+.stagger-item:nth-child(1) { animation-delay: 20ms; }
+.stagger-item:nth-child(2) { animation-delay: 40ms; }
+.stagger-item:nth-child(3) { animation-delay: 60ms; }
+.stagger-item:nth-child(4) { animation-delay: 80ms; }
+.stagger-item:nth-child(5) { animation-delay: 100ms; }
+.stagger-item:nth-child(6) { animation-delay: 120ms; }
+.stagger-item:nth-child(7) { animation-delay: 140ms; }
+.stagger-item:nth-child(8) { animation-delay: 160ms; }
+
+/* Skeleton Shimmer Wave */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--sunken);
+  border-radius: var(--radius-field);
+}
+.skeleton-shimmer::after {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer-sweep var(--duration-shimmer) infinite;
+  content: "";
+}
+
+/* ------------------------------------------------------------------ prefers-reduced-motion (Code-audit #17)
+   Khi người dùng bật chế độ giảm chuyển động trong hệ điều hành:
+   Tắt mọi transform di chuyển mạnh, chỉ giữ lại hiệu ứng opacity fade nhẹ để không làm mất phản hồi thị giác. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-exit,
+  .sheet-left,
+  .sheet-left-exit,
+  .backdrop-in,
+  .backdrop-out,
+  .dialog-modal-in,
+  .dialog-modal-out,
+  .page-enter,
+  .stagger-item,
+  .interactive-tap,
+  .paper-card-interactive {
+    animation: none !important;
+    transform: none !important;
+    transition: opacity 0.15s ease !important;
+  }
+  .skeleton-shimmer::after {
+    animation: none !important;
+    opacity: 0.3;
+  }
 }

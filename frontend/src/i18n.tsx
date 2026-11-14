@@ -12,12 +12,73 @@ const LOCALE: Record<Lang, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN" };
 const STORE = "feedlens.lang";
 
 const vi = {
+  "error.request_failed": "Không thực hiện được yêu cầu. Hãy thử lại.",
+  "act.copyFailed": "Không sao chép được. Hãy chọn và sao chép nội dung thủ công.",
+  "act.retry": "Thử lại",
+  "api.network": "Không kết nối được server. Hãy thử lại.",
+  "api.requestFailed": "Yêu cầu thất bại ({status}).",
+  "run.retrying": "Mất kết nối. Đang tự thử lại…",
+  "error.invalid_credentials": "Sai email hoặc mật khẩu.",
+  "error.session_expired": "Phiên đăng nhập đã hết hạn.",
+  "error.rate_limited": "Thử quá nhiều lần. Đợi 15 phút rồi thử lại.",
+  "error.signup_closed": "Server đang đóng đăng ký.",
+  "error.invalid_email": "Email không hợp lệ.",
+  "error.password_short": "Mật khẩu cần ít nhất 8 ký tự.",
+  "error.email_taken": "Email đã có tài khoản. Hãy đăng nhập.",
+  "error.config": "Server cần FEEDLENS_SECRET có ít nhất 32 ký tự.",
+  "error.local_only": "Tác vụ này cần trình duyệt trên máy. Hãy chạy agent.",
+  "error.unsupported_platform": "Nền tảng không hỗ trợ.",
+  "error.unsupported_provider": "Nhà cung cấp AI không hỗ trợ.",
+  "error.invalid_preferences": "Cài đặt không hợp lệ hoặc quá lớn.",
+  "error.cookie_missing": "Chưa có cookie. Thêm cookie trong Cài đặt.",
+  "error.cookie_invalid": "Cookie hết hạn hoặc cần xác minh. Đăng nhập lại và gửi cookie mới.",
+  "error.server_scrape_disabled": "Server đã tắt lướt bằng cookie. Hãy dùng agent.",
+  "error.browser_failed": "Server không mở được trình duyệt để kiểm tra.",
+  "error.key_invalid": "Không kiểm tra được API key. Kiểm tra key và kết nối nhà cung cấp.",
+  "error.key_missing": "Chưa có API key. Thêm key trong Cài đặt.",
+  "error.models_failed": "Không lấy được danh sách model. Hãy thử lại.",
+  "error.run_missing": "Không tìm thấy lượt này.",
+  "error.sources_missing": "Nhập ít nhất một nhóm hoặc từ khóa.",
+  "error.run_failed": "Lượt bị dừng do lỗi. Kiểm tra phiên, nguồn và cấu hình AI rồi thử lại.",
+  "error.validation": "Dữ liệu không hợp lệ. Kiểm tra các trường đã nhập.",
+  "error.forbidden": "Bạn không có quyền thực hiện tác vụ này.",
+  "error.conflict": "Trạng thái đã thay đổi. Tải lại rồi thử lại.",
+  "prefs.saveFailed": "Chưa lưu được cài đặt lên server.",
+  "progress.pending": "Đang chờ agent nhận việc…",
+  "progress.queued": "Đang xếp hàng…",
+  "progress.scraping": "Đang thu thập bài: {done}/{target}…",
+  "progress.analyzing": "Đang phân tích bài: {done}/{target}…",
+  "progress.summarizing": "Đang viết tóm tắt…",
+  "progress.done": "Hoàn tất",
+  "progress.verification": "Cần xác minh. Hoàn tất đăng nhập trong cửa sổ trình duyệt.",
+  "progress.preparing": "Đang chuẩn bị…",
+  "ck.statusOk": "Phiên đăng nhập dùng được từ server.",
+  "ck.statusInvalid": "Phiên hết hạn hoặc cần xác minh.",
+  "ck.statusUnchecked": "Phiên chưa được kiểm tra.",
+  "cmp.modelAria": "Model AI",
+  "cmp.searchFacebook": "tuyển python; từ xa react",
+  "cmp.searchLinkedin": "tuyển python Việt Nam",
+  "cmp.searchX": "#tuyểndụng từ xa",
+  "cmp.searchReddit": "python việc làm từ xa",
+  "kw.remote": "từ xa",
+  "kw.junior": "mới vào nghề",
+  "kw.senior": "có kinh nghiệm",
+  "kw.intern": "thực tập",
+  "kw.partTime": "bán thời gian",
+  "kw.hanoi": "Hà Nội",
+  "kw.hcm": "TP.HCM",
+  "kw.danang": "Đà Nẵng",
+  "home.loggingInFull": "Đang mở cửa sổ đăng nhập {name}.",
+  "posts.viewingCategory": "Đang xem {n} bài loại {category}.",
+  "cmp.groupsSelectedCount": "Chọn {selected}/{total} nhóm sẽ lướt",
+  "run.postsCount": "{n} bài, chia theo loại",
+
   "app.bootError": "Không kết nối được server FeedLens. Kiểm tra backend đang chạy rồi tải lại trang.",
   "lang.label": "Ngôn ngữ",
   "api.sessionExpired": "Phiên đăng nhập đã hết hạn.",
-  "api.error": "Lỗi {status}: {text}",
 
   "nav.label": "Điều hướng",
+  "nav.menu": "Menu",
   "nav.home": "Trang chủ",
   "nav.history": "Lịch sử",
   "act.newRun": "Lướt mới",
@@ -39,6 +100,7 @@ const vi = {
 
   "sb.accounts": "tài khoản",
   "sb.prevRuns": "các lượt trước ({n})",
+  "sb.prevRunsTitle": "các lượt trước",
   "sb.seeAll": "xem tất cả",
   "sb.noRuns": "Chưa có lượt nào.",
   "sb.feed": "Bảng tin",
@@ -58,7 +120,6 @@ const vi = {
   "plat.remove": "Xóa phiên",
   "plat.confirmRemove": "Xóa phiên đăng nhập {name} đã lưu trên máy?",
 
-  "home.loggingIn": "Đang mở cửa sổ đăng nhập",
   "home.loggingInHint": "Đăng nhập trong cửa sổ Chrome vừa hiện ra (kể cả xác minh 2 bước); xong thì cửa sổ tự đóng.",
   "home.title1": "đọc ít hơn,",
   "home.title2": "biết nhiều hơn.",
@@ -70,6 +131,7 @@ const vi = {
   "home.cloud2": "Bật agent trên máy (hoặc lưu cookie để lướt bằng server).",
   "home.cloud3": "Bấm Lướt mới, chọn bảng tin hoặc nhóm.",
   "home.orOpen": "hoặc mở một lượt ở cột trái",
+  "home.orOpenMobile": "hoặc mở menu để xem các lượt trước",
 
   "hist.title": "lịch sử",
   "hist.summary": "{n} lượt, {j} lượt tìm việc",
@@ -91,7 +153,6 @@ const vi = {
   "run.phase.preparing": "Đang chuẩn bị",
   "run.pendingHint": "Lượt sẽ tự chạy khi agent bật. Xem cách bật trong phần Cài đặt.",
   "run.openingBrowser": "Đang mở trình duyệt…",
-  "run.postsByCategory": "bài, chia theo loại",
   "run.composition": "Thành phần bảng tin",
   "run.catCount": "{name}: {n} bài",
   "run.nPosts": "{n} bài",
@@ -122,7 +183,6 @@ const vi = {
   "job.markApplied": "Đánh dấu đã ứng tuyển",
   "job.applied": "Đã ứng tuyển",
 
-  "posts.viewing": "Đang xem {n} bài loại",
   "posts.unknownAuthor": "Không rõ tác giả",
   "posts.openOriginal": "Mở bài gốc",
 
@@ -143,7 +203,6 @@ const vi = {
   "cmp.addSubreddit": "Thêm subreddit",
   "cmp.keywords": "Từ khóa",
   "cmp.keywordsOrTags": "Từ khóa hoặc hashtag",
-  "cmp.groupsSelected": "nhóm sẽ lướt",
   "cmp.selectAll": "Chọn tất cả",
   "cmp.selectNone": "Bỏ chọn tất cả",
   "cmp.removeGroup": "Xóa {name} khỏi danh sách",
@@ -265,11 +324,72 @@ const vi = {
 export type Key = keyof typeof vi;
 
 const en: Record<Key, string> = {
+  "error.request_failed": "Could not complete the request. Please try again.",
+  "act.copyFailed": "Could not copy. Select and copy the text manually.",
+  "act.retry": "Retry",
+  "api.network": "Cannot reach the server. Please try again.",
+  "api.requestFailed": "Request failed ({status}).",
+  "run.retrying": "Connection lost. Retrying automatically…",
+  "error.invalid_credentials": "Incorrect email or password.",
+  "error.session_expired": "Your session has expired.",
+  "error.rate_limited": "Too many attempts. Wait 15 minutes and try again.",
+  "error.signup_closed": "Registration is closed.",
+  "error.invalid_email": "Enter a valid email address.",
+  "error.password_short": "Password must contain at least 8 characters.",
+  "error.email_taken": "This email already has an account. Please sign in.",
+  "error.config": "Configure FEEDLENS_SECRET with at least 32 characters on the server.",
+  "error.local_only": "This action needs a local browser. Start your agent.",
+  "error.unsupported_platform": "Unsupported platform.",
+  "error.unsupported_provider": "Unsupported AI provider.",
+  "error.invalid_preferences": "Preferences are invalid or too large.",
+  "error.cookie_missing": "No cookies saved. Add cookies in Settings.",
+  "error.cookie_invalid": "Cookies expired or verification is required. Sign in again and send fresh cookies.",
+  "error.server_scrape_disabled": "Server browsing is disabled. Use your agent.",
+  "error.browser_failed": "The server could not open a browser to check cookies.",
+  "error.key_invalid": "Could not verify the API key. Check the key and provider connection.",
+  "error.key_missing": "No API key configured. Add one in Settings.",
+  "error.models_failed": "Could not load models. Please retry.",
+  "error.run_missing": "Run not found.",
+  "error.sources_missing": "Enter at least one group or keyword.",
+  "error.run_failed": "The run failed. Check your session, sources and AI settings, then retry.",
+  "error.validation": "Invalid input. Check the values you entered.",
+  "error.forbidden": "You do not have permission for this action.",
+  "error.conflict": "The state has changed. Reload and retry.",
+  "prefs.saveFailed": "Preferences have not been saved to the server.",
+  "progress.pending": "Waiting for your agent…",
+  "progress.queued": "Waiting in the queue…",
+  "progress.scraping": "Collecting posts: {done}/{target}…",
+  "progress.analyzing": "Analyzing posts: {done}/{target}…",
+  "progress.summarizing": "Writing the summary…",
+  "progress.done": "Completed",
+  "progress.verification": "Verification needed. Complete sign-in in the browser window.",
+  "progress.preparing": "Getting ready…",
+  "ck.statusOk": "The session works from the server.",
+  "ck.statusInvalid": "The session expired or needs verification.",
+  "ck.statusUnchecked": "The session has not been checked.",
+  "cmp.modelAria": "AI model",
+  "cmp.searchFacebook": "hiring python; remote react",
+  "cmp.searchLinkedin": "hiring python vietnam",
+  "cmp.searchX": "#hiring remote",
+  "cmp.searchReddit": "python job remote",
+  "kw.remote": "remote",
+  "kw.junior": "junior",
+  "kw.senior": "senior",
+  "kw.intern": "intern",
+  "kw.partTime": "part-time",
+  "kw.hanoi": "Hanoi",
+  "kw.hcm": "Ho Chi Minh City",
+  "kw.danang": "Da Nang",
+  "home.loggingInFull": "Opening the sign-in window for {name}.",
+  "posts.viewingCategory": "Showing {n} posts in {category}.",
+  "cmp.groupsSelectedCount": "{selected}/{total} groups selected",
+  "run.postsCount": "{n} posts, by type",
+
   "app.bootError": "Can't reach the FeedLens server. Make sure the backend is running, then reload the page.",
   "lang.label": "Language",
   "api.sessionExpired": "Your session has expired.",
-  "api.error": "Error {status}: {text}",
   "nav.label": "Navigation",
+  "nav.menu": "Menu",
   "nav.home": "Home",
   "nav.history": "History",
   "act.newRun": "New run",
@@ -289,6 +409,7 @@ const en: Record<Key, string> = {
   "status.error": "Error",
   "sb.accounts": "accounts",
   "sb.prevRuns": "previous runs ({n})",
+  "sb.prevRunsTitle": "previous runs",
   "sb.seeAll": "show all",
   "sb.noRuns": "No runs yet.",
   "sb.feed": "Feed",
@@ -307,7 +428,6 @@ const en: Record<Key, string> = {
   "plat.openLogin": "Open the {name} sign-in window",
   "plat.remove": "Remove session",
   "plat.confirmRemove": "Remove the saved {name} session from this computer?",
-  "home.loggingIn": "Opening the sign-in window for",
   "home.loggingInHint": "Sign in in the Chrome window that just opened (including two-step verification); it closes by itself when you're done.",
   "home.title1": "read less,",
   "home.title2": "know more.",
@@ -319,6 +439,7 @@ const en: Record<Key, string> = {
   "home.cloud2": "Start the agent on your computer (or save cookies to browse from the server).",
   "home.cloud3": "Click New run and choose your feed or groups.",
   "home.orOpen": "or open a run on the left",
+  "home.orOpenMobile": "or open the menu to view previous runs",
   "hist.title": "history",
   "hist.summary": "{n} runs, {j} job searches",
   "hist.empty": "No runs yet. Click New run to get started.",
@@ -338,7 +459,6 @@ const en: Record<Key, string> = {
   "run.phase.preparing": "Getting ready",
   "run.pendingHint": "The run starts as soon as the agent is on. See how in Settings.",
   "run.openingBrowser": "Opening the browser…",
-  "run.postsByCategory": "posts, by type",
   "run.composition": "What's in the feed",
   "run.catCount": "{name}: {n} posts",
   "run.nPosts": "{n} posts",
@@ -367,7 +487,6 @@ const en: Record<Key, string> = {
   "job.open": "Open job post",
   "job.markApplied": "Mark as applied",
   "job.applied": "Applied",
-  "posts.viewing": "Showing {n} posts in",
   "posts.unknownAuthor": "Unknown author",
   "posts.openOriginal": "Open original",
   "cmp.title": "New run",
@@ -387,7 +506,6 @@ const en: Record<Key, string> = {
   "cmp.addSubreddit": "Add subreddits",
   "cmp.keywords": "Keywords",
   "cmp.keywordsOrTags": "Keywords or hashtags",
-  "cmp.groupsSelected": "groups selected",
   "cmp.selectAll": "Select all",
   "cmp.selectNone": "Clear selection",
   "cmp.removeGroup": "Remove {name} from the list",
@@ -503,11 +621,72 @@ const en: Record<Key, string> = {
 };
 
 const zh: Record<Key, string> = {
+  "error.request_failed": "无法完成请求，请重试。",
+  "act.copyFailed": "无法复制，请选择文本并手动复制。",
+  "act.retry": "重试",
+  "api.network": "无法连接服务器，请重试。",
+  "api.requestFailed": "请求失败（{status}）。",
+  "run.retrying": "连接中断，正在自动重试…",
+  "error.invalid_credentials": "邮箱或密码错误。",
+  "error.session_expired": "登录已过期。",
+  "error.rate_limited": "尝试次数过多，请等待 15 分钟后重试。",
+  "error.signup_closed": "注册已关闭。",
+  "error.invalid_email": "请输入有效邮箱。",
+  "error.password_short": "密码至少需要 8 个字符。",
+  "error.email_taken": "此邮箱已注册，请登录。",
+  "error.config": "请在服务器配置至少 32 个字符的 FEEDLENS_SECRET。",
+  "error.local_only": "此操作需要本机浏览器，请启动代理。",
+  "error.unsupported_platform": "不支持此平台。",
+  "error.unsupported_provider": "不支持此 AI 提供商。",
+  "error.invalid_preferences": "设置无效或过大。",
+  "error.cookie_missing": "尚未保存 Cookie，请在设置中添加。",
+  "error.cookie_invalid": "Cookie 已过期或需要验证，请重新登录并发送新 Cookie。",
+  "error.server_scrape_disabled": "服务器浏览已禁用，请使用代理。",
+  "error.browser_failed": "服务器无法打开浏览器检查 Cookie。",
+  "error.key_invalid": "无法验证 API key，请检查密钥和提供商连接。",
+  "error.key_missing": "尚未配置 API key，请在设置中添加。",
+  "error.models_failed": "无法获取模型列表，请重试。",
+  "error.run_missing": "未找到此浏览记录。",
+  "error.sources_missing": "请至少输入一个群组或关键词。",
+  "error.run_failed": "浏览失败，请检查登录会话、来源和 AI 设置后重试。",
+  "error.validation": "输入无效，请检查填写的内容。",
+  "error.forbidden": "您无权执行此操作。",
+  "error.conflict": "状态已更改，请刷新后重试。",
+  "prefs.saveFailed": "设置尚未保存到服务器。",
+  "progress.pending": "正在等待代理…",
+  "progress.queued": "正在排队…",
+  "progress.scraping": "正在收集帖子：{done}/{target}…",
+  "progress.analyzing": "正在分析帖子：{done}/{target}…",
+  "progress.summarizing": "正在撰写摘要…",
+  "progress.done": "已完成",
+  "progress.verification": "需要验证，请在浏览器窗口完成登录。",
+  "progress.preparing": "正在准备…",
+  "ck.statusOk": "服务器可使用此登录会话。",
+  "ck.statusInvalid": "登录会话已过期或需要验证。",
+  "ck.statusUnchecked": "尚未检查此会话。",
+  "cmp.modelAria": "AI 模型",
+  "cmp.searchFacebook": "招聘 python; 远程 react",
+  "cmp.searchLinkedin": "招聘 python 越南",
+  "cmp.searchX": "#招聘 远程",
+  "cmp.searchReddit": "python 远程 工作",
+  "kw.remote": "远程",
+  "kw.junior": "初级",
+  "kw.senior": "高级",
+  "kw.intern": "实习",
+  "kw.partTime": "兼职",
+  "kw.hanoi": "河内",
+  "kw.hcm": "胡志明市",
+  "kw.danang": "岘港",
+  "home.loggingInFull": "正在打开 {name} 登录窗口。",
+  "posts.viewingCategory": "正在查看 {category} 类的 {n} 条帖子。",
+  "cmp.groupsSelectedCount": "已选择 {selected}/{total} 个群组",
+  "run.postsCount": "{n} 条帖子，按类型",
+
   "app.bootError": "无法连接 FeedLens 服务器。请确认后端正在运行，然后刷新页面。",
   "lang.label": "语言",
   "api.sessionExpired": "登录已过期。",
-  "api.error": "错误 {status}：{text}",
   "nav.label": "导航",
+  "nav.menu": "菜单",
   "nav.home": "首页",
   "nav.history": "历史",
   "act.newRun": "新建浏览",
@@ -527,6 +706,7 @@ const zh: Record<Key, string> = {
   "status.error": "出错",
   "sb.accounts": "账号",
   "sb.prevRuns": "以往记录（{n}）",
+  "sb.prevRunsTitle": "以往记录",
   "sb.seeAll": "查看全部",
   "sb.noRuns": "还没有记录。",
   "sb.feed": "动态",
@@ -545,7 +725,6 @@ const zh: Record<Key, string> = {
   "plat.openLogin": "打开 {name} 登录窗口",
   "plat.remove": "删除会话",
   "plat.confirmRemove": "删除本机保存的 {name} 登录会话？",
-  "home.loggingIn": "正在打开登录窗口：",
   "home.loggingInHint": "请在刚打开的 Chrome 窗口中登录（包括两步验证），完成后窗口会自动关闭。",
   "home.title1": "读得更少，",
   "home.title2": "知道更多。",
@@ -557,12 +736,13 @@ const zh: Record<Key, string> = {
   "home.cloud2": "在电脑上启动代理（或保存 cookie 由服务器浏览）。",
   "home.cloud3": "点击“新建浏览”，选择动态或群组。",
   "home.orOpen": "或在左侧打开一条记录",
+  "home.orOpenMobile": "或打开菜单查看以往记录",
   "hist.title": "历史",
   "hist.summary": "{n} 条记录，其中 {j} 条找工作",
   "hist.empty": "还没有记录。点击“新建浏览”开始。",
   "hist.jobTag": "找工作",
   "run.feedOf": "{platform} 动态",
-  "run.andMore": "{first} 等 {n} 个来源",
+  "run.andMore": "{first}，另有 {n} 个来源",
   "run.notFound": "找不到记录 #{id}",
   "run.maybeDeleted": "它可能已被删除。",
   "run.viewHistory": "查看历史",
@@ -576,7 +756,6 @@ const zh: Record<Key, string> = {
   "run.phase.preparing": "准备中",
   "run.pendingHint": "代理启动后会自动开始。启动方法见设置。",
   "run.openingBrowser": "正在打开浏览器…",
-  "run.postsByCategory": "条帖子，按类型",
   "run.composition": "动态组成",
   "run.catCount": "{name}：{n} 条",
   "run.nPosts": "{n} 条",
@@ -605,7 +784,6 @@ const zh: Record<Key, string> = {
   "job.open": "打开招聘帖",
   "job.markApplied": "标记为已投递",
   "job.applied": "已投递",
-  "posts.viewing": "正在查看 {n} 条，类型：",
   "posts.unknownAuthor": "作者不详",
   "posts.openOriginal": "打开原帖",
   "cmp.title": "新建浏览",
@@ -625,7 +803,6 @@ const zh: Record<Key, string> = {
   "cmp.addSubreddit": "添加 subreddit",
   "cmp.keywords": "关键词",
   "cmp.keywordsOrTags": "关键词或话题标签",
-  "cmp.groupsSelected": "个群组将被浏览",
   "cmp.selectAll": "全选",
   "cmp.selectNone": "取消全选",
   "cmp.removeGroup": "从列表中删除 {name}",
@@ -757,12 +934,44 @@ export function detectLang(): Lang {
 }
 
 type Vars = Record<string, string | number>;
+let currentLang: Lang = detectLang();
+const listeners = new Set<(lang: Lang) => void>();
 
-/** Dịch bên ngoài React (vd trong api.ts), theo ngôn ngữ đang chọn */
-export function translate(key: Key, vars?: Vars): string {
-  let s = DICTS[detectLang()][key] ?? vi[key];
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+function setCurrentLang(lang: Lang) {
+  currentLang = lang;
+  listeners.forEach((listener) => listener(lang));
+}
+
+export function formatNumber(n: number, lang: Lang = currentLang): string {
+  return new Intl.NumberFormat(LOCALE[lang]).format(n);
+}
+
+function renderMessage(lang: Lang, key: Key, vars?: Vars): string {
+  let s = DICTS[lang][key] ?? vi[key] ?? key;
+  if (lang === "en" && vars) {
+    const singular: Record<string, string> = { runs: "run", "job searches": "job search", posts: "post", sources: "source", "groups selected": "group selected" };
+    const plural = new Intl.PluralRules("en");
+    s = s.replace(/\{(\w+)\} (runs|job searches|posts|sources|groups selected)\b/g, (match, name: string, noun: string) =>
+      typeof vars[name] === "number" && plural.select(vars[name]) === "one" ? `{${name}} ${singular[noun]}` : match);
+  }
+  if (vars) for (const [k, v] of Object.entries(vars)) {
+    s = s.split(`{${k}}`).join(typeof v === "number" && k !== "id" ? formatNumber(v, lang) : String(v));
+  }
   return s;
+}
+
+/** Uses the same in-memory language as React, even when storage is unavailable. */
+export function translate(key: Key, vars?: Vars): string {
+  return renderMessage(currentLang, key, vars);
+}
+
+export function serverMessage(code: string | undefined, fallback = "", vars?: Vars): string {
+  if (code && Object.hasOwn(vi, code)) return translate(code as Key, vars);
+  // Compatibility with older servers that only return a detail string.
+  if (/Sai email|incorrect.*password/i.test(fallback)) return translate("error.invalid_credentials");
+  if (/FEEDLENS_SECRET/.test(fallback)) return translate("error.config");
+  if (/\bcookies?(?:\s+(?:facebook|linkedin|x|reddit))?\s+(?:đã\s+)?(?:hết hạn|hết hiệu lực|không (?:còn )?(?:hợp lệ|dùng được)|(?:is |are )?(?:invalid|expired))|\b(?:invalid|expired)\s+cookies?\b/i.test(fallback)) return translate("error.cookie_invalid");
+  return vars?.status ? translate("api.requestFailed", vars) : translate("error.run_failed");
 }
 interface I18n {
   lang: Lang;
@@ -776,20 +985,24 @@ interface I18n {
 const Ctx = createContext<I18n | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(detectLang);
+  const [lang, setLangState] = useState<Lang>(() => currentLang);
   const setLang = useCallback((l: Lang) => {
-    setLangState(l);
+    setCurrentLang(l);
     try { localStorage.setItem(STORE, l); } catch { /* bỏ qua */ }
+  }, []);
+  useEffect(() => {
+    listeners.add(setLangState);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORE || e.key === null) setCurrentLang(detectLang());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => { listeners.delete(setLangState); window.removeEventListener("storage", onStorage); };
   }, []);
   useEffect(() => { document.documentElement.lang = lang === "zh" ? "zh-CN" : lang; }, [lang]);
 
   const value = useMemo<I18n>(() => {
     const dict = DICTS[lang];
-    const t = (key: Key, vars?: Vars) => {
-      let s = dict[key] ?? vi[key] ?? key;
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
-      return s;
-    };
+    const t = (key: Key, vars?: Vars) => renderMessage(lang, key, vars);
     const cat = (c: string) => (`cat.${c}` in dict ? dict[`cat.${c}` as Key] : c);
     return { lang, locale: LOCALE[lang], setLang, t, cat };
   }, [lang, setLang]);

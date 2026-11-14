@@ -1,28 +1,30 @@
-import { Briefcase, Check, Loader2, RefreshCw, Trash2, X as XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Briefcase, Check, RefreshCw, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { groupName } from "../logic";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { useI18n, type Key } from "../i18n";
+import { Sheet, Button, IconButton, Skeleton } from "./ui";
 import type {
   AIProviderInfo, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
 } from "../types";
 
-const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label: Key; ph: string }>> = {
+const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label: Key; ph: string; phKey?: Key }>> = {
   facebook: {
     group: { label: "cmp.addGroup", ph: "https://www.facebook.com/groups/vieclamit\nhttps://www.facebook.com/groups/123456789" },
-    search: { label: "cmp.keywords", ph: "tuyển python\nvieclamit | remote react" },
+    search: { label: "cmp.keywords", ph: "", phKey: "cmp.searchFacebook" },
   },
   linkedin: {
     group: { label: "cmp.addGroup", ph: "https://www.linkedin.com/groups/123456/" },
-    search: { label: "cmp.keywords", ph: "hiring python vietnam" },
+    search: { label: "cmp.keywords", ph: "", phKey: "cmp.searchLinkedin" },
   },
   x: {
     group: { label: "cmp.addAccount", ph: "@vercel\nhttps://x.com/i/lists/123" },
-    search: { label: "cmp.keywordsOrTags", ph: "#hiring remote" },
+    search: { label: "cmp.keywordsOrTags", ph: "", phKey: "cmp.searchX" },
   },
   reddit: {
     group: { label: "cmp.addSubreddit", ph: "forhire\nvietnam" },
-    search: { label: "cmp.keywords", ph: "python job remote" },
+    search: { label: "cmp.keywords", ph: "", phKey: "cmp.searchReddit" },
   },
 };
 
@@ -35,13 +37,11 @@ const lines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
 /** Link dán vào ô một dòng: tách theo dấu cách, xuống dòng hoặc dấu phẩy */
 const links = (t: string) => t.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
 
-/** Tên dễ đọc từ link nhóm: facebook.com/groups/viec-lam-it -> "viec lam it" */
-function groupName(url: string): string {
-  const slug = url.replace(/\/$/, "").split(/groups\/|\/r\/|x\.com\//).pop() ?? url;
-  return decodeURIComponent(slug.split(/[/?#]/)[0]).replace(/[-_.]+/g, " ").trim() || url;
-}
-
 const KEYWORD_SUGGESTIONS = ["remote", "junior", "senior", "intern", "part-time", "Hà Nội", "HCM", "Đà Nẵng"];
+const KEYWORD_LABELS: Record<string, Key> = {
+  remote: "kw.remote", junior: "kw.junior", senior: "kw.senior", intern: "kw.intern", "part-time": "kw.partTime",
+  "Hà Nội": "kw.hanoi", HCM: "kw.hcm", "Đà Nẵng": "kw.danang",
+};
 
 /** Rút gọn link nhóm để dễ đọc: facebook.com/groups/vieclamit */
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -58,6 +58,12 @@ interface Props {
 }
 
 export default function Composer({ meta, me, platforms, prefs, onPrefsChange, onClose, onCreated, onOpenSettings }: Props) {
+  const [open, setOpen] = useState(true);
+  const handleClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
+
   const saved = prefs.composer ?? {};
   const { t, lang } = useI18n();
   const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
@@ -81,6 +87,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   };
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const set = <K extends keyof RunRequest>(k: K, v: RunRequest[K]) => setF((s) => ({ ...s, [k]: v }));
 
   const cloud = meta.mode === "cloud";
@@ -99,25 +106,18 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const nSources = f.source_type === "feed" ? 1 : Math.max(1, sources.length);
   const total = Math.min(f.count * nSources, meta.max_posts);
 
-  // Tải một lần khi mở form (không chạy lại khi App cập nhật, để không ghi đè lựa chọn đang chỉnh)
-  useEffect(() => {
-    if (cloud && meta.server_scrape) api.sessions().then(setSessions).catch(() => {});
+  const loadProviders = () => {
+    setLoadError("");
+    if (cloud && meta.server_scrape) api.sessions().then(setSessions).catch((e) => setLoadError(e.message));
     api.providers().then((list) => {
       setProviders(list);
       const ok = (k?: string) => !!k && list.some((p) => p.key === k && p.configured);
       const first = list.find((p) => p.configured && p.key !== "offline")?.key ?? "offline";
       setF((s) => ({ ...s, ai_provider: ok(saved.ai_provider) ? saved.ai_provider! : first,
                      ai_model: ok(saved.ai_provider) ? saved.ai_model ?? "" : "" }));
-    });
-  }, []);
-
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCloseRef.current();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    }).catch((e) => { setProviders([]); setLoadError(e.message); });
+  };
+  useEffect(() => { loadProviders(); }, []);
 
   const snapshot = (next: Partial<Preferences> = {}): Preferences => ({
     composer: { ...f, sources: undefined, keywords: undefined, keywords_text: keywordsText },
@@ -129,18 +129,16 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
     const p = snapshot(next);
     lastSaved.current = JSON.stringify(p);
     onPrefsChange(p);
-    api.savePreferences(p).catch(() => {});
   };
 
   // Đóng form (nút X, Esc, bấm ra ngoài) cũng lưu lại những gì vừa chỉnh
   const latest = useRef(snapshot());
   latest.current = snapshot();
-  const lastSaved = useRef(JSON.stringify(prefs));
+  const lastSaved = useRef(JSON.stringify(snapshot()));
   useEffect(() => () => {
     const json = JSON.stringify(latest.current);
     if (json !== lastSaved.current) {
       onPrefsChange(latest.current);
-      api.savePreferences(latest.current).catch(() => {});
     }
   }, []);
 
@@ -179,19 +177,43 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-20 flex justify-end bg-ink/30" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form onSubmit={submit} role="dialog" aria-label={t("cmp.title")}
-        className="sheet flex h-full w-full max-w-md flex-col bg-surface shadow-2xl">
-        <header className="flex items-center justify-between border-b border-line px-6 py-4">
-          <h2 className="text-lg font-semibold">{t("cmp.title")}</h2>
-          <button type="button" onClick={onClose} aria-label={t("act.close")} className="rounded-md p-1 text-ink-soft hover:bg-sunken">
-            <XIcon className="size-5" />
+  const footerNode = (
+    <>
+      {serverMode && (!session || session.status === "invalid") && (
+        <p className="mb-3 text-sm text-danger">
+          {session ? t("cmp.cookieExpired", { name: PLATFORM_LABEL[f.platform] }) : t("cmp.noCookie", { name: PLATFORM_LABEL[f.platform] })}{" "}
+          <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
+            {session ? t("cmp.sendCookie") : t("cmp.addCookie")}
           </button>
-        </header>
+        </p>
+      )}
+      {!serverMode && cloud && me && !me.agent.online && (
+        <p className="mb-3 text-sm text-ink-soft">
+          {t("cmp.agentOff")}{" "}
+          <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
+            {me.agent.has_token ? t("cmp.howToStart") : t("cmp.connectAgent")}
+          </button>
+        </p>
+      )}
+      {loadError && <p role="alert" className="mb-3 text-sm text-danger">{loadError} <button type="button" onClick={loadProviders}>{t("act.retry")}</button></p>}
+      {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
+      <Button type="submit" busy={sending} size="lg" className="w-full">
+        {sending ? t("cmp.starting") : t("cmp.start")}
+      </Button>
+    </>
+  );
 
-        <div className="flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-6 py-5">
-          {cloud && meta.server_scrape && (
+  return (
+    <Sheet
+      open={open}
+      onClose={handleClose}
+      title={t("cmp.title")}
+      closeAriaLabel={t("act.close")}
+      onSubmit={submit}
+      footer={footerNode}
+      className="[&_footer]:bg-surface [&_footer]:shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.18)]"
+    >
+      {cloud && meta.server_scrape && (
             <Group label={t("cmp.runner")}>
               <Segmented value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
                 options={[{ value: "agent", label: t("cmp.runnerAgent") }, { value: "server", label: t("cmp.runnerServer") }]} />
@@ -220,22 +242,22 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <div className="mt-3">
                 {myGroups.length > 0 && (
                   <>
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span><span className="font-mono">{sources.length}/{myGroups.length}</span> {t("cmp.groupsSelected")}</span>
-                      <button type="button" className="text-link hover:underline"
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span>{t("cmp.groupsSelectedCount", { selected: sources.length, total: myGroups.length })}</span>
+                      <button type="button" className="interactive-tap min-h-10 text-link underline-offset-4 hover:underline"
                         onClick={() => updateGroups(myGroups.map((g) => ({ ...g, enabled: sources.length < myGroups.length })))}>
                         {sources.length < myGroups.length ? t("cmp.selectAll") : t("cmp.selectNone")}
                       </button>
                     </div>
-                    <ul className="paper-card max-h-60 divide-y divide-line overflow-y-auto rounded-2xl">
+                    <ul className="max-h-64 divide-y divide-line overflow-y-auto rounded-card border border-line">
                       {myGroups.map((g, i) => {
                         const name = groupName(g.url);
                         return (
-                          <li key={g.url} className="group/row flex items-center">
+                          <li key={g.url} className="group/row flex items-center transition-colors duration-[var(--duration-fast)] hover:bg-sunken/60">
                             <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-2.5">
                               <input type="checkbox" className="peer sr-only" checked={g.enabled}
                                 onChange={(e) => updateGroups(myGroups.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x))} />
-                              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken font-mono text-xs uppercase text-ink-soft
+                              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-xs uppercase text-ink-soft
                                 peer-checked:bg-primary peer-checked:text-primary-ink">
                                 {name.slice(0, 2)}
                               </span>
@@ -248,11 +270,11 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                                 <Check className="size-3" strokeWidth={3} />
                               </span>
                             </label>
-                            <button type="button" aria-label={t("cmp.removeGroup", { name })} title={t("cmp.removeFromList")}
+                            <IconButton aria-label={t("cmp.removeGroup", { name })} title={t("cmp.removeFromList")}
                               onClick={() => updateGroups(myGroups.filter((_, j) => j !== i))}
-                              className="mr-2 grid size-7 place-items-center rounded-full text-ink-soft opacity-0 hover:bg-sunken hover:text-danger focus:opacity-100 group-hover/row:opacity-100">
-                              <Trash2 className="size-3.5" />
-                            </button>
+                              className="mr-1 size-10 shrink-0 hover:text-danger">
+                              <Trash2 className="size-4" />
+                            </IconButton>
                           </li>
                         );
                       })}
@@ -263,12 +285,11 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                   <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-ink-soft/70"
                     placeholder={myGroups.length ? t("cmp.pasteMore") : hint.ph.split("\n")[0]}
                     value={newGroups} onChange={(e) => setNewGroups(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addGroups(); } }}
+                    onKeyDown={(e) => { if (!e.nativeEvent.isComposing && e.key === "Enter") { e.preventDefault(); addGroups(); } }}
                     aria-label={t(hint.label)} />
-                  <button type="button" onClick={addGroups} disabled={!links(newGroups).length}
-                    className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-ink disabled:opacity-40">
+                  <Button onClick={addGroups} disabled={!links(newGroups).length} className="shrink-0">
                     {t("cmp.add")}
-                  </button>
+                  </Button>
                 </div>
                 <p className="mt-1.5 px-1 text-xs text-ink-soft">{t("cmp.addHint")}</p>
               </div>
@@ -277,7 +298,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             {f.source_type === "search" && hint && (
               <label className="mt-3 block">
                 <span className="mb-1 block text-sm">{t("cmp.onePerLine", { label: t(hint.label) })}</span>
-                <textarea className="field" rows={3} placeholder={hint.ph} value={searchText}
+                <textarea className="field resize-y" rows={3} placeholder={hint.phKey ? t(hint.phKey) : hint.ph} value={searchText}
                   onChange={(e) => setSearches({ ...searches, [f.platform]: e.target.value })} />
               </label>
             )}
@@ -286,7 +307,12 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           <Group label={t(f.source_type === "feed" ? "cmp.count" : f.source_type === "group" ? "cmp.countPerGroup" : "cmp.countPerKeyword", { n: f.count })}>
             <input type="range" min={10} max={Math.min(200, meta.max_posts)} step={10} value={f.count}
               onChange={(e) => set("count", Number(e.target.value))}
-              className="w-full accent-[var(--accent)]" aria-label={t("cmp.countAria")} />
+              style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%, var(--line) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%)`, backgroundSize: "100% 4px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
+              className="h-10 w-full cursor-pointer appearance-none bg-transparent
+                [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent
+                [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-line [&::-webkit-slider-thumb]:bg-surface [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-[var(--duration-fast)] hover:[&::-webkit-slider-thumb]:scale-110 active:[&::-webkit-slider-thumb]:scale-125
+                [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-line [&::-moz-range-thumb]:bg-surface [&::-moz-range-thumb]:shadow-sm [&::-moz-range-thumb]:transition-transform [&::-moz-range-thumb]:duration-[var(--duration-fast)] hover:[&::-moz-range-thumb]:scale-110 active:[&::-moz-range-thumb]:scale-125 motion-reduce:[&::-webkit-slider-thumb]:transition-none motion-reduce:[&::-moz-range-thumb]:transition-none"
+              aria-label={t("cmp.countAria")} />
             {nSources > 1 && (
               <p className="mt-1 text-sm text-ink-soft">
                 {t("cmp.total", { total, n: nSources })}
@@ -305,15 +331,15 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
 
           <Group label={t("cmp.ai")}>
             {providers === null ? (
-              <p className="text-sm text-ink-soft">{t("act.loading")}</p>
+              <div role="status" aria-label={t("act.loading")}><div aria-hidden="true"><Skeleton height={40} /></div></div>
             ) : (
               <>
-                <select className="field" value={f.ai_provider}
+                <select className="field min-h-11" aria-label={t("cmp.ai")} value={f.ai_provider}
                   onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); }}>
                   {usable.map((p) => <option key={p.key} value={p.key}>{p.key === "offline" ? t("cmp.offline") : p.name}</option>)}
                 </select>
                 {f.ai_provider !== "offline" && (
-                  <ModelPicker provider={f.ai_provider} value={f.ai_model} onChange={(m) => set("ai_model", m)} />
+                  <ModelPicker key={f.ai_provider} provider={f.ai_provider} value={f.ai_model} onChange={(m) => set("ai_model", m)} />
                 )}
                 {usable.length === 1 && (
                   <p className="mt-2 text-sm text-ink-soft">
@@ -327,7 +353,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          <section className={`rounded-2xl border p-4 transition-colors ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
+          <section className={`rounded-card border p-4 transition-colors duration-[var(--duration-fast)] ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
             <label className="flex cursor-pointer items-start gap-3">
               <span className={`grid size-9 shrink-0 place-items-center rounded-full ${f.job_mode ? "bg-primary text-primary-ink" : "bg-sunken text-ink-soft"}`}>
                 <Briefcase className="size-4" />
@@ -338,41 +364,42 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               </span>
               <input type="checkbox" className="peer sr-only" checked={f.job_mode} onChange={(e) => set("job_mode", e.target.checked)} />
               <span aria-hidden className="relative mt-1 h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
-                after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform peer-checked:after:translate-x-4" />
+                after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform after:duration-[var(--duration-fast)] motion-reduce:after:transition-none peer-checked:after:translate-x-4" />
             </label>
             {f.job_mode && (
-              <div className="mt-4 space-y-4">
+              <div className="page-enter mt-5 space-y-5">
                 <div>
                   <span className="mb-1.5 block text-sm font-medium">{t("cmp.keywords")}</span>
                   <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface p-2 focus-within:outline-2 focus-within:outline-accent">
                     {keywords.map((k) => (
-                      <span key={k} className="flex items-center gap-1 rounded-full bg-primary py-1 pr-1 pl-3 text-xs text-primary-ink">
-                        {k}
+                      <span key={k} className="page-enter flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 pr-1 pl-3 text-xs text-primary-ink">
+                        <span className="min-w-0 truncate" title={k}>{k}</span>
                         <button type="button" aria-label={t("cmp.kwRemove", { k })} onClick={() => setKeywords(keywords.filter((x) => x !== k))}
-                          className="grid size-4 place-items-center rounded-full hover:bg-primary-ink/20"><XIcon className="size-3" /></button>
+                          className="interactive-tap grid size-9 shrink-0 place-items-center rounded-full hover:bg-primary-ink/20"><X className="size-3" /></button>
                       </span>
                     ))}
                     <input className="min-w-24 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-ink-soft/70"
                       placeholder={keywords.length ? t("cmp.kwAdd") : t("cmp.kwPlaceholder")} value={kwDraft}
                       onChange={(e) => setKwDraft(e.target.value)}
                       onKeyDown={(e) => {
+                        if (e.nativeEvent.isComposing) return;
                         if ((e.key === "Enter" || e.key === ",") && kwDraft.trim()) { e.preventDefault(); addKeyword(kwDraft); }
                         if (e.key === "Backspace" && !kwDraft && keywords.length) setKeywords(keywords.slice(0, -1));
                       }}
                       onBlur={() => kwDraft.trim() && addKeyword(kwDraft)} aria-label={t("cmp.kwAria")} />
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {KEYWORD_SUGGESTIONS.filter((s) => !keywords.includes(s)).map((s) => (
-                      <button key={s} type="button" onClick={() => addKeyword(s)}
-                        className="rounded-full border border-dashed border-line px-2.5 py-0.5 text-xs text-ink-soft hover:border-ink hover:text-ink">
-                        + {s}
+                    {KEYWORD_SUGGESTIONS.filter((s) => !keywords.includes(s) && !keywords.includes(t(KEYWORD_LABELS[s]))).map((s) => (
+                      <button key={s} type="button" onClick={() => addKeyword(t(KEYWORD_LABELS[s]))}
+                        className="interactive-tap min-h-10 rounded-full border border-line px-3 py-1 text-xs text-ink-soft hover:border-ink hover:bg-surface hover:text-ink">
+                        + {t(KEYWORD_LABELS[s])}
                       </button>
                     ))}
                   </div>
                 </div>
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">{t("cmp.profile")}</span>
-                  <textarea className="field" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
+                  <textarea className="field resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
                     placeholder={t("cmp.profilePh")} />
                   <span className="mt-1 block text-xs text-ink-soft">{t("cmp.profileHint")}</span>
                 </label>
@@ -387,33 +414,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <p className="text-sm text-ink-soft">{t("cmp.headlessHint")}</p>
             )}
           </Group>
-        </div>
-
-        <footer className="border-t border-line px-6 py-4">
-          {serverMode && (!session || session.status === "invalid") && (
-            <p className="mb-3 text-sm text-danger">
-              {session ? t("cmp.cookieExpired", { name: PLATFORM_LABEL[f.platform] }) : t("cmp.noCookie", { name: PLATFORM_LABEL[f.platform] })}{" "}
-              <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
-                {session ? t("cmp.sendCookie") : t("cmp.addCookie")}
-              </button>
-            </p>
-          )}
-          {!serverMode && cloud && me && !me.agent.online && (
-            <p className="mb-3 text-sm text-ink-soft">
-              {t("cmp.agentOff")}{" "}
-              <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
-                {me.agent.has_token ? t("cmp.howToStart") : t("cmp.connectAgent")}
-              </button>
-            </p>
-          )}
-          {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
-          <button disabled={sending}
-            className="w-full rounded-full bg-primary py-2.5 font-semibold text-primary-ink hover:opacity-90 disabled:opacity-50">
-            {sending ? t("cmp.starting") : t("cmp.start")}
-          </button>
-        </footer>
-      </form>
-    </div>
+    </Sheet>
   );
 }
 
@@ -423,37 +424,38 @@ function ModelPicker({ provider, value, onChange }: { provider: string; value: s
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
   const [error, setError] = useState("");
   const { t } = useI18n();
+  const requestId = useRef(0);
 
   const load = (refresh = false) => {
+    const id = ++requestId.current;
     setState("loading");
     api.models(provider, refresh)
-      .then((r) => { setModels(r.models); setDef(r.default); setState("ok"); })
-      .catch((e) => { setError((e as Error).message); setState("error"); });
+      .then((r) => { if (id !== requestId.current) return; setModels(r.models); setDef(r.default); setState("ok"); })
+      .catch((e) => { if (id !== requestId.current) return; setError((e as Error).message); setState("error"); });
   };
-  useEffect(() => { load(); }, [provider]);
+  useEffect(() => { load(); return () => { ++requestId.current; }; }, [provider]);
 
   return (
     <div className="mt-2 flex gap-2">
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}
-        disabled={state !== "ok"} aria-label="Model">
+      <select className="field min-w-0 flex-1" value={value} onChange={(e) => onChange(e.target.value)}
+        disabled={state !== "ok"} aria-label={t("cmp.modelAria")}>
         <option value="">
           {state === "loading" ? t("cmp.modelsLoading") : state === "error" ? error : t("cmp.modelDefault", { m: def })}
         </option>
         {value && !models.includes(value) && <option value={value}>{value}</option>}
         {models.map((m) => <option key={m} value={m}>{m}</option>)}
       </select>
-      <button type="button" onClick={() => load(true)} title={t("cmp.reloadModels")} aria-label={t("cmp.reloadModels")}
-        className="grid w-10 shrink-0 place-items-center rounded-lg border border-line text-ink-soft hover:text-ink">
-        {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-      </button>
+      <IconButton onClick={() => load(true)} aria-label={t("cmp.reloadModels")} variant="outline" busy={state === "loading"} className="size-11 shrink-0">
+        <RefreshCw className="size-4" />
+      </IconButton>
     </div>
   );
 }
 
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <fieldset>
-      <legend className="mb-2 text-sm font-semibold">{label}</legend>
+    <fieldset className="min-w-0">
+      <legend className="mb-3 text-sm font-semibold tracking-tight">{label}</legend>
       {children}
     </fieldset>
   );
@@ -462,13 +464,17 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
 function Segmented({ value, onChange, options }: {
   value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
 }) {
+  const name = useId();
   return (
-    <div className="flex rounded-full border border-line bg-sunken p-1" role="radiogroup">
+    <div className={`grid gap-1 rounded-2xl border border-line bg-sunken p-1 ${options.length > 3 ? "grid-cols-2 sm:grid-cols-4" : options.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
       {options.map((o) => (
-        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className="flex-1 rounded-full px-2 py-1.5 text-sm text-ink-soft aria-checked:bg-surface aria-checked:font-semibold aria-checked:text-ink aria-checked:shadow-sm">
-          {o.label}
-        </button>
+        <label key={o.value} className="relative min-w-0 cursor-pointer">
+          <input type="radio" name={name} value={o.value} checked={value === o.value}
+            onChange={() => onChange(o.value)} className="peer sr-only" />
+          <span className="interactive-tap flex min-h-11 items-center justify-center rounded-xl px-2 py-2 text-center text-sm text-ink-soft peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+            {o.label}
+          </span>
+        </label>
       ))}
     </div>
   );
@@ -476,11 +482,11 @@ function Segmented({ value, onChange, options }: {
 
 function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 py-1 text-sm">
+    <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 py-2 text-sm">
       <span>{children}</span>
       <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span aria-hidden className="relative h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
-        after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform peer-checked:after:translate-x-4" />
+        after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform after:duration-[var(--duration-fast)] motion-reduce:after:transition-none peer-checked:after:translate-x-4" />
     </label>
   );
 }

@@ -237,3 +237,69 @@ def test_preferences_saved_per_user(cloud):
     assert c.put("/api/preferences", headers=a, json=[1, 2]).status_code == 400
     assert c.put("/api/preferences", headers=a, content=b"x" * 70_000).status_code == 413
     assert c.get("/api/preferences").status_code == 401
+
+
+def test_ui_error_codes_preserve_legacy_details(cloud):
+    c = cloud()
+    wrong = c.post("/api/auth/login", json={"email": "nobody@x.io", "password": "wrong"})
+    assert wrong.status_code == 401
+    assert wrong.json() == {"detail": "Sai email hoặc mật khẩu.", "code": "error.invalid_credentials"}
+    assert c.get("/api/runs").json()["code"] == "error.session_expired"
+    h = _signup(c)
+    missing = c.get("/api/runs/999", headers=h)
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "error.run_missing"
+    invalid = c.post("/api/runs", headers=h, json={"platform": "unsupported"})
+    assert invalid.status_code == 422 and isinstance(invalid.json()["detail"], list)
+    assert invalid.json()["code"] == "error.validation"
+
+
+def test_ui_progress_and_failures_keep_diagnostics_with_codes(cloud):
+    c = cloud()
+    h = _signup(c)
+    run_id = c.post("/api/runs", headers=h, json={"platform": "facebook", "ai_provider": "offline"}).json()["id"]
+    pending = c.get(f"/api/runs/{run_id}", headers=h).json()
+    assert pending["progress"]["message_code"] == "progress.pending"
+    assert pending["progress"]["message"]
+    api.PROGRESS[run_id] = {"phase": "scraping", "done": 2, "target": 10, "message": "Đang chờ xác minh đăng nhập"}
+    assert c.get(f"/api/runs/{run_id}", headers=h).json()["progress"]["message_code"] == "progress.verification"
+    api.app.state.db.update_run(run_id, status="error", error="Cookie đã hết hiệu lực")
+    failed = c.get(f"/api/runs/{run_id}", headers=h).json()
+    assert failed["error_code"] == "error.cookie_invalid"
+    assert failed["error"] == "Cookie đã hết hiệu lực"
+    assert c.get("/api/runs", headers=h).json()[0]["error_code"] == "error.cookie_invalid"
+
+
+def test_ui_cookie_and_configuration_codes_are_additive(cloud):
+    c = cloud(server_scrape=True)
+    h = _signup(c)
+    saved = c.put("/api/sessions/facebook", headers=h, json={"cookies": "c_user=123456; xs=secret-cookie"})
+    assert saved.status_code == 200
+    assert saved.json()["status_message_code"] == "ck.statusUnchecked"
+    api.app.state.db.set_session_status(1, "facebook", "invalid", "Phiên đã hết hạn")
+    session = c.get("/api/sessions", headers=h).json()[0]
+    assert session["status_message_code"] == "ck.statusInvalid"
+    assert session["status_message"] == "Phiên đã hết hạn"
+    missing = c.post("/api/runs", headers=h, json={"platform": "x", "runner": "server", "ai_provider": "offline"})
+    assert missing.json()["code"] == "error.cookie_missing"
+    c = cloud(secret="")
+    meta = c.get("/api/meta").json()
+    assert meta["config_error_code"] == "error.config" and "FEEDLENS_SECRET" in meta["config_error"]
+
+
+@pytest.mark.parametrize("status", [400, 404, 500])
+def test_unknown_errors_use_request_context_except_stored_run_failures(cloud, monkeypatch, status):
+    c = cloud()
+    h = _signup(c)
+
+    def unavailable(*args):
+        raise api.HTTPException(status, "Unexpected provider response")
+
+    monkeypatch.setattr(api, "provider_status", unavailable)
+    response = c.get("/api/ai/providers", headers=h)
+    assert response.status_code == status
+    assert response.json() == {"code": "error.request_failed", "detail": "Unexpected provider response"}
+    run_id = c.post("/api/runs", headers=h, json={"platform": "facebook", "ai_provider": "offline"}).json()["id"]
+    api.app.state.db.update_run(run_id, status="error", error="Unexpected provider response")
+    assert c.get(f"/api/runs/{run_id}", headers=h).json()["error_code"] == "error.run_failed"
+    assert c.get("/api/runs", headers=h).json()[0]["error_code"] == "error.run_failed"
