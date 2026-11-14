@@ -98,6 +98,8 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         raise RuntimeError("Không lấy được bài nào — kiểm tra đăng nhập hoặc selector của nền tảng.")
     if hasattr(analyzer, "notify"):
         analyzer.notify = lambda msg: prog.update(message=msg)
+    if hasattr(analyzer, "language"):
+        analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
     prog.update(phase="analyzing", done=0, target=len(raw), message=f"{analyzer.label} đang đọc {len(raw)} bài…")
     analyzed = analyzer.classify(raw, req.job_mode, req.keywords, req.profile, report("analyzing"))
     db.save_posts(run_id, analyzed)

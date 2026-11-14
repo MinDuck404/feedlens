@@ -282,3 +282,23 @@ def test_count_is_per_source():
     assert total_target(RunRequest(platform="facebook", count=40)) == 40
     assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a", "b", "c"], count=40)) == 120
     assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a"] * 30, count=100)) == 500
+
+
+def test_ai_writes_in_requested_language(db, monkeypatch):
+    from feedlens.analyzer import LLMAnalyzer, system_prompt
+    assert "English" in system_prompt("en") and "中文" in system_prompt("zh") and "tiếng Việt" in system_prompt("vi")
+    seen = []
+
+    class Spy(FakeProvider):
+        def complete_json(self, system, prompt, schema, effort="low"):
+            seen.append(system)
+            return super().complete_json(system, prompt, schema, effort)
+
+    monkeypatch.setattr(pipeline, "scrape", lambda req, s, cb: list(SAMPLE))
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *a, **k: LLMAnalyzer(Spy()))
+    req = RunRequest(platform="facebook", language="zh", ai_provider="offline")
+    run_id = db.create_run(req)
+    pipeline.execute_run(db, run_id, req)
+    assert db.get_run(run_id)["status"] == "done"
+    assert seen and all("简体中文" in s for s in seen)
+    assert RunRequest(platform="x").language == "vi"

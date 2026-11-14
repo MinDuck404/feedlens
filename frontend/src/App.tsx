@@ -6,18 +6,18 @@ import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import HistoryPage from "./components/HistoryPage";
 import Sidebar from "./components/Sidebar";
+import { useI18n } from "./i18n";
 import { navigate, useRoute } from "./router";
 import type { Me, Meta, PlatformState, Preferences, Run } from "./types";
 
 export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [authed, setAuthed] = useState(() => !!auth.get());
-  const [bootError, setBootError] = useState("");
+  const [bootError, setBootError] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
-    api.meta().then(setMeta).catch(() =>
-      setBootError("Không kết nối được server FeedLens. Kiểm tra backend đang chạy rồi tải lại trang."),
-    );
+    api.meta().then(setMeta).catch(() => setBootError(true));
     const onLogout = () => setAuthed(false);
     window.addEventListener("feedlens:logout", onLogout);
     return () => window.removeEventListener("feedlens:logout", onLogout);
@@ -26,7 +26,7 @@ export default function App() {
   if (bootError) {
     return (
       <main className="grid h-full place-items-center p-6">
-        <p className="max-w-md text-center text-ink-soft">{bootError}</p>
+        <p className="max-w-md text-center text-ink-soft">{t("app.bootError")}</p>
       </main>
     );
   }
@@ -124,25 +124,25 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
 function EmptyState({ cloud, hasRuns, onNewRun, onOpenSettings, loggingIn }: {
   cloud: boolean; hasRuns: boolean; onNewRun: () => void; onOpenSettings: () => void; loggingIn?: string;
 }) {
+  const { t } = useI18n();
   const steps = cloud
-    ? ["Thêm API key AI và kết nối agent trong Cài đặt.", "Bật agent trên máy (hoặc lưu cookie để lướt bằng server).", "Bấm Lướt mới, chọn bảng tin hoặc nhóm."]
-    : ["Bấm Đăng nhập cạnh Facebook ở cột trái, đăng nhập trong cửa sổ hiện ra.", "Dán API key Gemini, ChatGPT hoặc Claude trong Cài đặt.", "Bấm Lướt mới, chọn bảng tin hoặc các nhóm cần lướt."];
+    ? [t("home.cloud1"), t("home.cloud2"), t("home.cloud3")]
+    : [t("home.local1"), t("home.local2"), t("home.local3")];
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col justify-center px-6 py-16">
       {loggingIn && (
         <div role="status" className="paper-card mb-8 flex items-center gap-3 rounded-2xl px-5 py-4">
           <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-accent" />
           <p className="text-sm">
-            Đang mở cửa sổ đăng nhập <b>{loggingIn}</b>. Đăng nhập trong cửa sổ Chrome vừa hiện ra (kể cả xác minh 2 bước);
-            xong thì cửa sổ tự đóng.
+            {t("home.loggingIn")} <b>{loggingIn}</b>. {t("home.loggingInHint")}
           </p>
         </div>
       )}
       <h1 className="text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-ink md:text-7xl">
-        đọc ít hơn,<br />biết nhiều hơn.
+        {t("home.title1")}<br />{t("home.title2")}
       </h1>
       <p className="mt-6 max-w-[52ch] text-lg text-ink-soft">
-        FeedLens lướt bảng tin và các nhóm thay bạn, chia bài theo loại, tóm tắt, và lọc ra việc làm hợp với bạn.
+        {t("home.lead")}
       </p>
       <ol className="paper-card mt-10 divide-y divide-line rounded-2xl">
         {steps.map((s, i) => (
@@ -155,13 +155,13 @@ function EmptyState({ cloud, hasRuns, onNewRun, onOpenSettings, loggingIn }: {
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <button onClick={onNewRun}
           className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-ink hover:opacity-90">
-          Lướt mới
+          {t("act.newRun")}
         </button>
         <button onClick={onOpenSettings}
           className="rounded-full border border-line px-5 py-3 font-medium hover:border-ink">
-          Cài đặt
+          {t("act.settings")}
         </button>
-        {hasRuns && <span className="text-sm text-ink-soft">hoặc mở một lượt ở cột trái</span>}
+        {hasRuns && <span className="text-sm text-ink-soft">{t("home.orOpen")}</span>}
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { translate } from "./i18n";
 import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
@@ -26,11 +27,11 @@ async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   if (r.status === 401) {
     auth.clear();
     window.dispatchEvent(new Event("feedlens:logout"));
-    throw new UnauthorizedError("Phiên đăng nhập đã hết hạn.");
+    throw new UnauthorizedError(translate("api.sessionExpired"));
   }
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
-    throw new Error(typeof body.detail === "string" ? body.detail : `Lỗi ${r.status}: ${r.statusText}`);
+    throw new Error(typeof body.detail === "string" ? body.detail : translate("api.error", { status: r.status, text: r.statusText }));
   }
   return r;
 }

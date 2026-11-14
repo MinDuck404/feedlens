@@ -55,6 +55,8 @@ export interface RunRequest {
   headless: boolean;
   speed: "fast" | "careful";
   runner: "agent" | "server";
+  /** Ngôn ngữ AI dùng để viết tóm tắt (theo ngôn ngữ giao diện) */
+  language?: "vi" | "en" | "zh";
 }
 
 export interface SavedGroup {

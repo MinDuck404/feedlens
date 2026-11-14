@@ -74,6 +74,7 @@ class RunRequest(BaseModel):
     sources: list[str] = Field(default_factory=list, description="Group URL/ID, subreddit, từ khóa tìm kiếm...")
     count: int = Field(50, ge=1, le=1000, description="Số bài cho MỖI nguồn (bảng tin / group / từ khóa)")
     speed: Literal["fast", "careful"] = "fast"
+    language: Literal["vi", "en", "zh"] = Field("vi", description="Ngôn ngữ AI viết tóm tắt (theo giao diện)")
     runner: Literal["agent", "server"] = Field("agent", description="cloud: agent trên máy user hay server dùng cookie")
     job_mode: bool = False
     keywords: list[str] = Field(default_factory=list)

@@ -52,9 +52,9 @@
   --color-link: var(--link);
   --color-danger: var(--danger);
   --color-ok: var(--ok);
-  --font-sans: "Be Vietnam Pro", system-ui, sans-serif;
-  --font-serif: "Lora", Georgia, serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-sans: "Be Vietnam Pro", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-serif: "Lora", "Songti SC", "SimSun", "Noto Serif SC", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, "PingFang SC", "Microsoft YaHei", monospace;
 }
 
 html, body, #root { height: 100%; }
