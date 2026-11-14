@@ -93,11 +93,11 @@ cd backend && .venv\Scripts\feedlens run facebook --type group --source https://
 
 ## Deploy lên cloud
 
-Bản đang chạy dùng gói miễn phí:
+Hiện không có bản online nào đang chạy; FeedLens được dùng local (xem *Bắt đầu nhanh*). Cấu hình dưới đây giữ lại cho ai muốn tự host bản nhiều người dùng bằng gói miễn phí (bật lại workflow `pages.yml` trong tab Actions nếu dùng GitHub Pages):
 
 | Phần | Nơi chạy | Cấu hình |
 |---|---|---|
-| Frontend | GitHub Pages: https://minduck404.github.io/feedlens/ | `.github/workflows/pages.yml`, biến repo `VITE_API_URL` |
+| Frontend | GitHub Pages | `.github/workflows/pages.yml`, biến repo `VITE_API_URL` |
 | Backend | Render (free, ngủ sau 15 phút không dùng) | `render.yaml` (Blueprint) |
 | Database | Neon Postgres (free) | `DATABASE_URL` trên Render |
 
