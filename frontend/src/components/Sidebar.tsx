@@ -248,7 +248,7 @@ function SidebarBody({
         </button>
       ) : (
         <section className="px-4 pb-4">
-          <h2 className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+          <h2 className="mb-2 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             {t("sb.accounts")}
           </h2>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface/50 px-3">
