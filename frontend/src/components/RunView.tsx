@@ -159,8 +159,9 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         <p className="max-w-[68ch] font-serif text-xl leading-[1.75]">{d.overall}</p>
         <div className="mt-10 space-y-8">
           {d.categories.map((c) => (
-            <section key={c.category} className="border-l-[3px] pl-5" style={{ borderColor: colorOf(c.category) }}>
-              <h3 className="font-semibold">
+            <section key={c.category}>
+              <h3 className="flex items-center gap-2 font-semibold">
+                <span className="size-2.5 rounded-full" style={{ background: colorOf(c.category) }} />
                 {name(c.category)} <span className="font-mono text-xs font-normal text-ink-soft">{c.count} bài</span>
               </h3>
               <p className="mt-1 max-w-[68ch] text-ink-soft">{c.summary}</p>
@@ -248,11 +249,15 @@ function PostList({ posts, filter, setFilter, name }: {
       )}
       <ul className="space-y-2">
         {shown.map((p) => (
-          <li key={p.id} className="paper-card rounded-xl px-4 py-3" style={{ borderLeft: `3px solid ${colorOf(p.category)}` }}>
+          <li key={p.id} className="paper-card rounded-xl px-4 py-3">
             <details>
               <summary className="cursor-pointer list-none">
                 <span className="block font-medium">{p.summary}</span>
-                <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-soft">
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-soft">
+                  <span className="flex items-center gap-1.5 text-ink">
+                    <span className="size-2 rounded-full" style={{ background: colorOf(p.category) }} />
+                    {name(p.category)}
+                  </span>
                   <span>{p.author || "Không rõ tác giả"}</span>
                   <span>{p.source}</span>
                   {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-link hover:underline"
