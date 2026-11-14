@@ -33,7 +33,7 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
             <XIcon className="size-5" />
           </button>
         </header>
-        <div className="flex-1 space-y-8 overflow-y-auto px-6 py-5">
+        <div className="flex-1 space-y-8 overflow-x-hidden overflow-y-auto px-6 py-5">
           <div>
             <h3 className="font-semibold">API key AI</h3>
             <p className="mt-1 text-sm text-ink-soft">

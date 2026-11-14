@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Trash2, X as XIcon } from "lucide-react";
+import { Briefcase, Check, Loader2, RefreshCw, Trash2, X as XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
@@ -31,6 +31,16 @@ const DEFAULTS: RunRequest = {
 };
 
 const lines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
+/** Link dán vào ô một dòng: tách theo dấu cách, xuống dòng hoặc dấu phẩy */
+const links = (t: string) => t.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+
+/** Tên dễ đọc từ link nhóm: facebook.com/groups/viec-lam-it -> "viec lam it" */
+function groupName(url: string): string {
+  const slug = url.replace(/\/$/, "").split(/groups\/|\/r\/|x\.com\//).pop() ?? url;
+  return decodeURIComponent(slug.split(/[/?#]/)[0]).replace(/[-_.]+/g, " ").trim() || url;
+}
+
+const KEYWORD_SUGGESTIONS = ["remote", "junior", "senior", "intern", "part-time", "Hà Nội", "HCM", "Đà Nẵng"];
 
 /** Rút gọn link nhóm để dễ đọc: facebook.com/groups/vieclamit */
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -55,6 +65,18 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const [searches, setSearches] = useState(prefs.searches ?? {});
   const [newGroups, setNewGroups] = useState("");
   const [keywordsText, setKeywordsText] = useState(saved.keywords_text ?? "");
+  const [kwDraft, setKwDraft] = useState("");
+  const keywords = keywordsText.split(",").map((s) => s.trim()).filter(Boolean);
+  const setKeywords = (list: string[]) => setKeywordsText(list.join(", "));
+  const addKeyword = (raw: string) => {
+    // cập nhật theo giá trị mới nhất, để bấm nhanh nhiều gợi ý liên tiếp không bị mất từ nào
+    setKeywordsText((prev) => {
+      const cur = prev.split(",").map((s) => s.trim()).filter(Boolean);
+      const add = raw.split(",").map((s) => s.trim()).filter((s) => s && !cur.includes(s));
+      return [...cur, ...add].join(", ");
+    });
+    setKwDraft("");
+  };
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const set = <K extends keyof RunRequest>(k: K, v: RunRequest[K]) => setF((s) => ({ ...s, [k]: v }));
@@ -128,7 +150,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const addGroups = () => {
     const known = new Set(myGroups.map((g) => g.url.replace(/\/$/, "")));
     const added: SavedGroup[] = [];
-    for (const raw of lines(newGroups)) {
+    for (const raw of links(newGroups)) {
       const url = raw.replace(/\/$/, "");
       if (!known.has(url)) { known.add(url); added.push({ url, enabled: true }); }
     }
@@ -166,7 +188,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        <div className="flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-6 py-5">
           {cloud && meta.server_scrape && (
             <Group label="Chạy bằng">
               <Segmented value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
@@ -196,37 +218,57 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <div className="mt-3">
                 {myGroups.length > 0 && (
                   <>
-                    <div className="mb-1.5 flex items-center justify-between text-sm">
-                      <span>{sources.length}/{myGroups.length} nhóm được chọn</span>
+                    <div className="mb-2 flex items-center justify-between text-sm">
+                      <span><span className="font-mono">{sources.length}/{myGroups.length}</span> nhóm sẽ lướt</span>
                       <button type="button" className="text-link hover:underline"
                         onClick={() => updateGroups(myGroups.map((g) => ({ ...g, enabled: sources.length < myGroups.length })))}>
                         {sources.length < myGroups.length ? "Chọn tất cả" : "Bỏ chọn tất cả"}
                       </button>
                     </div>
-                    <ul className="paper-card max-h-48 divide-y divide-line overflow-y-auto rounded-xl">
-                      {myGroups.map((g, i) => (
-                        <li key={g.url} className="flex items-center gap-2 px-3 py-2 text-sm">
-                          <input type="checkbox" checked={g.enabled} className="accent-[var(--accent)]"
-                            aria-label={`Lướt ${g.url}`}
-                            onChange={(e) => updateGroups(myGroups.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x))} />
-                          <span className="min-w-0 flex-1 truncate" title={g.url}>{shortUrl(g.url)}</span>
-                          <button type="button" aria-label={`Xóa ${g.url}`} title="Xóa khỏi danh sách"
-                            onClick={() => updateGroups(myGroups.filter((_, j) => j !== i))}
-                            className="text-ink-soft hover:text-danger"><Trash2 className="size-3.5" /></button>
-                        </li>
-                      ))}
+                    <ul className="paper-card max-h-60 divide-y divide-line overflow-y-auto rounded-2xl">
+                      {myGroups.map((g, i) => {
+                        const name = groupName(g.url);
+                        return (
+                          <li key={g.url} className="group/row flex items-center">
+                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-2.5">
+                              <input type="checkbox" className="peer sr-only" checked={g.enabled}
+                                onChange={(e) => updateGroups(myGroups.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x))} />
+                              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken font-mono text-xs uppercase text-ink-soft
+                                peer-checked:bg-primary peer-checked:text-primary-ink">
+                                {name.slice(0, 2)}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">{name}</span>
+                                <span className="block truncate font-mono text-[11px] text-ink-soft" title={g.url}>{shortUrl(g.url)}</span>
+                              </span>
+                              <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-full border border-line text-transparent
+                                peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+                                <Check className="size-3" strokeWidth={3} />
+                              </span>
+                            </label>
+                            <button type="button" aria-label={`Xóa ${name} khỏi danh sách`} title="Xóa khỏi danh sách"
+                              onClick={() => updateGroups(myGroups.filter((_, j) => j !== i))}
+                              className="mr-2 grid size-7 place-items-center rounded-full text-ink-soft opacity-0 hover:bg-sunken hover:text-danger focus:opacity-100 group-hover/row:opacity-100">
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </>
                 )}
-                <label className="mt-3 block">
-                  <span className="mb-1 block text-sm">{hint.label}, mỗi dòng một link</span>
-                  <textarea className="field" rows={2} placeholder={hint.ph} value={newGroups}
-                    onChange={(e) => setNewGroups(e.target.value)} />
-                </label>
-                <button type="button" onClick={addGroups} disabled={!lines(newGroups).length}
-                  className="mt-2 rounded-full border border-line px-4 py-1.5 text-sm font-medium hover:border-ink disabled:opacity-50">
-                  Lưu vào danh sách
-                </button>
+                <div className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface py-1 pr-1 pl-4 focus-within:outline-2 focus-within:outline-accent">
+                  <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-ink-soft/70"
+                    placeholder={myGroups.length ? "Dán thêm link nhóm…" : hint.ph.split("\n")[0]}
+                    value={newGroups} onChange={(e) => setNewGroups(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addGroups(); } }}
+                    aria-label={hint.label} />
+                  <button type="button" onClick={addGroups} disabled={!links(newGroups).length}
+                    className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-ink disabled:opacity-40">
+                    Thêm
+                  </button>
+                </div>
+                <p className="mt-1.5 px-1 text-xs text-ink-soft">Dán một hoặc nhiều link (cách nhau bằng dấu cách) rồi Enter. Danh sách được lưu cho lần sau.</p>
               </div>
             )}
 
@@ -284,25 +326,58 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          <Group label="Tìm việc">
-            <Toggle checked={f.job_mode} onChange={(v) => set("job_mode", v)}>
-              Trích việc làm và chấm điểm độ phù hợp
-            </Toggle>
+          <section className={`rounded-2xl border p-4 transition-colors ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
+            <label className="flex cursor-pointer items-start gap-3">
+              <span className={`grid size-9 shrink-0 place-items-center rounded-full ${f.job_mode ? "bg-primary text-primary-ink" : "bg-sunken text-ink-soft"}`}>
+                <Briefcase className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">Tìm việc</span>
+                <span className="block text-sm text-ink-soft">Trích vị trí, lương, liên hệ và chấm điểm độ hợp với bạn.</span>
+              </span>
+              <input type="checkbox" className="peer sr-only" checked={f.job_mode} onChange={(e) => set("job_mode", e.target.checked)} />
+              <span aria-hidden className="relative mt-1 h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
+                after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform peer-checked:after:translate-x-4" />
+            </label>
             {f.job_mode && (
-              <div className="mt-3 space-y-3">
+              <div className="mt-4 space-y-4">
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium">Từ khóa</span>
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface p-2 focus-within:outline-2 focus-within:outline-accent">
+                    {keywords.map((k) => (
+                      <span key={k} className="flex items-center gap-1 rounded-full bg-primary py-1 pr-1 pl-3 text-xs text-primary-ink">
+                        {k}
+                        <button type="button" aria-label={`Bỏ từ khóa ${k}`} onClick={() => setKeywords(keywords.filter((x) => x !== k))}
+                          className="grid size-4 place-items-center rounded-full hover:bg-primary-ink/20"><XIcon className="size-3" /></button>
+                      </span>
+                    ))}
+                    <input className="min-w-24 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-ink-soft/70"
+                      placeholder={keywords.length ? "Thêm…" : "python, react, kế toán…"} value={kwDraft}
+                      onChange={(e) => setKwDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.key === "Enter" || e.key === ",") && kwDraft.trim()) { e.preventDefault(); addKeyword(kwDraft); }
+                        if (e.key === "Backspace" && !kwDraft && keywords.length) setKeywords(keywords.slice(0, -1));
+                      }}
+                      onBlur={() => kwDraft.trim() && addKeyword(kwDraft)} aria-label="Thêm từ khóa" />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {KEYWORD_SUGGESTIONS.filter((s) => !keywords.includes(s)).map((s) => (
+                      <button key={s} type="button" onClick={() => addKeyword(s)}
+                        className="rounded-full border border-dashed border-line px-2.5 py-0.5 text-xs text-ink-soft hover:border-ink hover:text-ink">
+                        + {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <label className="block">
-                  <span className="mb-1 block text-sm">Từ khóa, ngăn cách bằng dấu phẩy</span>
-                  <input className="field" placeholder="python, remote, junior" value={keywordsText}
-                    onChange={(e) => setKeywordsText(e.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm">Vài dòng về bạn</span>
+                  <span className="mb-1.5 block text-sm font-medium">Vài dòng về bạn</span>
                   <textarea className="field" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
                     placeholder="2 năm Python/Django, muốn làm remote, kỳ vọng 20–30 triệu, ở Hà Nội" />
+                  <span className="mt-1 block text-xs text-ink-soft">AI dùng đoạn này để chấm điểm từng việc từ 0 đến 100.</span>
                 </label>
               </div>
             )}
-          </Group>
+          </section>
 
           <Group label="Tùy chọn">
             <Toggle checked={f.only_new} onChange={(v) => set("only_new", v)}>Bỏ qua bài đã thấy ở lượt trước</Toggle>

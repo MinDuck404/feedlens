@@ -21,23 +21,27 @@ interface Props {
   platforms: PlatformState[];
   runs: Run[];
   selected: number | null;
+  page: "home" | "history" | "run";
   onSelect: (id: number) => void;
+  onGoHome: () => void;
+  onGoHistory: () => void;
   onNewRun: () => void;
   onPlatformChanged: () => void;
   onLogout?: () => void;
 }
 
-export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, platforms, runs, selected, onSelect, onNewRun, onPlatformChanged, onLogout }: Props) {
+export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, platforms, runs, selected, page, onSelect, onGoHome, onGoHistory, onNewRun, onPlatformChanged, onLogout }: Props) {
+  const navCls = "rounded-full px-3 py-1 text-sm text-ink-soft hover:text-ink aria-[current=page]:bg-primary aria-[current=page]:text-primary-ink";
   return (
     <aside className="flex w-full shrink-0 flex-col border-line md:h-full md:w-72 md:border-r">
       <div className="flex items-center justify-between px-5 pt-5 pb-4">
-        <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <a href="#/" onClick={(e) => { e.preventDefault(); onGoHome(); }} className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <span aria-hidden className="relative grid size-6 place-items-center rounded-full bg-primary">
             <Search className="size-3.5 text-primary-ink" strokeWidth={3} />
             <span className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full bg-accent ring-2 ring-[var(--paper)]" />
           </span>
           FeedLens
-        </div>
+        </a>
         <button
           onClick={onNewRun}
           className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-ink hover:opacity-90"
@@ -45,6 +49,13 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
           <Plus className="size-4" /> Lướt mới
         </button>
       </div>
+
+      <nav className="flex gap-1 px-4 pb-4" aria-label="Điều hướng">
+        <a href="#/" aria-current={page === "home" ? "page" : undefined} className={navCls}
+          onClick={(e) => { e.preventDefault(); onGoHome(); }}>Trang chủ</a>
+        <a href="#/history" aria-current={page === "history" ? "page" : undefined} className={navCls}
+          onClick={(e) => { e.preventDefault(); onGoHistory(); }}>Lịch sử</a>
+      </nav>
 
       {cloud ? (
         <button onClick={onOpenSettings} className="paper-card mx-5 mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm">
@@ -55,13 +66,18 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
         <section className="px-5 pb-4">
           <h2 className="mb-1 font-mono text-xs text-ink-soft">tài khoản</h2>
           <ul className="divide-y divide-line">
-            {platforms.map((p) => <PlatformRow key={p.key} p={p} onChanged={onPlatformChanged} />)}
+            {platforms.map((p) => <PlatformRow key={p.key} p={p} onChanged={onPlatformChanged} onLogin={onGoHome} />)}
           </ul>
         </section>
       )}
 
       <section className="flex min-h-0 flex-1 flex-col border-t border-line px-3 pt-4">
-        <h2 className="mb-2 px-2 font-mono text-xs text-ink-soft">các lượt trước ({runs.length})</h2>
+        <h2 className="mb-2 flex items-center justify-between px-2 font-mono text-xs text-ink-soft">
+          <span>các lượt trước ({runs.length})</span>
+          {runs.length > 0 && (
+            <button onClick={onGoHistory} className="font-sans text-xs text-link hover:underline">xem tất cả</button>
+          )}
+        </h2>
         {runs.length === 0 ? (
           <p className="px-2 text-sm text-ink-soft">Chưa có lượt nào.</p>
         ) : (
@@ -74,7 +90,7 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
                 <li key={r.id}>
                   <button
                     onClick={() => onSelect(r.id)}
-                    aria-current={selected === r.id}
+                    aria-current={page === "run" && selected === r.id}
                     className="w-full rounded-xl border border-transparent px-3 py-2 text-left hover:bg-surface aria-[current=true]:border-line aria-[current=true]:bg-surface aria-[current=true]:shadow-sm"
                   >
                     <span className="block truncate text-sm font-medium">{src}</span>
@@ -103,10 +119,11 @@ export default function Sidebar({ cloud, email, agentOnline, onOpenSettings, pla
   );
 }
 
-function PlatformRow({ p, onChanged }: { p: PlatformState; onChanged: () => void }) {
+function PlatformRow({ p, onChanged, onLogin }: { p: PlatformState; onChanged: () => void; onLogin: () => void }) {
   const [busy, setBusy] = useState(false);
   const act = async (a: "login" | "check" | "logout") => {
     if (a === "logout" && !confirm(`Xóa phiên đăng nhập ${p.name} đã lưu trên máy?`)) return;
+    if (a === "login") onLogin();  // về trang chủ, nơi có hướng dẫn trong lúc cửa sổ đăng nhập mở
     setBusy(true);
     try { await api.platformAction(p.key, a); } catch (e) { alert((e as Error).message); }
     setBusy(false);
