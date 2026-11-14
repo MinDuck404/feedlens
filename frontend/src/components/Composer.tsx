@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { groupName } from "../logic";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
-import { useI18n, type Key } from "../i18n";
+import { formatNumber, useI18n, type Key } from "../i18n";
 import { Sheet, Button, IconButton, Skeleton } from "./ui";
 import type {
   AIProviderInfo, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
@@ -211,7 +211,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       closeAriaLabel={t("act.close")}
       onSubmit={submit}
       footer={footerNode}
-      className="[&_footer]:bg-surface [&_footer]:shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.18)]"
+      className="[&_h2]:font-headline [&_footer]:bg-surface [&_footer]:shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.18)]"
     >
       {cloud && meta.server_scrape && (
             <Group label={t("cmp.runner")}>
@@ -281,13 +281,13 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                     </ul>
                   </>
                 )}
-                <div className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface py-1 pr-1 pl-4 focus-within:outline-2 focus-within:outline-accent">
-                  <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm outline-none placeholder:text-ink-soft/70"
+                <div className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface py-1 pr-1 pl-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
+                  <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft/70"
                     placeholder={myGroups.length ? t("cmp.pasteMore") : hint.ph.split("\n")[0]}
                     value={newGroups} onChange={(e) => setNewGroups(e.target.value)}
                     onKeyDown={(e) => { if (!e.nativeEvent.isComposing && e.key === "Enter") { e.preventDefault(); addGroups(); } }}
                     aria-label={t(hint.label)} />
-                  <Button onClick={addGroups} disabled={!links(newGroups).length} className="shrink-0">
+                  <Button onClick={addGroups} disabled={!links(newGroups).length} variant="secondary" className="shrink-0 border-0! shadow-none! focus-visible:outline-none!">
                     {t("cmp.add")}
                   </Button>
                 </div>
@@ -304,15 +304,26 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          <Group label={t(f.source_type === "feed" ? "cmp.count" : f.source_type === "group" ? "cmp.countPerGroup" : "cmp.countPerKeyword", { n: f.count })}>
+          <Group label={t(f.source_type === "feed" ? "cmp.countLabel" : f.source_type === "group" ? "cmp.countPerGroupLabel" : "cmp.countPerKeywordLabel")}>
+            <div className="flex items-center gap-4">
+            <output className="min-w-12 text-right font-mono text-3xl font-medium tabular-nums" aria-hidden="true">{formatNumber(f.count, lang)}</output>
             <input type="range" min={10} max={Math.min(200, meta.max_posts)} step={10} value={f.count}
               onChange={(e) => set("count", Number(e.target.value))}
-              style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%, var(--line) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%)`, backgroundSize: "100% 4px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
-              className="h-10 w-full cursor-pointer appearance-none bg-transparent
-                [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent
-                [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-line [&::-webkit-slider-thumb]:bg-surface [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-[var(--duration-fast)] hover:[&::-webkit-slider-thumb]:scale-110 active:[&::-webkit-slider-thumb]:scale-125
-                [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-line [&::-moz-range-thumb]:bg-surface [&::-moz-range-thumb]:shadow-sm [&::-moz-range-thumb]:transition-transform [&::-moz-range-thumb]:duration-[var(--duration-fast)] hover:[&::-moz-range-thumb]:scale-110 active:[&::-moz-range-thumb]:scale-125 motion-reduce:[&::-webkit-slider-thumb]:transition-none motion-reduce:[&::-moz-range-thumb]:transition-none"
+              style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%, color-mix(in srgb, var(--ink) 35%, var(--sheet)) ${100 * (f.count - 10) / Math.max(1, Math.min(200, meta.max_posts) - 10)}%)`, backgroundSize: "100% 6px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
+              className="h-11 min-w-0 flex-1 cursor-pointer appearance-none bg-transparent
+                [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent
+                [&::-webkit-slider-thumb]:-mt-[7px] [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-[var(--duration-fast)] hover:[&::-webkit-slider-thumb]:scale-110 active:[&::-webkit-slider-thumb]:scale-125
+                [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:bg-transparent [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-accent [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow-sm [&::-moz-range-thumb]:transition-transform [&::-moz-range-thumb]:duration-[var(--duration-fast)] hover:[&::-moz-range-thumb]:scale-110 active:[&::-moz-range-thumb]:scale-125 motion-reduce:[&::-webkit-slider-thumb]:transition-none motion-reduce:[&::-moz-range-thumb]:transition-none"
               aria-label={t("cmp.countAria")} />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[20, 40, 80, 120].filter((n) => n <= Math.min(200, meta.max_posts)).map((n) => (
+                <button key={n} type="button" onClick={() => set("count", n)} aria-pressed={f.count === n}
+                  className="interactive-tap min-h-10 min-w-12 rounded-full px-3 py-1 font-mono text-sm text-ink-soft hover:bg-sunken hover:text-ink aria-pressed:bg-primary aria-pressed:text-primary-ink">
+                  {formatNumber(n, lang)}
+                </button>
+              ))}
+            </div>
             {nSources > 1 && (
               <p className="mt-1 text-sm text-ink-soft">
                 {t("cmp.total", { total, n: nSources })}
@@ -370,7 +381,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <div className="page-enter mt-5 space-y-5">
                 <div>
                   <span className="mb-1.5 block text-sm font-medium">{t("cmp.keywords")}</span>
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface p-2 focus-within:outline-2 focus-within:outline-accent">
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface p-2 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
                     {keywords.map((k) => (
                       <span key={k} className="page-enter flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 pr-1 pl-3 text-xs text-primary-ink">
                         <span className="min-w-0 truncate" title={k}>{k}</span>
@@ -378,7 +389,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                           className="interactive-tap grid size-9 shrink-0 place-items-center rounded-full hover:bg-primary-ink/20"><X className="size-3" /></button>
                       </span>
                     ))}
-                    <input className="min-w-24 flex-1 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-ink-soft/70"
+                    <input className="min-w-24 flex-1 bg-transparent px-1 py-1 text-sm border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft/70"
                       placeholder={keywords.length ? t("cmp.kwAdd") : t("cmp.kwPlaceholder")} value={kwDraft}
                       onChange={(e) => setKwDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -465,13 +476,14 @@ function Segmented({ value, onChange, options }: {
   value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
 }) {
   const name = useId();
+  const { lang } = useI18n();
   return (
     <div className={`grid gap-1 rounded-2xl border border-line bg-sunken p-1 ${options.length > 3 ? "grid-cols-2 sm:grid-cols-4" : options.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
       {options.map((o) => (
         <label key={o.value} className="relative min-w-0 cursor-pointer">
           <input type="radio" name={name} value={o.value} checked={value === o.value}
             onChange={() => onChange(o.value)} className="peer sr-only" />
-          <span className="interactive-tap flex min-h-11 items-center justify-center rounded-xl px-2 py-2 text-center text-sm text-ink-soft peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
+          <span className={`interactive-tap flex min-h-11 items-center justify-center rounded-xl px-1.5 py-2 text-center ${lang === "zh" ? "text-xs sm:text-sm" : "text-sm"} text-ink-soft peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-accent sm:px-2`}>
             {o.label}
           </span>
         </label>

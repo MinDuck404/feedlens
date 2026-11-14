@@ -1,4 +1,4 @@
-import { Briefcase, Check, CheckCircle2, ChevronDown, Copy, ExternalLink, FileSearch, Trash2 } from "lucide-react";
+import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
@@ -10,9 +10,10 @@ import { isRemoteText, parseTimestamp } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState } from "./ui";
 
-// Equal lightness/chroma keeps categories quiet beside the coral action color.
-const CATEGORY_HUE: Record<string, number> = { job: 155, news: 250, tech: 300, marketplace: 350, question: 195, event: 85, promotion: 35, personal: 100, entertainment: 120, other: 80 };
-const categoryTone = (category: string) => `oklch(70% 0.045 ${CATEGORY_HUE[category] ?? 80})`;
+const CATEGORY_INK: Record<string, string> = Object.fromEntries(
+  ["job", "news", "tech", "marketplace", "question", "event", "promotion", "personal", "entertainment", "other"].map((c) => [c, `var(--cat-${c})`]),
+);
+const categoryTone = (category: string) => CATEGORY_INK[category] ?? CATEGORY_INK.other;
 
 type Tab = RunTab;
 
@@ -93,25 +94,24 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
   return (
     <div className="page-enter mx-auto max-w-5xl px-5 py-8 md:px-10 md:py-10">
       {loadError && <p role="alert" className="mt-3 text-sm text-danger">{t("run.retrying")} <button onClick={() => setRetry((n) => n + 1)}>{t("act.retry")}</button></p>}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 basis-full sm:flex-1">
-          <p className="text-xs leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
-            {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
-            {run.ai_label && t("run.readBy", { ai: run.ai_label })}
-          </p>
-          <h1 className="mt-2 text-2xl leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere] md:text-3xl">{title}</h1>
-        </div>
-        <div className="flex items-center gap-1">
+      <header className="text-center">
+        <h1 className="mx-auto max-w-[32ch] font-headline text-2xl leading-tight font-semibold text-balance [overflow-wrap:anywhere] sm:text-3xl md:text-4xl">{title}</h1>
+        <p className="mt-4 text-xs leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
+          {run.ai_label && t("run.readBy", { ai: run.ai_label })}
+        </p>
+        <div className="mt-2 flex items-center justify-center gap-1 text-ink-soft">
           {run.status === "done" && (["md", "csv", "json"] as const).map((f) => (
-            <Button key={f} variant="outline" size="sm" onClick={() => api.download(run.id, f).catch((e) => alert(e.message))} className="min-h-10 font-mono">
+            <Button key={f} variant="ghost" size="sm" onClick={() => api.download(run.id, f).catch((e) => alert(e.message))} className="font-mono text-xs hover:bg-sunken hover:text-ink hover:underline underline-offset-4">
               .{f}
             </Button>
           ))}
-          <IconButton onClick={remove} busy={deleting} aria-label={t("run.delete")} variant="outline" className="ml-1 size-10 hover:border-danger hover:text-danger">
-            <Trash2 className="size-4" />
+          <IconButton onClick={remove} busy={deleting} aria-label={t("run.delete")} variant="ghost" size="sm" className="hover:text-danger">
+            <Trash2 className="size-3.5" />
           </IconButton>
         </div>
       </header>
+      <hr className="rule-double mt-4" />
 
       {run.status === "error" ? (
         <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
@@ -179,9 +179,9 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
   return (
     <>
       {/* Thanh phân loại: điểm nhấn của trang, đồng thời là bộ lọc */}
-      <section className="mt-8 border-t border-line pt-6" aria-label={t("run.composition")}>
-        <p className="mb-2 text-sm text-ink-soft">{t("run.postsCount", { n: posts.length })}</p>
-        <div ref={categoryBar} className="flex h-2.5 w-full origin-left gap-0.5">
+      <section className="mt-4 min-w-0" aria-label={t("run.composition")}>
+        <p className="mb-2 text-xs text-ink-soft">{t("run.postsCount", { n: posts.length })}</p>
+        <div ref={categoryBar} className="flex h-1.5 w-full origin-left gap-0.5">
           {counts.map(([c, n]) => (
             <button key={c} onClick={() => pick(c)} title={t("run.catCount", { name: name(c), n })}
               aria-label={t("run.catCount", { name: name(c), n })} aria-pressed={filter === c}
@@ -189,10 +189,10 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
               style={{ flexGrow: n, flexBasis: 0, minWidth: 6, background: categoryTone(c), opacity: filter && filter !== c ? 0.3 : 1 }} />
           ))}
         </div>
-        <ul className="mt-3 flex flex-wrap gap-1">
+        <ul className="mt-2 flex max-w-full gap-1 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:pr-0 sm:[mask-image:none]">
           {counts.map(([c, n]) => (
-            <li key={c}>
-              <button onClick={() => pick(c)} aria-pressed={filter === c} className="interactive-tap flex min-h-10 items-center gap-2 rounded-full px-3 py-1 text-sm hover:bg-sunken aria-pressed:bg-sunken aria-pressed:font-semibold">
+            <li key={c} className="shrink-0">
+              <button onClick={() => pick(c)} aria-pressed={filter === c} className="interactive-tap flex min-h-10 items-center gap-1.5 px-2 py-1 text-xs hover:bg-sunken aria-pressed:bg-sunken aria-pressed:font-semibold">
                 <span className="size-2.5 rounded-full" style={{ background: categoryTone(c) }} />
                 {name(c)} <span className="font-mono text-xs text-ink-soft">{formatNumber(n, lang)}</span>
               </button>
@@ -201,7 +201,7 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
         </ul>
       </section>
 
-      <nav data-run-tabs className="mt-7 flex gap-1 border-b border-line" role="tablist" aria-label={t("run.composition")}>
+      <nav data-run-tabs className="mt-3 flex gap-1 border-b border-line" role="tablist" aria-label={t("run.composition")}>
         {([["digest", t("tab.digest")], ...(jobs.length ? [["jobs", t("tab.jobs", { n: jobs.length })]] : []), ["posts", t("tab.posts")]] as [Tab, string][])
           .map(([k, l], index, tabs) => (
             <button key={k} id={`run-${run.id}-tab-${k}`} role="tab" aria-selected={tab === k}
@@ -231,19 +231,19 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
 function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: string) => string }) {
   const { t } = useI18n();
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div className="min-w-0">
-        <p className="max-w-[68ch] font-serif text-xl leading-[1.75] [overflow-wrap:anywhere] sm:text-2xl">{d.overall}</p>
-        <div className="mt-10 space-y-8">
+        <p className="prose-reading text-xl! leading-relaxed! [overflow-wrap:anywhere] sm:text-2xl!">{d.overall}</p>
+        <div className="mt-8 space-y-7">
           {d.categories.map((c) => (
-            <section key={c.category}>
-              <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+            <section key={c.category} className="border-t border-line pt-5">
+              <h3 className="flex flex-wrap items-baseline gap-2 font-headline text-2xl font-semibold">
                 <span className="size-2.5 rounded-full" style={{ background: categoryTone(c.category) }} />
-                {name(c.category)} <span className="text-xs font-normal text-ink-soft">{t("run.nPosts", { n: c.count })}</span>
+                {name(c.category)} <span className="font-sans text-xs font-normal text-ink-soft">{t("run.nPosts", { n: c.count })}</span>
               </h3>
-              <p className="mt-2 max-w-[68ch] leading-relaxed text-ink-soft [overflow-wrap:anywhere]">{c.summary}</p>
+              <p className="prose-reading mt-3 [overflow-wrap:anywhere]">{c.summary}</p>
               {c.highlights.length > 0 && (
-                <ul className="mt-3 max-w-[68ch] list-disc space-y-2 pl-5 text-sm [overflow-wrap:anywhere]">
+                <ul className="prose-reading mt-3 list-disc space-y-2 pl-5 [overflow-wrap:anywhere]">
                   {c.highlights.map((h, i) => <li key={i}>{h}</li>)}
                 </ul>
               )}
@@ -252,8 +252,8 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         </div>
       </div>
       {d.action_items.length > 0 && (
-        <aside className="paper-card h-fit rounded-2xl p-5 lg:sticky lg:top-6">
-          <h3 className="font-semibold">{t("run.nextSteps")}</h3>
+        <aside className="h-fit border border-line bg-sunken/40 p-4 lg:sticky lg:top-6">
+          <h3 className="font-headline text-xl font-semibold">{t("run.nextSteps")}</h3>
           <ul className="mt-3 space-y-2.5">
             {d.action_items.map((a, i) => (
               <li key={i}>
@@ -351,8 +351,10 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
             {l} <span className="font-mono text-xs opacity-70">{formatNumber(n, lang)}</span>
           </button>
         ))}
-        <input className="field ml-auto min-h-11 w-full rounded-full sm:w-56" placeholder={t("job.search")}
-          value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
+        <div className="ml-auto flex min-h-11 w-full items-center rounded-full border border-line bg-surface px-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)] sm:w-56">
+          <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
+            value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
+        </div>
         <select className="field min-h-11 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
           <option value="score">{t("job.sortScore")}</option>
           <option value="salary">{t("job.sortSalary")}</option>
@@ -388,12 +390,12 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
   };
 
   return (
-    <li className={`stagger-item paper-card p-4 [overflow-wrap:anywhere] sm:p-5 ${applied ? "border-ok/40" : ""}`}>
+    <li className={`stagger-item border-b border-line py-6 [overflow-wrap:anywhere] ${applied ? "bg-ok/5" : ""}`}>
       <div className="flex gap-3 sm:gap-4">
         <ScoreRing v={j.match_score} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <h3 className="min-w-0 text-lg leading-snug font-semibold text-balance [overflow-wrap:anywhere]">{j.title || p.summary}</h3>
+            <h3 className="min-w-0 font-headline text-xl leading-snug font-semibold text-balance [overflow-wrap:anywhere]">{j.title || p.summary}</h3>
             <span className="text-xs font-medium" style={{ color: tier.color }}>{t(tier.key)}</span>
           </div>
           <p className="mt-0.5 text-sm text-ink-soft">
@@ -447,28 +449,37 @@ function PostList({ posts, filter, setFilter, name }: {
         </p>
       )}
       {shown.length === 0 && <EmptyState icon={<FileSearch className="size-6" />} title={t("hist.empty")} />}
-      <ul className="space-y-3">
-        {shown.map((p) => (
-          <li key={p.id} className="stagger-item paper-card min-w-0 px-4 py-4 [overflow-wrap:anywhere] sm:px-5">
-            <details className="group/post">
-              <summary className="cursor-pointer list-none rounded-field">
-                <span className="flex items-start justify-between gap-3"><span className="min-w-0 text-base leading-relaxed font-medium">{p.summary}</span><ChevronDown aria-hidden="true" className="mt-1 size-4 shrink-0 text-ink-soft transition-transform duration-[var(--duration-fast)] group-open/post:rotate-180 motion-reduce:transition-none" /></span>
-                <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-soft">
-                  <span className="flex items-center gap-1.5 text-ink">
-                    <span className="size-2 rounded-full" style={{ background: categoryTone(p.category) }} />
-                    {name(p.category)}
-                  </span>
-                  <span>{p.author || t("posts.unknownAuthor")}</span>
-                  <span>{p.source}</span>
-                  {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-link hover:underline"
-                    onClick={(e) => e.stopPropagation()}>{t("posts.openOriginal")}</a>}
-                </span>
-              </summary>
-              <p className="mt-4 max-w-[72ch] border-t border-line pt-4 text-sm leading-relaxed whitespace-pre-wrap text-ink-soft [overflow-wrap:anywhere]">{p.text}</p>
-            </details>
-          </li>
-        ))}
+      <ul className="divide-y divide-line-strong">
+        {shown.map((p) => <ReadingPost key={p.id} p={p} name={name} />)}
       </ul>
     </>
+  );
+}
+
+
+function ReadingPost({ p, name }: { p: Post; name: (c: string) => string }) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <li className="stagger-item min-w-0 py-7 first:pt-0 [overflow-wrap:anywhere]">
+      <article>
+        <h3 className="max-w-[38ch] font-headline text-2xl leading-snug font-semibold sm:text-3xl">{p.summary}</h3>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-soft">
+          <span className="font-medium" style={{ color: categoryTone(p.category) }}>{name(p.category)}</span>
+          <span>{p.source}</span>
+          <span>{p.author || t("posts.unknownAuthor")}</span>
+        </div>
+        <p id={`post-${p.id}-text`} className={`prose-reading mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] ${expanded ? "" : "line-clamp-3"}`}>{p.text}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+          <button type="button" aria-expanded={expanded} aria-controls={`post-${p.id}-text`} onClick={() => setExpanded((v) => !v)}
+            className="min-h-10 text-ink-soft underline decoration-line underline-offset-4 hover:text-ink">
+            {t(expanded ? "posts.readLess" : "posts.readMore")}
+          </button>
+          {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 font-medium text-link underline underline-offset-4 hover:decoration-2">
+            {t("posts.openOriginal")} <ExternalLink aria-hidden="true" className="size-3.5" />
+          </a>}
+        </div>
+      </article>
+    </li>
   );
 }

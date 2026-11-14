@@ -26,7 +26,7 @@ export default function CookieSessions() {
 
   return (
     <section className="border-t border-line pt-6">
-      <h3 className="text-lg font-semibold tracking-tight">{t("ck.title")}</h3>
+      <h3 className="font-headline text-2xl font-semibold">{t("ck.title")}</h3>
       <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("ck.hint")}</p>
       <div className="mt-4 flex gap-3 rounded-card border border-warning/30 bg-warning/5 p-4 text-sm leading-relaxed">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -75,7 +75,7 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
   };
 
   return (
-    <li className="paper-card p-4">
+    <li className="min-w-0 border-b border-line py-4">
       <div className="flex flex-col items-start gap-3">
         <div className="min-w-0">
           <div className="font-medium">{name}</div>
@@ -90,7 +90,7 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
           )}
         </div>
         {!editing && (
-          <div className="flex w-full flex-wrap items-center gap-2 border-t border-line pt-3 text-sm">
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-start gap-x-3 gap-y-2 border-t border-line pt-3 text-sm [&_button]:max-w-full">
             {s && (
               <Button onClick={() => run("check", () => api.checkSession(platform))} busy={busy === "check"} disabled={!!busy} variant="outline">
                 {t("ck.check")}

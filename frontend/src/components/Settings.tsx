@@ -40,9 +40,10 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
       title={t("set.title")}
       closeAriaLabel={t("act.close")}
       maxWidth="max-w-lg"
+      className="[&_h2]:font-headline"
     >
       <div>
-        <h3 className="text-lg font-semibold tracking-tight">{t("set.keys")}</h3>
+        <h3 className="font-headline text-2xl font-semibold">{t("set.keys")}</h3>
         <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.keysHint")}</p>
         <ul className="mt-4 space-y-3">
           {loadError && <li role="alert" className="mt-2 text-sm text-danger">{loadError} <button onClick={() => reload().catch((e) => setLoadError(e.message))}>{t("act.retry")}</button></li>}
@@ -89,9 +90,9 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => Promise<
   };
 
   return (
-    <li className="paper-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <li className="border-b border-line py-4">
+      <div className="flex min-w-0 flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 [overflow-wrap:anywhere]">
           <div className="font-medium">{p.name}</div>
           <div className="text-xs text-ink-soft">
             {p.configured
@@ -99,7 +100,7 @@ function KeyRow({ p, onChanged }: { p: AIProviderInfo; onChanged: () => Promise<
               : t("set.noKey")}
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex max-w-full flex-wrap items-center gap-2 text-sm">
           {!editing && (
             <Button onClick={() => setEditing(true)} variant="outline" className="min-h-10">
               {p.source === "db" ? t("set.changeKey") : t("set.addKey")}
@@ -161,7 +162,7 @@ function AgentSection({ me, onChanged }: { me: Me; onChanged: () => void }) {
 
   return (
     <section className="border-t border-line pt-6">
-      <h3 className="text-lg font-semibold tracking-tight">{t("set.agent")}</h3>
+      <h3 className="font-headline text-2xl font-semibold">{t("set.agent")}</h3>
       <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.agentHint")}</p>
       <p className="mt-4 flex items-start gap-2 text-sm [overflow-wrap:anywhere]">
         <span className={`mt-1.5 size-2 shrink-0 rounded-full ${me.agent.online ? "bg-ok" : "bg-line"}`} />

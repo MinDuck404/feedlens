@@ -92,17 +92,18 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
 
       <div className="mx-auto w-full max-w-md">
         {/* Paper Card Form Container */}
-        <div className="paper-card rounded-2xl bg-surface p-7 sm:p-9 shadow-sm border border-line">
+        <div className="border-y border-line py-8 sm:py-10">
           {/* Brand Header */}
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-3 grid size-10 place-items-center rounded-full bg-primary shadow-sm">
               <Search className="size-5 text-primary-ink" strokeWidth={2.5} />
               <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-accent ring-2 ring-[var(--sheet)]" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            <h1 className="font-headline text-3xl font-normal tracking-tight text-ink sm:text-4xl">
               FeedLens
             </h1>
-            <p className="mt-1 text-sm text-ink-soft">
+            <div className="rule-double my-4 w-full" />
+            <p className="text-sm text-ink-soft">
               {registering ? t("login.registerHint") : t("login.loginHint")}
             </p>
           </div>

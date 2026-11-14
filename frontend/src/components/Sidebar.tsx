@@ -17,6 +17,13 @@ import type { PlatformState, Run } from "../types";
 import { Button, IconButton } from "./ui/Button";
 import { Sheet } from "./ui/Dialog";
 
+const FALLBACK_PLATFORMS: PlatformState[] = [
+  { key: "facebook", name: "Facebook", logged_in: false, has_profile: false, login_state: "idle" },
+  { key: "linkedin", name: "LinkedIn", logged_in: false, has_profile: false, login_state: "idle" },
+  { key: "x", name: "X", logged_in: false, has_profile: false, login_state: "idle" },
+  { key: "reddit", name: "Reddit", logged_in: false, has_profile: false, login_state: "idle" },
+];
+
 export const STATUS_CLS: Record<string, string> = {
   pending: "text-ink-soft",
   queued: "text-ink-soft",
@@ -55,14 +62,14 @@ export default function Sidebar(props: Props) {
   return (
     <>
       {/* Mobile Top Header (h-14 / 56px) - chỉ hiện trên màn hình < 768px, loại bỏ nút New Run trùng lặp */}
-      <header className="sticky top-0 z-30 flex h-14 w-full shrink-0 items-center justify-between border-b border-line bg-paper/90 px-4 backdrop-blur-md md:hidden">
+      <header className="sticky top-0 z-30 flex h-14 w-full shrink-0 items-center justify-between border-b border-line bg-bg/90 px-4 backdrop-blur-md md:hidden">
         <a
           href="#/"
           onClick={(e) => {
             e.preventDefault();
             props.onGoHome();
           }}
-          className="flex items-center gap-2 text-base font-semibold tracking-tight text-ink interactive-tap"
+          className="flex items-center gap-2 text-lg font-headline font-semibold tracking-tight text-ink interactive-tap"
         >
           <span
             aria-hidden
@@ -80,7 +87,7 @@ export default function Sidebar(props: Props) {
             label={t("act.newRun")}
             variant="ghost"
             size="sm"
-            className="outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="size-11! outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             onClick={props.onNewRun}
           />
           <IconButton
@@ -88,7 +95,7 @@ export default function Sidebar(props: Props) {
             label={t("nav.menu")}
             variant="ghost"
             size="sm"
-            className="outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="size-11! outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             onClick={() => setMobileDrawerOpen(true)}
           />
         </div>
@@ -139,7 +146,7 @@ export default function Sidebar(props: Props) {
       </Sheet>
 
       {/* Desktop Sidebar (>= 768px): cố định thanh bên trái */}
-      <aside className="hidden h-full w-72 shrink-0 flex-col border-r border-line bg-paper/50 md:flex">
+      <aside className="hidden h-full w-72 shrink-0 flex-col border-r border-line bg-bg/50 md:flex">
         <div className="flex items-center justify-between px-5 pt-5 pb-4">
           <a
             href="#/"
@@ -147,7 +154,7 @@ export default function Sidebar(props: Props) {
               e.preventDefault();
               props.onGoHome();
             }}
-            className="flex items-center gap-2 text-lg font-semibold tracking-tight text-ink interactive-tap"
+            className="flex items-center gap-2.5 text-xl font-headline font-semibold tracking-tight text-ink interactive-tap"
           >
             <span
               aria-hidden
@@ -156,7 +163,7 @@ export default function Sidebar(props: Props) {
               <Search className="size-3.5 text-primary-ink" strokeWidth={3} />
               <span className="absolute -right-0.5 -bottom-0.5 size-2 rounded-full bg-accent ring-2 ring-[var(--paper)]" />
             </span>
-            FeedLens
+            <span>FeedLens</span>
           </a>
           <Button
             size="sm"
@@ -241,11 +248,11 @@ function SidebarBody({
         </button>
       ) : (
         <section className="px-4 pb-4">
-          <h2 className="mb-2 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+          <h2 className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             {t("sb.accounts")}
           </h2>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface/50 px-3">
-            {platforms.map((p) => (
+            {FALLBACK_PLATFORMS.map((fallback) => platforms.find((p) => p.key === fallback.key) ?? fallback).map((p) => (
               <PlatformRow
                 key={p.key}
                 p={p}
@@ -326,7 +333,7 @@ function SidebarBody({
       </section>
 
       {/* Bottom Bar: Account & Settings */}
-      <div className="flex items-center gap-2 border-t border-line px-4 py-3 text-sm bg-paper/60">
+      <div className="flex items-center gap-2 border-t border-line px-4 py-3 text-sm bg-bg/60">
         <span
           className="min-w-0 flex-1 truncate text-xs font-medium text-ink-soft"
           title={email ?? t("sb.thisMachine")}
@@ -397,8 +404,10 @@ function PlatformRow({
   const [busy, setBusy] = useState(false);
   const { t } = useI18n();
 
+  const platformName = PLATFORM_LABEL[p.key] || p.name?.trim() || p.key;
+
   const act = async (a: "login" | "check" | "logout") => {
-    if (a === "logout" && !confirm(t("plat.confirmRemove", { name: p.name })))
+    if (a === "logout" && !confirm(t("plat.confirmRemove", { name: platformName })))
       return;
     if (a === "login") onLogin();
     setBusy(true);
@@ -436,7 +445,7 @@ function PlatformRow({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className={`size-2 shrink-0 rounded-full ${dot}`} />
-          <span className="text-sm font-semibold text-ink">{p.name}</span>
+          <span className="text-sm font-semibold text-ink">{platformName}</span>
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -478,7 +487,7 @@ function PlatformRow({
           <button
             type="button"
             onClick={() => act("login")}
-            title={t("plat.openLogin", { name: p.name })}
+            title={t("plat.openLogin", { name: platformName })}
             className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:text-link interactive-tap shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <LogIn className="size-3 text-accent" />

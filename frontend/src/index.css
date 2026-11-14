@@ -1,41 +1,63 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ FeedLens Design Tokens (Ultra-Crisp Minimalist Paper)
-   Tham chiếu: uberdesigner.ai + FeedLens Coral Accent (#ff5a36).
-   Nền giấy sáng tinh tế, chữ mực đậm rõ nét, đường viền hairline 1px inset,
-   nút bo tròn viên thuốc (pill), tương tác mượt mà chuẩn motion-foundations. */
+/* ------------------------------------------------------------------ FeedLens Design Tokens (Fiorinda Newspaper / Editorial Paper)
+   Tham chiếu: La Gazzetta di Fiorinda (uberdesigner.ai/t/fiorinda).
+   Light mode: Giấy kem ấm cổ điển (--paper: #FAF7F0, --sheet: #FFFFFF), mực than trầm (--ink: #16120E).
+   Dark mode: Bàn gỗ espresso trầm (--paper: #16120E, --sheet: #221C16), chữ kem báo (--ink: #F5EFE6).
+   Brand Accent: Đỏ Tuscan / Terracotta (#AE3824 / #DE634B). Giữ nguyên token --accent.
+   Độ tương phản chữ đọc >= 14:1, phụ đề >= 9:1, meta >= 5:1 (vượt chuẩn WCAG AAA/AA). */
 
 :root {
-  /* Surfaces & Canvas */
-  --paper: #faf9f7;               /* Nền trang sáng, sạch, crisp */
-  --sheet: #ffffff;               /* Nền thẻ nội dung, panel nổi */
-  --sunken: #f2f0ea;              /* Ô nhập liệu, vùng trũng phụ */
-  --sunken-hover: #ebe8e1;        /* Hover trên vùng trũng */
+  /* Surfaces & Canvas (Fiorinda Warm Italian Newsprint) */
+  --paper: #FAF7F0;               /* Nền giấy kem ấm kiểu báo in cổ điển */
+  --sheet: #FFFFFF;               /* Trang báo / thẻ nội dung nổi bật */
+  --sunken: #F0EAE1;              /* Vùng trũng phụ, ô nhập liệu */
+  --sunken-hover: #E8E0D4;        /* Hover trên vùng trũng */
 
-  /* Text & Ink */
-  --ink: #0a0a0b;                 /* Mực đen đậm cho tiêu đề và chữ chính */
-  --ink-soft: #66645f;            /* Mực mờ cho phụ đề, nhãn phụ */
-  --ink-faint: #99968f;           /* Mực rất mờ cho placeholder, hint */
+  /* Text & Ink (Mực than sẫm, độ tương phản cao >= 9:1 và >= 5:1) */
+  --ink: #16120E;                 /* Mực đen than trầm, tương phản 17.4:1 */
+  --ink-soft: #463D34;            /* Mực phụ rõ nét, tương phản 9.9:1 */
+  --ink-faint: #716556;           /* Mực mờ ghi chú/meta, tương phản 5.3:1 (chuẩn >= 4.5:1) */
 
-  /* Hairlines & Dividers */
-  --line: #e2dfd7;                /* Nét kẻ mảnh hairline mặc định (1px) */
-  --line-subtle: rgba(0, 0, 0, 0.05); /* Vạch phân chia cực nhẹ */
+  /* Hairlines & Dividers (Đường kẻ mực in báo) */
+  --line: #DDD5C5;                /* Vạch chia báo giấy hairline (1px) */
+  --line-subtle: rgba(22, 18, 14, 0.07); /* Vạch phân chia cực nhẹ */
+  --line-strong: #C4B9A5;         /* Vạch chia phân đoạn báo đậm hơn */
 
   /* Actions & Primary */
-  --primary: #0a0a0b;             /* Nút chính = Mực đen */
-  --primary-ink: #ffffff;         /* Chữ trên nút chính = Giấy trắng */
+  --primary: #16120E;             /* Nút chính = Mực đen than */
+  --primary-ink: #FAF7F0;         /* Chữ trên nút chính = Giấy kem */
 
-  /* Brand Accent: Cam San Hô (User duyệt #ff5a36) */
-  --accent: #ff5a36;              /* Cam san hô thương hiệu chính */
-  --accent-fill: #e84c2a;         /* Cam đậm hơn khi nhấn (active) */
-  --accent-ink: #ffffff;          /* Chữ trên nền cam */
-  --accent-glow: rgba(255, 90, 54, 0.16); /* Ánh sáng mờ quanh focus/chip */
-  --link: #b93a19;                /* Cam đậm cho chữ link, đảm bảo tương phản */
+  /* Brand Accent: Tuscan Red / Terracotta (#AE3824 - User chọn phong cách Fiorinda) */
+  --accent: #AE3824;              /* Đỏ đất Tuscan ấm áp, giữ nguyên tên token --accent */
+  --accent-fill: #922B19;         /* Đỏ đất đậm hơn khi active/press */
+  --accent-ink: #FFFFFF;          /* Chữ trên nền đỏ */
+  --accent-glow: rgba(174, 56, 36, 0.16); /* Ánh sáng mờ quanh focus/chip */
+  --link: #AE3824;                /* Chữ liên kết đỏ terracotta, tương phản 5.8:1 */
 
   /* Semantic Status */
-  --danger: #b4233c;              /* Đỏ cảnh báo, lỗi, xóa */
-  --ok: #1f7a4d;                  /* Xanh lục thành công, khớp việc cao */
-  --warning: #b7851a;             /* Vàng hổ phách cho match score trung bình */
+  --danger: #B3261E;              /* Đỏ cảnh báo, lỗi, xóa */
+  --ok: #236545;                  /* Xanh lục đậm mực in */
+  --warning: #966116;             /* Hổ phách sẫm */
+
+  /* Category Ink Palette (Mực in chuyên đề) - Đủ tương phản >= 4.5:1 trên nền giấy */
+  --cat-tech: #204A6E;
+  --cat-marketplace: #28552C;
+  --cat-question: #825010;
+  --cat-event: #963220;
+  --cat-promotion: #6E2D56;
+  --cat-entertainment: #8E421C;
+  --cat-news: #1B5380;
+  --cat-job: #236545;
+  --cat-personal: #605929;
+  --cat-other: #5E5446;
+
+  /* Editorial Reading & Newspaper Typography */
+  --font-headline: "Lora", "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif;
+  --font-serif: "Lora", "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif;
+  --text-prose: 1.0625rem;        /* 17px cỡ đọc chuẩn editorial */
+  --leading-prose: 1.68;          /* Khoảng cách dòng thoáng đãng, dễ đọc */
+  --measure: 68ch;                /* Độ rộng dòng tối ưu cho việc đọc tin */
 
   /* Surface Radius Tokens */
   --radius-control: 999px;        /* Nút bấm, chip, pills */
@@ -52,43 +74,55 @@
   --duration-spring: 350ms;
   --duration-shimmer: 1.6s;
 
-  /* Easing Curves (Trích xuất toán học từ uberdesigner.ai) */
-  --ease-micro: cubic-bezier(0.215, 0.61, 0.355, 1);     /* Deceleration tự nhiên cho hover/press */
-  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19);    /* Gia tốc thoát nhanh cho modal close */
-  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);           /* Đàn hồi mềm mại cho drawer/enter */
+  /* Easing Curves */
+  --ease-micro: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Paper Grain Intensity */
-  --grain: 0.02;                  /* Giảm nhẹ grain để trang luôn tinh tươm */
+  --grain: 0.02;
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not(.light) {
-    --paper: #0a0a0b;
-    --sheet: #141416;
-    --sunken: #1d1d22;
-    --sunken-hover: #26262d;
+    --paper: #16120E;             /* Bàn gỗ espresso trầm ấm */
+    --sheet: #221C16;             /* Tờ báo đêm / card nội dung nổi */
+    --sunken: #1A140E;            /* Vùng trũng khắc trên gỗ */
+    --sunken-hover: #2B231B;      /* Hover vùng trũng */
 
-    --ink: #f4f4f4;
-    --ink-soft: #9b9993;
-    --ink-faint: #66645f;
+    --ink: #F5EFE6;               /* Chữ kem sáng rõ, tương phản 14.8:1 */
+    --ink-soft: #C7BCAD;          /* Chữ phụ, tương phản 9.0:1 */
+    --ink-faint: #988B7B;         /* Chữ mờ/meta, tương phản 5.1:1 (đạt chuẩn >= 4.5:1) */
 
-    --line: #2a2a2f;
-    --line-subtle: rgba(255, 255, 255, 0.06);
+    --line: #342A20;              /* Vạch khắc chìm trên gỗ */
+    --line-subtle: rgba(245, 239, 230, 0.08);
+    --line-strong: #4A3C2F;
 
-    --primary: #f4f4f4;
-    --primary-ink: #0a0a0b;
+    --primary: #F5EFE6;
+    --primary-ink: #16120E;
 
-    --accent: #ff6b4a;
-    --accent-fill: #ff5a36;
-    --accent-ink: #ffffff;
-    --accent-glow: rgba(255, 107, 74, 0.22);
-    --link: #ff8a6b;
+    --accent: #DE634B;            /* Đỏ đất sáng rõ trên nền tối, tương phản 4.8:1 */
+    --accent-fill: #BA3C27;
+    --accent-ink: #FFFFFF;
+    --accent-glow: rgba(222, 99, 75, 0.22);
+    --link: #E87A63;
 
-    --danger: #ff7a8f;
-    --ok: #4fd39b;
-    --warning: #eab308;
+    --danger: #FF7066;
+    --ok: #63C794;
+    --warning: #E2A740;
+
+    --cat-tech: #7EA4C4;
+    --cat-marketplace: #8FBA8B;
+    --cat-question: #D4A359;
+    --cat-event: #E07763;
+    --cat-promotion: #BA7E9E;
+    --cat-entertainment: #DE8B64;
+    --cat-news: #72A9D8;
+    --cat-job: #7DC49D;
+    --cat-personal: #C7BE78;
+    --cat-other: #B3A795;
 
     --grain: 0.035;
 
@@ -98,30 +132,42 @@
 
 :root.dark,
 [data-theme="dark"] {
-  --paper: #0a0a0b;
-  --sheet: #141416;
-  --sunken: #1d1d22;
-  --sunken-hover: #26262d;
+  --paper: #16120E;               /* Bàn gỗ espresso trầm ấm */
+  --sheet: #221C16;               /* Tờ báo đêm / card nội dung nổi */
+  --sunken: #1A140E;              /* Vùng trũng khắc trên gỗ */
+  --sunken-hover: #2B231B;        /* Hover vùng trũng */
 
-  --ink: #f4f4f4;
-  --ink-soft: #9b9993;
-  --ink-faint: #66645f;
+  --ink: #F5EFE6;                 /* Chữ kem sáng rõ, tương phản 14.8:1 */
+  --ink-soft: #C7BCAD;            /* Chữ phụ, tương phản 9.0:1 */
+  --ink-faint: #988B7B;           /* Chữ mờ/meta, tương phản 5.1:1 (đạt chuẩn >= 4.5:1) */
 
-  --line: #2a2a2f;
-  --line-subtle: rgba(255, 255, 255, 0.06);
+  --line: #342A20;                /* Vạch khắc chìm trên gỗ */
+  --line-subtle: rgba(245, 239, 230, 0.08);
+  --line-strong: #4A3C2F;
 
-  --primary: #f4f4f4;
-  --primary-ink: #0a0a0b;
+  --primary: #F5EFE6;
+  --primary-ink: #16120E;
 
-  --accent: #ff6b4a;
-  --accent-fill: #ff5a36;
-  --accent-ink: #ffffff;
-  --accent-glow: rgba(255, 107, 74, 0.22);
-  --link: #ff8a6b;
+  --accent: #DE634B;              /* Đỏ đất sáng rõ trên nền tối, tương phản 4.8:1 */
+  --accent-fill: #BA3C27;
+  --accent-ink: #FFFFFF;
+  --accent-glow: rgba(222, 99, 75, 0.22);
+  --link: #E87A63;
 
-  --danger: #ff7a8f;
-  --ok: #4fd39b;
-  --warning: #eab308;
+  --danger: #FF7066;
+  --ok: #63C794;
+  --warning: #E2A740;
+
+  --cat-tech: #7EA4C4;
+  --cat-marketplace: #8FBA8B;
+  --cat-question: #D4A359;
+  --cat-event: #E07763;
+  --cat-promotion: #BA7E9E;
+  --cat-entertainment: #DE8B64;
+  --cat-news: #72A9D8;
+  --cat-job: #7DC49D;
+  --cat-personal: #C7BE78;
+  --cat-other: #B3A795;
 
   --grain: 0.035;
 
@@ -138,6 +184,7 @@
   --color-ink-faint: var(--ink-faint);
   --color-line: var(--line);
   --color-line-subtle: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
   --color-primary: var(--primary);
   --color-primary-ink: var(--primary-ink);
   --color-accent: var(--accent);
@@ -148,6 +195,17 @@
   --color-ok: var(--ok);
   --color-warning: var(--warning);
 
+  --color-cat-tech: var(--cat-tech);
+  --color-cat-marketplace: var(--cat-marketplace);
+  --color-cat-question: var(--cat-question);
+  --color-cat-event: var(--cat-event);
+  --color-cat-promotion: var(--cat-promotion);
+  --color-cat-entertainment: var(--cat-entertainment);
+  --color-cat-news: var(--cat-news);
+  --color-cat-job: var(--cat-job);
+  --color-cat-personal: var(--cat-personal);
+  --color-cat-other: var(--cat-other);
+
   --radius-control: var(--radius-control);
   --radius-pill: var(--radius-pill);
   --radius-card: var(--radius-card);
@@ -155,9 +213,10 @@
   --radius-modal: var(--radius-modal);
   --radius-tag: var(--radius-tag);
 
-  /* Typography Stack: Instrument Sans + Be Vietnam Pro + Noto Sans SC + JetBrains Mono (Loại bỏ SimSun) */
+  /* Typography Stack: Instrument Sans + Be Vietnam Pro + Noto Sans SC + JetBrains Mono + Lora */
   --font-sans: "Instrument Sans", "Be Vietnam Pro", system-ui, -apple-system, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-serif: "Lora", "Songti SC", Georgia, serif;
+  --font-serif: "Lora", "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif;
+  --font-headline: "Lora", "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", Georgia, serif;
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "Noto Sans SC", "Microsoft YaHei", monospace;
 }
 
@@ -176,7 +235,6 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-variant-numeric: tabular-nums;
 }
 
 body::before {
@@ -198,6 +256,11 @@ body::before {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+/* Fields already communicate focus through their border and soft glow. */
+.field:focus-visible {
+  outline: none;
 }
 
 /* ------------------------------------------------------------------ @layer components
@@ -225,13 +288,55 @@ body::before {
   .field:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-glow);
+    box-shadow: 0 0 0 3px var(--accent-glow);
   }
 
   .field:disabled {
     opacity: 0.6;
     cursor: not-allowed;
     background: var(--sunken);
+  }
+
+  /* Editorial Reading & Newspaper Typography Utilities (Fiorinda Style) */
+  .font-headline {
+    font-family: var(--font-headline);
+    letter-spacing: -0.015em;
+  }
+
+  .prose-reading {
+    font-family: var(--font-serif);
+    font-size: var(--text-prose);
+    line-height: var(--leading-prose);
+    max-width: var(--measure);
+    color: var(--ink);
+  }
+
+  .prose-reading p {
+    margin-bottom: 1.25em;
+  }
+
+  /* Băng tiêu đề báo chí (Masthead) */
+  .masthead {
+    border-top: 3px double var(--line);
+    border-bottom: 1px solid var(--line);
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  /* Đường kẻ phân cách phong cách báo giấy */
+  .rule {
+    border: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .rule-double {
+    border: 0;
+    border-top: 3px double var(--line);
+  }
+
+  .rule-vertical {
+    border: 0;
+    border-left: 1px solid var(--line);
   }
 
   /* Tờ giấy (Paper Card): Nền sáng sắc nét, viền hairline, đổ bóng vi mô */
