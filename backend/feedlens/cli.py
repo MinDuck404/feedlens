@@ -116,7 +116,20 @@ def main(argv: list[str] | None = None) -> None:
     if a.cmd == "serve":
         import uvicorn
         if a.open:
-            webbrowser.open(f"http://127.0.0.1:{a.port}")
+            import threading
+            import urllib.request
+
+            def open_when_ready():
+                url = f"http://127.0.0.1:{a.port}"
+                for _ in range(60):  # đợi server sẵn sàng rồi mới mở trình duyệt
+                    try:
+                        urllib.request.urlopen(f"{url}/api/health", timeout=1)
+                        break
+                    except Exception:  # noqa: BLE001
+                        threading.Event().wait(0.5)
+                webbrowser.open(url)
+
+            threading.Thread(target=open_when_ready, daemon=True).start()
         uvicorn.run("feedlens.api:app", host="127.0.0.1", port=a.port)
     elif a.cmd == "login":
         from .browser import interactive_login

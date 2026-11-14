@@ -504,4 +504,7 @@ if DIST.exists() and not settings.is_cloud:
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
         f = DIST / path
-        return FileResponse(f if path and f.is_file() else DIST / "index.html")
+        if path and f.is_file():
+            return FileResponse(f)
+        # index.html luôn lấy bản mới, để sau khi cập nhật trình duyệt không giữ giao diện cũ
+        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})

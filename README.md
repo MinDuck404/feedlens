@@ -4,6 +4,21 @@ Lướt bảng tin, group và kết quả tìm kiếm trên mạng xã hội b�
 
 Nền tảng: Facebook, LinkedIn, X (Twitter), Reddit. AI: **Claude, ChatGPT, Gemini**, hoặc bộ lọc từ khóa offline.
 
+## Bắt đầu nhanh (chạy trên máy, khuyên dùng)
+
+Cần cài sẵn: [Python 3.10+](https://www.python.org/downloads/) (nhớ tick *Add to PATH*), [Node.js LTS](https://nodejs.org) và Google Chrome.
+
+1. Tải code về: bấm **Code → Download ZIP** trên GitHub rồi giải nén (hoặc `git clone`).
+2. **Windows:** bấm đúp `start.bat`. **macOS/Linux:** chạy `./start.sh`.
+   Lần đầu mất vài phút để cài thư viện và build giao diện, các lần sau mở ngay. Trình duyệt tự mở http://127.0.0.1:8765.
+3. Ở cột trái, bấm **Đăng nhập** cạnh Facebook. Một cửa sổ Chrome hiện ra: đăng nhập như bình thường (kể cả xác minh 2 bước), xong thì cửa sổ tự đóng.
+4. **Cài đặt** (biểu tượng bánh răng): dán API key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
+5. Bấm **Lướt mới**, chọn bảng tin hoặc các nhóm, rồi **Bắt đầu lướt**.
+
+Mọi thứ chạy trên máy bạn: phiên Facebook nằm trong profile Chrome riêng của FeedLens (`backend/data/profiles`), dữ liệu lưu trong `backend/data/feedlens.db`, không gửi đi đâu ngoài lời gọi tới AI bạn chọn. Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
+
+Phần **Deploy lên cloud** bên dưới chỉ dành cho ai muốn tự host bản nhiều người dùng.
+
 ## Cấu trúc
 
 ```

@@ -134,7 +134,10 @@ function PlatformRow({ p, onChanged }: { p: PlatformState; onChanged: () => void
               <IconBtn label="Kiểm tra phiên" onClick={() => act("check")}><RefreshCw className="size-3.5" /></IconBtn>
             )}
             {!p.logged_in && !waiting && (
-              <IconBtn label={`Đăng nhập ${p.name}`} onClick={() => act("login")}><LogIn className="size-3.5" /></IconBtn>
+              <button onClick={() => act("login")} title={`Mở cửa sổ đăng nhập ${p.name}`}
+                className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-medium hover:border-cobalt hover:text-cobalt">
+                <LogIn className="size-3.5" /> {p.has_profile ? "Đăng nhập lại" : "Đăng nhập"}
+              </button>
             )}
             {p.has_profile && (
               <IconBtn label="Xóa phiên" onClick={() => act("logout")}><XIcon className="size-3.5" /></IconBtn>
