@@ -580,3 +580,124 @@ def test_duplicate_short_captions_in_one_payload_are_not_a_unique_match():
     cache={};scrapers.cache_facebook_stories(json.dumps({'data':stories}),cache)
     post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger preview description.')
     assert scrapers.match_facebook_story(post,cache) is None
+
+
+@pytest.mark.parametrize('actor,post_id,expected', [
+ ({'id':'123'},'456','https://www.facebook.com/123/posts/456/'),
+ ({'url':'https://www.facebook.com/Page.Name/?__cft__=track'},'pfbidABC123','https://www.facebook.com/Page.Name/posts/pfbidABC123/'),
+ ({'slug':'Page.Name'},'pfbidABC123','https://www.facebook.com/Page.Name/posts/pfbidABC123/'),
+ ({'url':'https://evil.test/Page.Name'},'pfbidABC123',''),
+ ({'url':'https://www.facebook.com/groups/123/'},'456',''),
+ ({'name':'Only a Page name'},'456',''),
+])
+def test_page_story_builds_link_only_with_explicit_owner(actor,post_id,expected):
+    story={'__typename':'Story','post_id':post_id,'actors':[actor],'message':{'text':'An actual Page caption with sufficient text.'}}
+    assert scrapers.facebook_stories(story)[0]['url']==expected
+
+
+def test_story_does_not_borrow_actor_from_another_metadata_story():
+    story={'__typename':'Story','post_id':'456','message':{'text':'A story with an identity but no actor on this node.'},
+        'comet_sections':{'metadata':[{'story':{'actors':[{'id':'999','url':'https://www.facebook.com/other/'}]}}]}}
+    assert scrapers.facebook_stories(story)[0]['url']==''
+
+
+@pytest.mark.parametrize('decoded,expected', [
+ ('feedback:pfbidABC123','pfbidABC123'),('opaque; Feedback:12345; end','12345'),
+ ('comment:12345',''),('feedback:123_456',''),('feedback:123 feedback:456',''),
+])
+def test_feedback_id_search_stays_story_scoped(decoded,expected):
+    import base64
+    story={'__typename':'Story','message':{'text':'A page story whose feedback identifies the post.'},
+        'actors':[{'id':'777'}],'feedback':{'id':base64.b64encode(decoded.encode()).decode()}}
+    result=scrapers.facebook_stories(story)[0]['url']
+    assert result==(f'https://www.facebook.com/777/posts/{expected}/' if expected else '')
+
+
+def test_hover_env_off_never_moves_to_unresolved_timestamps(facebook_page,monkeypatch):
+    monkeypatch.setenv('FEEDLENS_FB_HOVER','0');facebook_page.mouse.move(1,1)
+    facebook_page.set_content('<div role="article"><h4>Page</h4><a aria-labelledby="date" href="?__cft__=x" onmouseover="this.href=\'/page/posts/pfbidHOVER/\'">x</a><span id="date">1 giờ trước</span><div data-ad-preview="message">Page post that would require timestamp hovering.</div></div>')
+    item=scrapers._facebook_items(facebook_page)[0]
+    assert item['url']=='' and 'hover_disabled' in item['_missing_header']
+
+
+def test_graphql_debug_keeps_matched_node_or_same_author_keys():
+    import json
+    cache=scrapers.FacebookStoryCache()
+    story={'__typename':'Story','message':{'text':'A sufficiently long Page caption without a post identifier.'},
+           'actors':[{'name':'Page'}],'new_field':{'unknown_text':'x'*200},'cookie':'SECRET'}
+    scrapers.cache_facebook_stories(json.dumps({'data':story}),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',author='Page',text=story['message']['text'])
+    matched=scrapers.facebook_graphql_debug(post,cache)
+    assert matched['match']=='matched' and matched['story']['__typename']=='Story'
+    assert 'cookie' not in matched['story'] and len(matched['story']['new_field']['unknown_text'])==60
+    post.text='A different caption that does not match the network Story.'
+    missing=scrapers.facebook_graphql_debug(post,cache)
+    assert missing['same_author_keys'][0]['keys']==['__typename','actors','message','new_field']
+
+
+def test_unparsed_page_story_still_exposes_sanitized_shape_for_diagnostics():
+    import json
+    cache=scrapers.FacebookStoryCache()
+    scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','actors':[{'name':'Page'}],
+        'unknown_caption_shape':{'value':'No supported message node'},'fb_dtsg':'SECRET','__user':'USER'}),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',author='Page',text='A DOM post that cannot be joined to any parsed Story.')
+    result=scrapers.facebook_graphql_debug(post,cache)
+    assert result['match']=='none_or_ambiguous'
+    assert result['same_author_keys'][0]['keys']==['__typename','actors','unknown_caption_shape']
+
+
+def test_debug_samples_are_collected_even_without_any_html_header(monkeypatch):
+    posts,scraper,_=fake_collect(monkeypatch,[[item('A Page post that has no DOM or network permalink.')]],target=1)
+    assert len(scraper.missing_graphql_samples)==1
+    assert scraper.missing_graphql_samples[0]['match']=='none_or_ambiguous'
+    assert scraper.missing_graphql_samples[0]['same_author_keys']==[]
+
+
+def test_hover_budget_is_at_most_three_for_a_snapshot(facebook_page):
+    facebook_page.mouse.move(1,1)
+    facebook_page.set_content(''.join('<div role="article"><h4>Page '+str(i)+'</h4>'
+        '<a aria-labelledby="t'+str(i)+'" href="?__cft__=x" onmouseover="window.hovers=(window.hovers||0)+1">x</a>'
+        '<span id="t'+str(i)+'">1 giờ trước</span><div data-ad-preview="message">Page caption number '+str(i)+' with enough text.</div></div>' for i in range(5)))
+    facebook_page.evaluate('window.hovers=0');items=scrapers._facebook_items(facebook_page)
+    assert len(items)==5 and facebook_page.evaluate('window.hovers')<=3
+
+
+def test_available_native_url_takes_precedence_over_post_id_and_owner():
+    story={'__typename':'Story','post_id':'123','actors':[{'id':'777','slug':'Page.Name'}],
+        'message':{'text':'Page story with an explicit canonical permalink.'},
+        'permalink_url':'https://www.facebook.com/Page.Name/posts/pfbidCANONICAL/'}
+    assert scrapers.facebook_stories(story)[0]['url']==story['permalink_url']
+
+
+def test_missing_graphql_debug_samples_are_capped_per_source(monkeypatch):
+    _,scraper,_=fake_collect(monkeypatch,[[item(f'Unresolved Page caption number {i}.') for i in range(12)]],target=12)
+    assert len(scraper.missing_graphql_samples)==10
+
+
+def test_graphql_debug_preserves_identifier_and_removes_nested_url_credentials():
+    raw={'post_id':'pfbid'+'A'*90,'actors':[{'url':'https://user:password@www.facebook.com/Page/?id=777&access_token=SECRET'}],
+        'message':{'text':'x'*100},'nested':{'cookies':{'xs':'PRIVATE'},'__user':'USER','fb_dtsg':'DTSG'}}
+    clean=scrapers.sanitize_facebook_debug(raw)
+    assert clean['post_id']==raw['post_id']
+    assert clean['actors'][0]['url']=='https://www.facebook.com/Page/?id=777'
+    assert len(clean['message']['text'])==60 and clean['nested']=={}
+
+
+def test_debug_json_uses_graphql_responses_that_arrive_after_first_dom_capture(monkeypatch):
+    import json
+    first=item('An unresolved Page post seen before its network response.');second=item('Another organic post completing the requested quota.')
+    callbacks={};calls=[]
+    payload={'__typename':'Story','actors':[{'name':'Author'}],'message':{'text':first['text']},'new_page_shape':{'field':'unknown'}}
+    page=SimpleNamespace(on=lambda event,fn:callbacks.update({event:fn}),remove_listener=lambda event,fn:callbacks.pop(event),
+        goto=lambda *args,**kwargs:None,evaluate=lambda *args:[],mouse=SimpleNamespace(wheel=lambda *args:None))
+    def extract(page,*args):
+        calls.append(1)
+        if len(calls)==1:return [first.copy()]
+        callbacks['response'](SimpleNamespace(url='https://www.facebook.com/api/graphql/',status=200,text=lambda:json.dumps(payload)))
+        return [second.copy()]
+    monkeypatch.setattr(scrapers,'_facebook_items',extract);monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(scrapers.random,'random',lambda:1)
+    scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
+    scraper.collect(page,'https://www.facebook.com/','feed',2,set(),lambda *a:None)
+    assert scraper.missing_graphql_samples[0]['match']=='matched'
+    assert 'new_page_shape' in scraper.missing_graphql_samples[0]['story']

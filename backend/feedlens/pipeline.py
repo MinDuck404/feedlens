@@ -54,6 +54,8 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                 if report is not None and getattr(scraper, "last_report", None):
                     report.setdefault("sources", []).append({"label": label, **scraper.last_report})
                     report.setdefault("missing_link_samples", []).extend(getattr(scraper, "missing_headers", []))
+                    samples = report.setdefault("missing_graphql_samples", [])
+                    samples.extend(getattr(scraper, "missing_graphql_samples", [])[:max(0, 10 - len(samples))])
         except NeedsVerification:
             raise
         except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
@@ -86,6 +88,18 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
             (folder / f"run-{run_id}.html").write_text(
                 f"<!-- FeedLens: posts whose permalink was not found (text shortened, tokens removed) -->\n{body}\n",
                 encoding="utf-8")
+        except OSError:
+            pass
+
+    graphql_samples = report.get("missing_graphql_samples") or []
+    if graphql_samples:
+        import json
+        from .scrapers import sanitize_facebook_debug
+        try:
+            folder = settings.data_dir / "debug" / "missing-links"
+            folder.mkdir(parents=True, exist_ok=True)
+            safe = [sanitize_facebook_debug(sample) for sample in graphql_samples[:10]]
+            (folder / f"run-{run_id}.json").write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             pass
 

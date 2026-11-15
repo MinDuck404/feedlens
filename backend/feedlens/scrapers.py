@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import random
 import re
 import time
@@ -131,7 +132,95 @@ def facebook_dom_permalink(links: list[tuple[str, bool]], author_url: str = "") 
     return chosen
 
 
-def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
+def facebook_story_id(story: dict) -> str:
+    value = str(story.get("post_id") or story.get("pfbid") or "")
+    if re.fullmatch(r"(?:[0-9]+|pfbid[A-Za-z0-9]+)", value):
+        return value
+    feedback = story.get("feedback")
+    if not isinstance(feedback, dict):
+        return ""
+    encoded = str(feedback.get("id") or "")
+    if len(encoded) > 1024:
+        return ""
+    try:
+        decoded = base64.b64decode(encoded + "===").decode("utf-8")
+    except (ValueError, UnicodeError):
+        return ""
+    ids = set(re.findall(r"(?<![A-Za-z0-9_])(?i:feedback):(pfbid[A-Za-z0-9]+|[0-9]+)(?![A-Za-z0-9_])", decoded))
+    return next(iter(ids)) if len(ids) == 1 else ""
+
+
+def facebook_actor_slug(actor: dict) -> str:
+    if actor.get("__typename") == "Group":
+        return ""
+    url = actor.get("url")
+    if isinstance(url, str):
+        try:
+            parsed = urlsplit(urljoin("https://www.facebook.com/", url))
+            if parsed.scheme in {"http", "https"} and parsed.hostname in {"facebook.com", "www.facebook.com", "m.facebook.com"}:
+                slug = parsed.path.strip("/")
+                if slug == "profile.php":
+                    slug = dict(parse_qsl(parsed.query)).get("id", "")
+                if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", slug) and slug not in {"groups", "watch", "reel", "stories", "ads", "profile.php"}:
+                    return slug
+        except ValueError:
+            pass
+    for key in ("slug", "username", "id"):
+        slug = str(actor.get(key) or "")
+        if slug in {"groups", "watch", "reel", "stories", "ads", "profile.php", "permalink.php", "photo.php"}:
+            continue
+        if (key == "id" and slug.isascii() and slug.isdigit()) or (key != "id" and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", slug)):
+            return slug
+    return ""
+
+
+_DEBUG_SECRET = re.compile(r"token|cookie|dtsg|auth|credential|secret|session|^__(?!typename$)|^(?:lsd|jazoest|c_user|xs)$", re.I)
+
+
+def sanitize_facebook_debug(value: object) -> object:
+    budget = 400
+    def clean(item, key="", depth=0):
+        nonlocal budget
+        budget -= 1
+        if budget < 0 or depth > 8:
+            return "[truncated]"
+        if isinstance(item, dict):
+            preferred = {"__typename", "id", "post_id", "pfbid", "actors", "message", "feedback", "comet_sections", "attachments", "url", "permalink_url"}
+            entries = sorted(item.items(), key=lambda kv: kv[0] not in preferred)
+            return {str(k)[:80]: clean(v, str(k), depth + 1) for k, v in entries[:60] if not _DEBUG_SECRET.search(str(k))}
+        if isinstance(item, list):
+            return [clean(v, key, depth + 1) for v in item[:10]]
+        if isinstance(item, str):
+            if item.startswith(("https://", "http://")):
+                try:
+                    parsed = urlsplit(item)
+                    safe = [(k, v) for k, v in parse_qsl(parsed.query) if k in {"id", "post_id", "story_fbid", "fbid", "set", "v", "multi_permalinks"} and not _DEBUG_SECRET.search(v)]
+                    return urlunsplit((parsed.scheme, parsed.hostname or "", parsed.path[:1000], urlencode(safe), ""))
+                except ValueError:
+                    return "[invalid URL]"
+            return item[:512] if key in {"id", "post_id", "pfbid"} or key.endswith("_id") else item[:60]
+        return item if item is None or isinstance(item, (bool, int, float)) else str(item)[:60]
+    return clean(value)
+
+
+class FacebookStoryCache(dict):
+    """Parsed records plus bounded, value-free shapes for unrecognized Page stories."""
+    def __init__(self):
+        super().__init__()
+        self.author_keys: dict[str, list[dict]] = {}
+
+
+def facebook_graphql_debug(post: RawPost, cache: dict) -> dict:
+    record = match_facebook_story(post, cache)
+    result = {"author": post.author[:60], "text": post.text[:60], "fingerprint": post.fingerprint}
+    if record and record.get("_debug_story"):
+        return {**result, "match": "matched", "story": record["_debug_story"]}
+    author = clean_facebook_author(post.author).casefold()
+    shapes = getattr(cache, "author_keys", {}).get(author, [])
+    return {**result, "match": "none_or_ambiguous", "same_author_keys": shapes[:10]}
+
+
+def facebook_stories(payload: object, group_url: str = "", author_keys: dict | None = None) -> list[dict]:
     """Read Story identity, never photo/comment IDs, from captured Facebook JSON."""
     found: dict[str, dict] = {}
     stack = [payload]
@@ -158,20 +247,17 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
                     views.append(related)
         message = next((view["message"] for view in views if isinstance(view.get("message"), dict) and view["message"].get("text")), {})
         text = message.get("text", "") if isinstance(message, dict) else ""
+        actors = next((view["actors"] for view in views if isinstance(view.get("actors"), list) and view["actors"]), [])
+        actor = actors[0] if actors and isinstance(actors[0], dict) else {}
+        author = clean_facebook_author(str(actor.get("name") or ""))
+        if author_keys is not None and author:
+            shape = {"keys": sorted(str(key) for key in node if not _DEBUG_SECRET.search(str(key))),
+                     "comet_sections_keys": sorted(str(key) for key in comet if not _DEBUG_SECRET.search(str(key)))}
+            shapes = author_keys.setdefault(author.casefold(), [])
+            if shape not in shapes and len(shapes) < 10: shapes.append(shape)
+            if len(author_keys) > 100: author_keys.pop(next(iter(author_keys)))
         if not isinstance(text, str) or len(text.strip()) < 15:
             continue
-        actors = next((view["actors"] for view in views if isinstance(view.get("actors"), list) and view["actors"]), [])
-        actor = actors[0] if isinstance(actors, list) and actors and isinstance(actors[0], dict) else {}
-        actor_id = str(actor.get("id") or "")
-        post_id = str(next((view["post_id"] for view in views if view.get("post_id")), ""))
-        if not post_id:
-            feedback = next((view["feedback"] for view in views if isinstance(view.get("feedback"), dict)), {})
-            try:
-                decoded = base64.b64decode(str(feedback.get("id", "")) + "===").decode("utf-8")
-                match = re.fullmatch(r"feedback:(\d+)", decoded)
-                if match: post_id = match[1]
-            except (ValueError, UnicodeError, AttributeError):
-                pass
         urls = [(v, False) for n in views for k in ("url", "wwwURL", "permalink_url")
                 if isinstance(v := n.get(k), str)]
         for view in views:
@@ -186,15 +272,25 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
         url = select_facebook_link([(href, timestamp) for href, timestamp in urls if is_facebook_content_url(href)])
         if not is_facebook_content_url(url):
             url = ""
-            if re.fullmatch(r"(?:\d+|pfbid[A-Za-z0-9]+)", post_id):
-                target = next((view["to"] for view in views if isinstance(view.get("to"), dict)), {})
+            # Identity and owner must come from the same Story dictionary, never two views.
+            for view in views:
+                post_id = facebook_story_id(view)
+                if not post_id:
+                    continue
+                target = view.get("to") or {}
                 group_id = str(target.get("id") or "") if isinstance(target, dict) and target.get("__typename") == "Group" else ""
                 group = re.search(r"/groups/([\w.-]+)", group_url)
                 if re.fullmatch(r"\d+", group_id) or group:
                     slug = group_id if re.fullmatch(r"\d+", group_id) else group[1]
                     url = f"https://www.facebook.com/groups/{slug}/posts/{post_id}/"
-                elif re.fullmatch(r"\d+", actor_id):
-                    url = f"https://www.facebook.com/{actor_id}/posts/{post_id}/"
+                else:
+                    owners = view.get("actors")
+                    owner = owners[0] if isinstance(owners, list) and owners and isinstance(owners[0], dict) else {}
+                    slug = facebook_actor_slug(owner)
+                    if slug:
+                        url = f"https://www.facebook.com/{slug}/posts/{post_id}/"
+                if url:
+                    break
         sponsored = any(n.get("sponsored_data") or n.get("is_sponsored") or n.get("ad_id") for n in views)
         if isinstance(comet, dict):
             for section in comet.values():
@@ -208,6 +304,7 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
         record = dict(text=text[:20000], author=clean_facebook_author(str(actor.get("name") or "")), url=url,
                       posted_at=posted_at,
                       sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)))
+        record["_debug_story"] = sanitize_facebook_debug(node)
         fp = RawPost(platform="facebook", source="", **record).fingerprint
         previous = found.get(fp)
         if previous and previous["url"] and record["url"] and previous["url"].rstrip("/") != record["url"].rstrip("/"):
@@ -225,7 +322,7 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
         return
     for line in body.removeprefix("for (;;);").splitlines():
         try:
-            records = facebook_stories(json.loads(line), group_url)
+            records = facebook_stories(json.loads(line), group_url, getattr(cache, "author_keys", None))
         except (ValueError, TypeError):
             continue
         for record in records:
@@ -399,7 +496,8 @@ def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
 
 
 def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
-    hover_budget = 6
+    hover_enabled = os.getenv("FEEDLENS_FB_HOVER", "1").strip() != "0"
+    hover_budget = 3 if hover_enabled else 0
     deadline = time.monotonic() + 4
     jobs = []
     candidates = []
@@ -434,7 +532,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
         except Exception:  # noqa: BLE001 — diagnostics must never interrupt collection
             pass
     for item, node, hover, selector in jobs:
-        status = "no_timestamp"
+        status = "no_timestamp" if hover_enabled else "hover_disabled"
         attempted = 0
         if not item["sponsored"] and not is_facebook_content_url(item["url"]):
             if hover and hover_budget > 0 and time.monotonic() < deadline:
@@ -454,7 +552,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
                         hover = []; status = "post_not_visible"
                 except PlaywrightTimeoutError:
                     hover = []; status = "post_not_visible"
-            for index in hover if not is_facebook_content_url(item["url"]) and not item["sponsored"] else []:
+            for index in hover if hover_enabled and not is_facebook_content_url(item["url"]) and not item["sponsored"] else []:
                 if hover_budget <= 0 or time.monotonic() >= deadline:
                     status = "budget_exhausted"; break
                 anchor = node.locator(FB_LINK_SELECTOR).nth(index)
@@ -581,8 +679,10 @@ class Scraper:
         chronological = is_chronological_url(url)
         self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_ads=0, examined=0, stop_reason=None)
         self.missing_headers: list[str] = []
+        self.missing_graphql_samples: list[dict] = []
+        debug_posts: dict[str, RawPost] = {}
         reason = None
-        stories: dict[str, dict] = {}
+        stories = FacebookStoryCache()
         listening = self.platform == "facebook" and hasattr(page, "on")
         def on_response(response):
             capture_facebook_response(response, stories, url)
@@ -619,6 +719,11 @@ class Scraper:
                             p.posted_at = network["posted_at"]
                     if fp in collected and not collected[fp].url and p.url:
                         collected[fp].url = p.url
+                    if self.platform == "facebook":
+                        if p.sponsored or is_facebook_content_url(p.url):
+                            debug_posts.pop(fp, None)
+                        elif fp in debug_posts or len(debug_posts) < 10:
+                            debug_posts[fp] = p
                     if fp in encountered:
                         continue
                     encountered.add(fp)
@@ -657,6 +762,14 @@ class Scraper:
         finally:
             if listening:
                 page.remove_listener("response", on_response)
+            # Responses can arrive after a post was first seen; diagnose the final cache state.
+            for fp, post in debug_posts.items():
+                latest = match_facebook_story(post, stories)
+                if latest and (latest["sponsored"] or is_facebook_content_url(latest["url"])):
+                    if fp in collected and not latest["sponsored"] and latest["url"] and not collected[fp].url:
+                        collected[fp].url = latest["url"]
+                    continue
+                self.missing_graphql_samples.append(facebook_graphql_debug(post, stories))
             self.last_report.update(collected=len(posts), stop_reason=reason or "interrupted")
             progress(len(posts), collection_message(self.last_report))
         return posts
