@@ -464,7 +464,7 @@ function PlatformRow({
                 />
               )}
 
-              {p.has_profile && (
+              {p.has_profile && p.logged_in !== null && (
                 <IconButton
                   icon={<XIcon className="size-3.5" />}
                   label={t("plat.remove")}
@@ -483,7 +483,7 @@ function PlatformRow({
       <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 pl-4">
         <span className="font-sans text-xs text-ink-soft">{status}</span>
 
-        {!p.logged_in && !waiting && !busy && (
+        {(!p.has_profile || p.logged_in === false) && !waiting && !busy && (
           <button
             type="button"
             onClick={() => act("login")}

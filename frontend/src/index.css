@@ -10,6 +10,9 @@
 :root {
   /* Surfaces & Canvas (Fiorinda Warm Italian Newsprint) */
   --paper: #FAF7F0;               /* Nền giấy kem ấm kiểu báo in cổ điển */
+  --field-bg: #F2E9DB;
+  --field-line: #84715B;
+  --reading-panel: #EEE3D2;
   --sheet: #FFFFFF;               /* Trang báo / thẻ nội dung nổi bật */
   --sunken: #F0EAE1;              /* Vùng trũng phụ, ô nhập liệu */
   --sunken-hover: #E8E0D4;        /* Hover trên vùng trũng */
@@ -88,6 +91,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not(.light) {
     --paper: #16120E;             /* Bàn gỗ espresso trầm ấm */
+    --field-bg: #352B22;
+    --field-line: #9C8A74;
+    --reading-panel: #3B3025;
     --sheet: #221C16;             /* Tờ báo đêm / card nội dung nổi */
     --sunken: #1A140E;            /* Vùng trũng khắc trên gỗ */
     --sunken-hover: #2B231B;      /* Hover vùng trũng */
@@ -133,6 +139,9 @@
 :root.dark,
 [data-theme="dark"] {
   --paper: #16120E;               /* Bàn gỗ espresso trầm ấm */
+  --field-bg: #352B22;
+  --field-line: #9C8A74;
+  --reading-panel: #3B3025;
   --sheet: #221C16;               /* Tờ báo đêm / card nội dung nổi */
   --sunken: #1A140E;              /* Vùng trũng khắc trên gỗ */
   --sunken-hover: #2B231B;        /* Hover vùng trũng */
@@ -269,8 +278,8 @@ body::before {
 @layer components {
   .field {
     width: 100%;
-    border: 1px solid var(--line);
-    background: var(--sheet);
+    border: 1px solid var(--field-line);
+    background: var(--field-bg);
     color: var(--ink);
     border-radius: var(--radius-field);
     padding: 8px 12px;
@@ -282,7 +291,7 @@ body::before {
   }
 
   .field::placeholder {
-    color: var(--ink-faint);
+    color: var(--ink-soft);
   }
 
   .field:focus {

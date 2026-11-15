@@ -8,6 +8,7 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Composer.tsx")) source += "\nexport { ModelPicker };";
+    if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -232,4 +233,24 @@ test("run polling backs off after transient errors, recovers, and only 404 means
     await timers[2].callback(); await tick();
     assert.ok(JSON.stringify(harness.render(props)).includes("not found")); assert.equal(timers.length, 3);
   } finally { harness.close(); React.useContext = originalContext; api.run = original; window.setTimeout = oldTimer; global.clearTimeout = oldClear; }
+});
+
+
+test("saved sessions remain unchecked until verification and offer login only when needed", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  for (const [has_profile, logged_in, login_state, buttons, login] of [
+    [true, null, "idle", 1, null],
+    [true, false, "idle", 3, "plat.relogin"],
+    [true, true, "idle", 2, null],
+    [false, null, "idle", 1, "plat.login"],
+    [true, null, "waiting", 1, null],
+  ]) {
+    const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
+      React.createElement(PlatformRow, { p: { key: "facebook", name: "Facebook", has_profile, logged_in, login_state }, onChanged() {}, onLogin() {} })));
+    assert.equal((html.match(/<button\b/g) || []).length, buttons);
+    if (login) assert.ok(html.includes(i18n.translate(login)));
+    else assert.ok(!html.includes(i18n.translate("plat.relogin")));
+    if (has_profile && logged_in === null && login_state === "idle") assert.ok(html.includes(i18n.translate("plat.saved")));
+  }
 });

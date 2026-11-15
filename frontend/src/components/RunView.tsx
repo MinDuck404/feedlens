@@ -252,14 +252,14 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         </div>
       </div>
       {d.action_items.length > 0 && (
-        <aside className="h-fit border border-line bg-sunken/40 p-4 lg:sticky lg:top-6">
+        <aside className="h-fit border border-[var(--field-line)] bg-[var(--reading-panel)] p-4 lg:sticky lg:top-6">
           <h3 className="font-headline text-xl font-semibold">{t("run.nextSteps")}</h3>
           <ul className="mt-3 space-y-2.5">
             {d.action_items.map((a, i) => (
               <li key={i}>
                 <label className="flex min-h-10 gap-3 py-1 text-sm [overflow-wrap:anywhere]">
                   <input type="checkbox" className="peer sr-only" />
-                  <span aria-hidden="true" className="mt-0.5 grid size-4.5 shrink-0 place-items-center rounded-[4px] border border-line bg-surface text-transparent transition-colors duration-[var(--duration-fast)] peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent peer-focus-visible:outline-offset-2">
+                  <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[4px] border border-[var(--field-line)] bg-[var(--field-bg)] text-transparent transition-colors duration-[var(--duration-fast)] peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent peer-focus-visible:outline-offset-2">
                     <Check className="size-3" strokeWidth={2.5} />
                   </span>
                   <span className="min-w-0 flex-1 leading-relaxed">{a}</span>
@@ -351,7 +351,7 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
             {l} <span className="font-mono text-xs opacity-70">{formatNumber(n, lang)}</span>
           </button>
         ))}
-        <div className="ml-auto flex min-h-11 w-full items-center rounded-full border border-line bg-surface px-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)] sm:w-56">
+        <div className="ml-auto flex min-h-11 w-full items-center rounded-full border border-[var(--field-line)] bg-[var(--field-bg)] px-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)] sm:w-56">
           <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
             value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
         </div>

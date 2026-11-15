@@ -303,3 +303,21 @@ def test_unknown_errors_use_request_context_except_stored_run_failures(cloud, mo
     api.app.state.db.update_run(run_id, status="error", error="Unexpected provider response")
     assert c.get(f"/api/runs/{run_id}", headers=h).json()["error_code"] == "error.run_failed"
     assert c.get("/api/runs", headers=h).json()[0]["error_code"] == "error.run_failed"
+
+
+def test_local_platform_session_is_unknown_until_explicit_check(cloud, tmp_path, monkeypatch):
+    client = cloud(mode="local")
+    monkeypatch.setattr(api, "_session_cache", {})
+    monkeypatch.setattr(api, "_login_state", {})
+    monkeypatch.setattr(api.browser, "profile_dir", lambda platform: tmp_path / platform)
+    (tmp_path / "facebook").mkdir()
+    monkeypatch.setattr(api.browser, "check_session", lambda platform: platform == "facebook")
+    platforms = {p["key"]: p for p in client.get("/api/platforms").json()}
+    assert platforms["facebook"]["has_profile"] is True
+    assert all(p["logged_in"] is None for p in platforms.values())
+    assert client.post("/api/platforms/facebook/check").json()["logged_in"] is True
+    assert client.post("/api/platforms/linkedin/check").json()["logged_in"] is False
+    platforms = {p["key"]: p for p in client.get("/api/platforms").json()}
+    assert platforms["facebook"]["logged_in"] is True
+    assert platforms["linkedin"]["logged_in"] is False
+    assert platforms["reddit"]["logged_in"] is None

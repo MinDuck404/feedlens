@@ -10,16 +10,39 @@ hãy sửa đoạn JS tương ứng trong file này.
 from __future__ import annotations
 
 import random
+import re
 import time
 from dataclasses import dataclass
 from typing import Callable
-from urllib.parse import quote_plus
+from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
 from playwright.sync_api import Page
 
 from .models import RawPost
 
 ProgressFn = Callable[[int, str], None]
+
+
+def select_facebook_link(links: list[tuple[str, bool]]) -> str:
+    """Prefer post permalinks, then timestamp anchors, then media fallbacks."""
+    best_url, best_rank = "", (3, True)
+    for href, timestamp in links:
+        try:
+            url = urlsplit(urljoin("https://www.facebook.com/", href))
+        except ValueError:
+            continue
+        host = (url.hostname or "").lower()
+        if url.scheme not in ("http", "https") or not (host == "facebook.com" or host.endswith(".facebook.com") or host == "fb.watch"):
+            continue
+        query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
+                 if not k.startswith(("__cft__", "__tn__")) and k != "fbclid"]
+        post = bool(re.search(r"/(?:posts|permalink)/[^/]+", url.path)) or any(k == "story_fbid" and v for k, v in query)
+        media = bool(re.search(r"/(?:photos?|videos?)(?:/|\.php$)|^/watch/?$", url.path)) or host == "fb.watch"
+        rank = (0 if post else 1 if timestamp else 2 if media else 3, not timestamp)
+        if rank < best_rank:
+            best_url = urlunsplit((url.scheme, url.netloc, url.path, urlencode(query), url.fragment))
+            best_rank = rank
+    return best_url
 
 # --- JS extractors: trả về [{author, text, url, posted_at}] ---------------------------
 
@@ -36,9 +59,9 @@ FB_JS = r"""
     }
     if (!text || text.length < 15) continue;
     const authorEl = n.querySelector('h2 a, h3 a, h4 a, strong a, h2, h3, h4');
-    const link = [...n.querySelectorAll('a[href]')].map(a => a.href)
-      .find(h => /\/(posts|permalink|videos|photo)\/|story_fbid=|\/groups\/[^/]+\/posts\//.test(h)) || '';
-    out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: link.split('?__cft__')[0], posted_at: '' });
+    const links = [...n.querySelectorAll('a[href]')].map(a => [a.href,
+      !!a.querySelector('time, abbr, [data-utime]') || a.hasAttribute('data-utime') || /timestamp/i.test(a.getAttribute('data-testid') || '')]);
+    out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links, posted_at: '' });
   }
   return out;
 }
@@ -116,6 +139,9 @@ class Scraper:
                 _human_pause(*pace["expand"])
             before = len(posts)
             for item in page.evaluate(self.extract_js):
+                links = item.pop("links", None)
+                if self.platform == "facebook" and links is not None:
+                    item["url"] = select_facebook_link(links)
                 p = RawPost(platform=self.platform, source=label, **item)
                 fp = p.fingerprint
                 if fp in seen:

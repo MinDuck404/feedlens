@@ -281,7 +281,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                     </ul>
                   </>
                 )}
-                <div className="mt-3 flex items-center gap-2 rounded-full border border-line bg-surface py-1 pr-1 pl-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
+                <div className="mt-3 flex items-center gap-2 rounded-full border border-[var(--field-line)] bg-[var(--field-bg)] py-1 pr-1 pl-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
                   <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft/70"
                     placeholder={myGroups.length ? t("cmp.pasteMore") : hint.ph.split("\n")[0]}
                     value={newGroups} onChange={(e) => setNewGroups(e.target.value)}
@@ -381,7 +381,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <div className="page-enter mt-5 space-y-5">
                 <div>
                   <span className="mb-1.5 block text-sm font-medium">{t("cmp.keywords")}</span>
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface p-2 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-[var(--field-line)] bg-[var(--field-bg)] p-2 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
                     {keywords.map((k) => (
                       <span key={k} className="page-enter flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 pr-1 pl-3 text-xs text-primary-ink">
                         <span className="min-w-0 truncate" title={k}>{k}</span>
