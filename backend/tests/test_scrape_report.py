@@ -48,3 +48,13 @@ def test_empty_report_changes_nothing(tmp_path):
     run = db.create_run(req)
     pipeline.save_scrape_report(db, run, req, {})
     assert "scrape_report" not in db.get_run(run)["request"]
+
+
+def test_ad_skip_count_aggregates_and_legacy_sources_default_zero(tmp_path):
+    db=make_db(tmp_path);req=RunRequest(platform="facebook");rid=db.create_run(req)
+    pipeline.save_scrape_report(db,rid,req,{"sources":[
+        dict(target=20,collected=20,skipped_old=2,skipped_ads=3,stop_reason="target_reached"),
+        dict(target=20,collected=14,skipped_old=4,stop_reason="no_more_posts")
+    ]})
+    report=db.get_run(rid)["request"]["scrape_report"]
+    assert report["skipped_ads"]==3 and report["collected"]==34 and report["skipped_old"]==6

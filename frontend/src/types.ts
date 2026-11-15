@@ -70,6 +70,7 @@ export interface ScrapeReport {
   target: number;
   collected: number;
   skipped_old: number;
+  skipped_ads?: number;
   stop_reason: StopReason | null;
 }
 

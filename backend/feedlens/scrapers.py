@@ -9,10 +9,13 @@ hãy sửa đoạn JS tương ứng trong file này.
 """
 from __future__ import annotations
 
+import base64
+import json
 import random
 import re
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -23,11 +26,23 @@ from .models import RawPost
 ProgressFn = Callable[[int, str], None]
 
 
+AD_QUERY_KEYS = {"ad_id", "adgroup_id", "adset_id", "campaign_id", "fb_ad_id", "adgroupid"}
+
+
+def facebook_ad_link(href: str) -> bool:
+    try:
+        url = urlsplit(urljoin("https://www.facebook.com/", href))
+        return bool(re.match(r"^/ads/about(?:/|$)", url.path) or
+                    any(k.lower() in AD_QUERY_KEYS and v for k, v in parse_qsl(url.query)))
+    except ValueError:
+        return False
+
+
 def select_facebook_link(links: list[tuple[str, bool]]) -> str:
     """Prefer post permalinks, then timestamp anchors, then media fallbacks."""
     best_url, best_rank = "", (3, True)
     for href, timestamp in links:
-        if not href or href.startswith("#"):
+        if not href or href.startswith("#") or facebook_ad_link(href):
             continue
         try:
             url = urlsplit(urljoin("https://www.facebook.com/", href))
@@ -36,10 +51,17 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
         host = (url.hostname or "").lower()
         if url.scheme not in ("http", "https") or not (host == "facebook.com" or host.endswith(".facebook.com") or host == "fb.watch"):
             continue
+        if host in {"l.facebook.com", "lm.facebook.com"} or url.path == "/l.php" or url.path.startswith("/ads/"):
+            continue
         if url.path in ("", "/"):
             continue
         query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
                  if not k.startswith(("__cft__", "__tn__")) and k != "fbclid"]
+        group = re.fullmatch(r"/groups/([\w.-]+)/?", url.path)
+        multi = dict(query).get("multi_permalinks", "")
+        if group and re.fullmatch(r"\d+", multi):
+            url = url._replace(path=f"/groups/{group[1]}/posts/{multi}/")
+            query = []
         post = bool(re.search(r"/(?:posts|permalink)/[^/]+|^/share/(?:[prv]/)?[^/]+", url.path)) or any(k == "story_fbid" and v for k, v in query)
         media = bool(re.search(r"/(?:photos?|videos?|reels?)(?:/|\.php$)|^/watch/?$", url.path)) or host == "fb.watch"
         rank = (0 if post else 1 if timestamp else 2 if media else 3, not timestamp)
@@ -47,6 +69,157 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
             best_url = urlunsplit((url.scheme, url.netloc, url.path, urlencode(query), url.fragment))
             best_rank = rank
     return best_url
+
+def facebook_dom_permalink(links: list[tuple[str, bool]], author_url: str = "") -> str:
+    chosen = select_facebook_link(links)
+    if POST_LINK_RE.search(chosen):
+        return chosen
+    group = ""
+    try:
+        actor = urlsplit(urljoin("https://www.facebook.com/", author_url))
+    except ValueError:
+        actor = urlsplit("")
+    for href, _ in links:
+        try:
+            url = urlsplit(urljoin("https://www.facebook.com/", href))
+            if (url.hostname or "").removeprefix("www.") not in {"facebook.com", "m.facebook.com"}:
+                continue
+            match = re.fullmatch(r"/groups/([\w.-]+)/?", url.path)
+            if match:
+                group = match[1]; break
+        except ValueError:
+            continue
+    for href, _ in links:
+        if not select_facebook_link([(href, False)]):
+            continue
+        url = urlsplit(urljoin("https://www.facebook.com/", href))
+        match = re.fullmatch(r"(gm|pcb)\.(\d+)", dict(parse_qsl(url.query)).get("set", ""))
+        if not match:
+            continue
+        header_group = actor.hostname in {"www.facebook.com", "facebook.com", "m.facebook.com"} and actor.path.strip("/") == f"groups/{group}"
+        if group and (match[1] == "gm" or header_group):
+            return f"https://www.facebook.com/groups/{group}/posts/{match[2]}/"
+        if match[1] == "pcb" and author_url:
+            if actor.hostname not in {"www.facebook.com", "facebook.com", "m.facebook.com"}:
+                continue
+            slug = actor.path.strip("/")
+            if slug == "profile.php":
+                slug = dict(parse_qsl(actor.query)).get("id", "")
+            if re.fullmatch(r"[\w.-]+", slug) and slug not in {"photo.php", "watch", "groups", "ads", "reel"}:
+                return f"https://www.facebook.com/{slug}/posts/{match[2]}/"
+    # set=a.* is an album ID, and fbid is a photo ID: neither identifies the post.
+    return chosen
+
+
+def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
+    """Read Story identity, never photo/comment IDs, from captured Facebook JSON."""
+    found: dict[str, dict] = {}
+    stack = [payload]
+    visited = 0
+    while stack and visited < 50000:
+        node = stack.pop(); visited += 1
+        if isinstance(node, list):
+            stack.extend(node); continue
+        if not isinstance(node, dict):
+            continue
+        stack.extend(value for value in node.values() if isinstance(value, (dict, list)))
+        if node.get("__typename") != "Story":
+            continue
+        comet = node.get("comet_sections")
+        comet = comet if isinstance(comet, dict) else {}
+        section = comet.get("content")
+        content = section.get("story") if isinstance(section, dict) else {}
+        content = content if isinstance(content, dict) else {}
+        message = node.get("message") or content.get("message") or {}
+        text = message.get("text", "") if isinstance(message, dict) else ""
+        if not isinstance(text, str) or len(text.strip()) < 15:
+            continue
+        actors = node.get("actors") or content.get("actors") or []
+        actor = actors[0] if isinstance(actors, list) and actors and isinstance(actors[0], dict) else {}
+        actor_id = str(actor.get("id") or "")
+        post_id = str(node.get("post_id") or content.get("post_id") or "")
+        if not post_id:
+            feedback = node.get("feedback") or content.get("feedback") or {}
+            try:
+                decoded = base64.b64decode(str(feedback.get("id", "")) + "===").decode("utf-8")
+                match = re.fullmatch(r"feedback:(\d+)", decoded)
+                if match: post_id = match[1]
+            except (ValueError, UnicodeError, AttributeError):
+                pass
+        urls = [(v, False) for n in (node, content) for k in ("url", "wwwURL", "permalink_url")
+                if isinstance(v := n.get(k), str)]
+        url = select_facebook_link(urls)
+        if not POST_LINK_RE.search(url):
+            url = ""
+            if re.fullmatch(r"(?:\d+|pfbid[A-Za-z0-9]+)", post_id):
+                target = node.get("to") or content.get("to") or {}
+                group_id = str(target.get("id") or "") if isinstance(target, dict) and target.get("__typename") == "Group" else ""
+                group = re.search(r"/groups/([\w.-]+)", group_url)
+                if re.fullmatch(r"\d+", group_id) or group:
+                    slug = group_id if re.fullmatch(r"\d+", group_id) else group[1]
+                    url = f"https://www.facebook.com/groups/{slug}/posts/{post_id}/"
+                elif re.fullmatch(r"\d+", actor_id):
+                    url = f"https://www.facebook.com/{actor_id}/posts/{post_id}/"
+        sponsored = any(n.get("sponsored_data") or n.get("is_sponsored") or n.get("ad_id") for n in (node, content))
+        if isinstance(comet, dict):
+            for section in comet.values():
+                story = section.get("story", {}) if isinstance(section, dict) else {}
+                if isinstance(story, dict): sponsored |= bool(story.get("sponsored_data") or story.get("is_sponsored") or story.get("ad_id"))
+        created = node.get("creation_time") or content.get("creation_time")
+        try:
+            posted_at = datetime.fromtimestamp(int(created), timezone.utc).isoformat() if created else ""
+        except (ValueError, TypeError, OverflowError, OSError):
+            posted_at = ""
+        record = dict(text=text[:20000], author=str(actor.get("name") or ""), url=url,
+                      posted_at=posted_at,
+                      sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)))
+        fp = RawPost(platform="facebook", source="", **record).fingerprint
+        previous = found.get(fp)
+        if not previous or (record["url"] and not previous["url"]) or record["sponsored"]:
+            if previous: record["sponsored"] |= previous["sponsored"]
+            found[fp] = record
+    return list(found.values())
+
+
+def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
+    if len(body) > 8_000_000:
+        return
+    for line in body.removeprefix("for (;;);").splitlines():
+        try:
+            records = facebook_stories(json.loads(line), group_url)
+        except (ValueError, TypeError):
+            continue
+        for record in records:
+            fp = RawPost(platform="facebook", source="", **record).fingerprint
+            previous = cache.get(fp)
+            if previous: record["sponsored"] |= previous["sponsored"]
+            if not previous or record["url"] or record["sponsored"]:
+                record["_text_key"] = re.sub(r"\s+", " ", record["text"].lower()).strip()[:500]
+                cache[fp] = record
+            if len(cache) > 1500: cache.pop(next(iter(cache)))
+
+
+def match_facebook_story(post: RawPost, cache: dict) -> dict | None:
+    if post.fingerprint in cache:
+        return cache[post.fingerprint]
+    prefix = re.sub(r"\s+", " ", post.text.lower()).strip()
+    prefix = re.sub(r"(?:…|\.\.\.)?\s*(?:see more|xem thêm|查看更多)$", "", prefix).strip()[:500]
+    if len(prefix) < 80:
+        return None
+    # Expanded network text can exceed the DOM excerpt. Ambiguous matches remain unresolved.
+    matches = [story for story in cache.values() if story["_text_key"].startswith(prefix)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def capture_facebook_response(response, cache: dict, group_url: str = "") -> None:
+    try:
+        url = urlsplit(response.url)
+        if url.hostname not in {"www.facebook.com", "facebook.com", "m.facebook.com"} or url.path.rstrip("/") != "/api/graphql" or response.status != 200:
+            return
+        cache_facebook_stories(response.text(), cache, group_url)
+    except Exception:  # noqa: BLE001 — network enrichment must not interrupt DOM scraping
+        return
+
 
 # --- JS extractors: trả về [{author, text, url, posted_at}] ---------------------------
 
@@ -79,6 +252,7 @@ FB_JS = r"""
       return /^(?:\d+\s*(?:s|m|h|d|w|y|sec|min|hr|hrs|hours?|days?|weeks?|minutes?|秒|分钟|小时|天|周|年|giây|phút|giờ|ngày|tuần|năm)(?:\s*(?:ago|前))?|just now|yesterday|vừa xong|hôm qua|刚刚|昨天)$/i.test(label) ||
         /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|tháng)\b|\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}|\d+月\d+日/i.test(a.getAttribute('aria-label') || '');
     };
+    const authorUrl = authorEl?.closest('a')?.getAttribute('href') || authorEl?.querySelector('a')?.getAttribute('href') || '';
     const links = anchors.flatMap(a => [...new Set(['href', 'data-href', 'data-url', 'ajaxify']
       .map(key => a.getAttribute(key)).filter(Boolean))].map(href => [href, timestamp(a)]));
     // Obfuscated timestamps fail the text test; their href is "#" or missing until hover.
@@ -91,11 +265,11 @@ FB_JS = r"""
       ...anchors.flatMap((a, i) => timestamp(a) ? [i] : []),
       ...anchors.flatMap((a, i) => lazy(a) ? [i] : [])])].slice(0, 3);
     const adWords = /^(?:sponsored|được tài trợ|赞助内容|广告)$/i;
-    const sponsored = [...n.querySelectorAll('a, span')].slice(0, 60).some(el =>
+    const sponsored = [...n.querySelectorAll('a, span')].some(el =>
       adWords.test((el.getAttribute('aria-label') || el.innerText || '').trim()))
       || anchors.some(a => /\/ads\/about|[?&]ad_id=/.test(a.getAttribute('href') || ''));
     out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
-      _node_index: nodeIndex, _hover: hover, posted_at: '', sponsored });
+      _node_index: nodeIndex, _hover: hover, _author_url: authorUrl, posted_at: '', sponsored });
   }
   return out;
 }
@@ -141,7 +315,9 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
     for item in items:
         node_index = item.pop("_node_index", None)
         hover = item.pop("_hover", [])
-        item["url"] = select_facebook_link(item.pop("links", []))
+        links = item.pop("links", [])
+        item["sponsored"] = bool(item.get("sponsored") or any(facebook_ad_link(href) for href, _ in links))
+        item["url"] = facebook_dom_permalink(links, item.pop("_author_url", ""))
         if node_index is None:
             continue
         node = page.locator(FB_NODE_SELECTOR).nth(node_index)
@@ -164,6 +340,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
                     ".filter(Boolean).map(h => [h, i === args.index])) : []",
                     {"index": index, "text": item["text"]})
                 # The feed can recycle this DOM node while hovering.
+                item["sponsored"] |= any(facebook_ad_link(href) for href, _ in links)
                 if any(timestamp and select_facebook_link([(href, True)]) for href, timestamp in links):
                     item["url"] = select_facebook_link([(item["url"], False), *links])
                     break
@@ -245,6 +422,7 @@ STOP_REASON_TEXT = {
 def collection_message(report: dict) -> str:
     reason = STOP_REASON_TEXT.get(report.get("stop_reason") or "", "")
     return (f"Lấy được {report['collected']}/{report['target']} bài mới · bỏ qua {report['skipped_old']} bài đã có"
+            + (f" · bỏ qua {report.get('skipped_ads', 0)} quảng cáo" if report.get("skipped_ads") else "")
             + (f" · dừng vì {reason}" if reason else ""))
 
 
@@ -262,9 +440,6 @@ class Scraper:
     def collect(self, page: Page, url: str, label: str, target: int,
                 seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True) -> list[RawPost]:
         pace = PACE.get(speed, PACE["fast"])
-        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-        self.ensure_access(page, url, progress, interactive)
-        _human_pause(*pace["settle"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
         encountered: set[str] = set()
@@ -274,10 +449,22 @@ class Scraper:
         deadline = time.monotonic() + (max(300, 8 * target) if speed == "careful" else max(180, 4 * target))
         max_examined = max(20, 4 * target)
         chronological = is_chronological_url(url)
-        self.last_report = dict(target=target, collected=0, skipped_old=0, examined=0, stop_reason=None)
+        self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_ads=0, examined=0, stop_reason=None)
         self.missing_headers: list[str] = []
         reason = None
+        stories: dict[str, dict] = {}
+        listening = self.platform == "facebook" and hasattr(page, "on")
+        def on_response(response):
+            capture_facebook_response(response, stories, url)
+        if listening:
+            page.on("response", on_response)
         try:
+            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            self.ensure_access(page, url, progress, interactive)
+            _human_pause(*pace["settle"])
+            if listening:
+                for body in page.evaluate("() => [...document.querySelectorAll('script[type=\"application/json\"], script[data-sjs]')].slice(0, 40).map(s => s.textContent).filter(t => t && t.length <= 8000000)"):
+                    cache_facebook_stories(body, stories, url)
             while reason is None:
                 if time.monotonic() >= deadline:
                     reason = "budget_exhausted"; break
@@ -292,6 +479,14 @@ class Scraper:
                     header = item.pop("_missing_header", "")
                     p = RawPost(platform=self.platform, source=label, **item)
                     fp = p.fingerprint
+                    network = match_facebook_story(p, stories)
+                    if network:
+                        p.sponsored |= network["sponsored"]
+                        if network["url"]:
+                            p.url = network["url"]
+                            header = ""  # Network enrichment resolved the missing DOM permalink.
+                        if not p.posted_at:
+                            p.posted_at = network["posted_at"]
                     if fp in collected and not collected[fp].url and p.url:
                         collected[fp].url = p.url
                     if fp in encountered:
@@ -299,7 +494,10 @@ class Scraper:
                     encountered.add(fp)
                     if header and len(self.missing_headers) < 10:
                         self.missing_headers.append(header)
-                    if fp in seen:
+                    if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
+                        self.last_report["skipped_ads"] += 1
+                        # Ads do not count as old-post streaks and never enter seen/history.
+                    elif fp in seen:
                         if fp in prior:
                             self.last_report["skipped_old"] += 1
                             consecutive_old += 1
@@ -327,6 +525,8 @@ class Scraper:
                 if random.random() < pace["long_chance"]:
                     _human_pause(*pace["long"])
         finally:
+            if listening:
+                page.remove_listener("response", on_response)
             self.last_report.update(collected=len(posts), stop_reason=reason or "interrupted")
             progress(len(posts), collection_message(self.last_report))
         return posts

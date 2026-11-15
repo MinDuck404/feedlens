@@ -144,6 +144,7 @@ function ScrapeReportLine({ report }: { report: ScrapeReport }) {
   return (
     <p className="mt-1 text-xs leading-relaxed text-ink-soft">
       {t("run.scrapeReport", { got: report.collected, target: report.target, old: report.skipped_old })}
+      {!!report.skipped_ads && ` · ${t("run.scrapeAds", { n: report.skipped_ads })}`}
       {reason && ` · ${reason}`}
     </p>
   );

@@ -256,3 +256,162 @@ def test_facebook_query_only_timestamp_is_hovered_and_scroll_is_restored(faceboo
     assert item["url"] == "https://www.facebook.com/page/posts/pfbidREAL/"
     assert "_missing_header" not in item
     assert facebook_page.evaluate("() => window.scrollY") == 0
+
+
+@pytest.mark.parametrize("href", ["/ads/about/?id=123", "https://l.facebook.com/l.php?u=https%3A%2F%2Fexample.test", "/page/posts/123?ad_id=777"])
+def test_facebook_ad_or_redirect_is_never_a_post_link(href):
+    assert select_facebook_link([(href,True)]) == ""
+
+
+def test_ads_do_not_count_towards_quota_or_known_posts(monkeypatch):
+    batches=[[dict(item('Advertisement number one'),sponsored=True),
+              dict(item('Advertisement number two'),url='https://www.facebook.com/ads/about/')],
+             [item('First organic post body'),item('Second organic post body')]]
+    posts,scraper,progress=fake_collect(monkeypatch,batches,target=2)
+    assert [p.text for p in posts]==['First organic post body','Second organic post body']
+    assert scraper.last_report['skipped_ads']==2
+    assert scraper.last_report['stop_reason']=='target_reached'
+
+
+@pytest.mark.parametrize("body,expected", [
+    ('<h3><a href="/groups/demo/">Group</a></h3><a href="/photo/?fbid=999&amp;set=gm.12345">Photo</a>',
+     'https://www.facebook.com/groups/demo/posts/12345/'),
+    ('<h3><a href="/author.page">Page</a></h3><a href="/photo/?fbid=999&amp;set=pcb.12345">Photo</a>',
+     'https://www.facebook.com/author.page/posts/12345/'),
+    ('<h3><a href="/groups/demo/">Group</a></h3><a aria-labelledby="time" href="/groups/demo/?multi_permalinks=12345&amp;hoisted_section_header_type=recently_seen">x</a>',
+     'https://www.facebook.com/groups/demo/posts/12345/'),
+])
+def test_facebook_real_header_shapes_recover_post_not_photo(facebook_page,body,expected):
+    facebook_page.set_content('<div role="feed"><div role="article">'+body+
+        '<div data-ad-preview="message">An organic article body with enough text.</div></div></div>')
+    assert scrapers._facebook_items(facebook_page)[0]['url']==expected
+
+
+def test_facebook_graphql_story_recovers_post_url_from_feedback():
+    import base64
+    story={'__typename':'Story','message':{'text':'A story body from a network response.'},
+           'actors':[{'id':'1234','name':'Author'}],
+           'feedback':{'id':base64.b64encode(b'feedback:9876543210').decode()}}
+    records=scrapers.facebook_stories({'data':{'node':story}})
+    assert len(records)==1
+    assert records[0]['url']=='https://www.facebook.com/1234/posts/9876543210/'
+    assert records[0]['text']==story['message']['text']
+
+
+@pytest.mark.parametrize('marker', ['<a href="/ads/about/">x</a>',
+    '<a href="/page/posts/1?ad_id=777">x</a>', '<span>Sponsored</span>', '<span>赞助内容</span>'])
+def test_ads_are_detected_anywhere_in_the_article(facebook_page,marker):
+    facebook_page.set_content('<div role="article"><h3>Advertiser</h3>'+('<span>x</span>'*65)+marker+
+        '<div data-ad-preview="message">An advertisement body with enough text.</div></div>')
+    assert scrapers._facebook_items(facebook_page)[0]['sponsored'] is True
+
+
+def test_media_album_and_photo_ids_are_not_guessed_as_post_ids():
+    link='https://www.facebook.com/photo/?fbid=999&set=a.12345'
+    assert scrapers.facebook_dom_permalink([(link,False)],'/author')==link
+    link='https://www.facebook.com/photo/?fbid=999&set=gm.12345'
+    assert scrapers.facebook_dom_permalink([(link,False)])==link  # No group identity available.
+
+
+def test_ads_are_counted_once_even_when_repeated_and_never_become_known(monkeypatch):
+    ad=dict(item('Repeated sponsored post body'),sponsored=True)
+    posts,scraper,_=fake_collect(monkeypatch,[[ad.copy(),ad.copy()],[ad.copy(),item('Organic post after advertisement')]],target=1)
+    assert len(posts)==1 and not posts[0].sponsored
+    assert scraper.last_report['skipped_ads']==1 and scraper.last_report['skipped_old']==0
+
+
+def test_graphql_cache_accepts_ndjson_but_ignores_media_and_comment_ids():
+    import json,base64
+    story={'__typename':'Story','post_id':'pfbidABC123','message':{'text':'A story with a group destination.'},
+           'to':{'__typename':'Group','id':'555'},'actors':[{'id':'123','name':'Author'}],'creation_time':1794760000}
+    invalid={'__typename':'Story','message':{'text':'No post identity can be inferred safely.'},
+             'feedback':{'id':base64.b64encode(b'comment:9876543210').decode()},
+             'attachments':[{'media':{'__typename':'Photo','id':'444','url':'https://www.facebook.com/photo/?fbid=444'}}]}
+    cache={};scrapers.cache_facebook_stories('for (;;);'+json.dumps({'data':story})+'\ninvalid JSON\n'+json.dumps(invalid),cache)
+    assert len(cache)==2
+    record=cache[fingerprint(story['message']['text'])]
+    assert record['url']=='https://www.facebook.com/groups/555/posts/pfbidABC123/'
+    assert record['posted_at'].endswith('+00:00')
+    assert cache[fingerprint(invalid['message']['text'])]['url']==''
+    for payload in [{'__typename':'Story','comet_sections':{'content':['invalid']}}, {'__typename':'Story','message':5}, []]:
+        scrapers.cache_facebook_stories(json.dumps(payload),cache)
+
+
+@pytest.mark.parametrize('url,status', [('https://facebook.com.evil.test/api/graphql/',200),
+                                      ('https://www.facebook.com/api/other/',200),
+                                      ('https://www.facebook.com/api/graphql/',500)])
+def test_graphql_listener_ignores_non_feed_responses(url,status):
+    cache={}
+    scrapers.capture_facebook_response(SimpleNamespace(url=url,status=status,text=lambda: (_ for _ in ()).throw(AssertionError('must not read body'))),cache)
+    assert cache=={}
+
+
+def test_graphql_listener_enriches_dom_and_is_removed_after_collection(monkeypatch):
+    import json
+    organic=dict(item('Organic post with missing DOM link.'),_missing_header='<div>unresolved DOM header</div>')
+    ad=item('Obfuscated sponsored post body.')
+    payload={'data':{'nodes':[{'__typename':'Story','message':{'text':p['text']},'post_id':str(i+100),
+        'actors':[{'id':'123','name':'Author'}], 'sponsored_data':{'ad_id':'777'} if p is ad else None} for i,p in enumerate([ad,organic])]}}
+    callbacks={}
+    page=SimpleNamespace(on=lambda event,fn:callbacks.update({event:fn}),
+        remove_listener=lambda event,fn:callbacks.pop(event),
+        goto=lambda *a,**k:callbacks['response'](SimpleNamespace(url='https://www.facebook.com/api/graphql/',status=200,text=lambda:json.dumps(payload))),
+        evaluate=lambda *a:[],mouse=SimpleNamespace(wheel=lambda *a:None))
+    monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(scrapers,'_facebook_items',lambda page:[ad.copy(),organic.copy()])
+    scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
+    posts=scraper.collect(page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
+    assert len(posts)==1 and posts[0].url=='https://www.facebook.com/123/posts/101/'
+    assert scraper.last_report['skipped_ads']==1 and callbacks=={}
+    assert scraper.missing_headers==[]
+
+
+def test_graphql_listener_cleanup_on_navigation_failure(monkeypatch):
+    callbacks={}
+    page=SimpleNamespace(on=lambda event,fn:callbacks.update({event:fn}),remove_listener=lambda event,fn:callbacks.pop(event),
+        goto=lambda *a,**k:(_ for _ in ()).throw(RuntimeError('Navigation failed')))
+    with pytest.raises(RuntimeError,match='Navigation failed'):
+        FacebookScraper().collect(page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
+    assert callbacks=={}
+
+
+def test_network_match_accepts_a_unique_long_excerpt_but_rejects_ambiguity():
+    import json
+    prefix='This is a sufficiently long introduction to an organic community post with meaningful details. '
+    cache={}
+    def story(suffix,id):
+        return {'__typename':'Story','message':{'text':prefix+suffix},'url':f'https://www.facebook.com/page/posts/{id}/'}
+    scrapers.cache_facebook_stories(json.dumps(story('The rest of the full article.',123)),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',text=prefix+'… Xem thêm')
+    assert scrapers.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
+    scrapers.cache_facebook_stories(json.dumps(story('Another article with the same introduction.',456)),cache)
+    assert scrapers.match_facebook_story(post,cache) is None
+    short=scrapers.RawPost(platform='facebook',source='feed',text='This is a short excerpt')
+    assert scrapers.match_facebook_story(short,cache) is None
+
+
+def test_group_pcb_photo_uses_the_group_header_not_a_photo_id(facebook_page):
+    facebook_page.set_content('<div role="feed"><div><h3><a href="/groups/demo/">Group</a></h3>'
+        '<div data-ad-preview="message">Group photo post with a pcb parent story identifier.</div>'
+        '<a href="/photo/?fbid=999&amp;set=pcb.12345">Photo</a></div></div>')
+    assert scrapers._facebook_items(facebook_page)[0]['url']=='https://www.facebook.com/groups/demo/posts/12345/'
+
+
+def test_initial_json_enriches_a_visible_post_without_extra_requests(facebook_page,monkeypatch):
+    import json
+    text='Visible organic post whose header contains no permalink anchor.'
+    payload={'data':{'node':{'__typename':'Story','post_id':'pfbidINITIAL','actors':[{'id':'123','name':'Author'}],
+        'comet_sections':{'content':{'story':{'message':{'text':text}}}}}}}
+    facebook_page.set_content('<script type="application/json" data-sjs>'+json.dumps(payload)+'</script>'
+        '<div role="feed"><div><h3>Author</h3><div data-ad-preview="message">'+text+'</div></div></div>')
+    monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(facebook_page,'goto',lambda *a,**k:None)
+    scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
+    posts=scraper.collect(facebook_page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
+    assert posts[0].url=='https://www.facebook.com/123/posts/pfbidINITIAL/'
+    assert scraper.missing_headers==[]
+
+
+def test_malformed_author_url_does_not_break_photo_fallback():
+    url='https://www.facebook.com/photo/?fbid=999&set=pcb.12345'
+    assert scrapers.facebook_dom_permalink([(url,False)],'https://[invalid')==url

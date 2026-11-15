@@ -73,6 +73,7 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
         summary = {"target": sum(s.get("target", 0) for s in sources),
                    "collected": sum(s.get("collected", 0) for s in sources),
                    "skipped_old": sum(s.get("skipped_old", 0) for s in sources),
+                   "skipped_ads": sum(s.get("skipped_ads", 0) for s in sources),
                    "stop_reason": sources[-1].get("stop_reason") if len(sources) == 1 else None,
                    "sources": sources}
         db.update_run(run_id, request={**req.model_dump(), "scrape_report": summary})
