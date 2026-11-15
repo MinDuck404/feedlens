@@ -5,6 +5,7 @@ import Login from "./components/Login";
 import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import HistoryPage from "./components/HistoryPage";
+import TrendsPage from "./components/TrendsPage";
 import Sidebar from "./components/Sidebar";
 import { ThemeSwitch } from "./components/PreferenceMenus";
 import { Button } from "./components/ui/Button";
@@ -118,6 +119,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const selected = route.page === "run" ? route.id : null;
   const [composerOpen, setComposerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<string>();
   const [me, setMe] = useState<Me | null>(null);
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [prefsError, setPrefsError] = useState("");
@@ -229,6 +231,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
         onSelect={(id) => navigate({ page: "run", id, tab: "digest" })}
         onGoHome={() => navigate({ page: "home" })}
         onGoHistory={() => navigate({ page: "history" })}
+        onGoTrends={() => navigate({ page: "trends" })}
         onNewRun={() => setComposerOpen(true)}
         onPlatformChanged={refreshPlatforms}
         onLogout={onLogout}
@@ -310,6 +313,10 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               onOpen={(id) => navigate({ page: "run", id, tab: "digest" })}
               onNewRun={() => setComposerOpen(true)}
             />
+          ) : route.page === "trends" ? (
+            <TrendsPage
+              onNewRun={() => setComposerOpen(true)}
+            />
           ) : (
             <HomeLanding
               cloud={cloud}
@@ -335,7 +342,8 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
             navigate({ page: "run", id, tab: "digest" });
             refreshRuns();
           }}
-          onOpenSettings={() => {
+          onOpenSettings={(tab) => {
+            setSettingsTab(tab);
             setComposerOpen(false);
             setSettingsOpen(true);
           }}
@@ -344,9 +352,10 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
 
       {settingsOpen && (
         <Settings
+          initialTab={settingsTab}
           meta={meta}
           me={me}
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => { setSettingsOpen(false); setSettingsTab(undefined); }}
           onChanged={refreshMe}
         />
       )}

@@ -4,7 +4,8 @@ import { ApiError, api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { AIProviderInfo, Meta, Post, Run } from "../types";
+import type { AIProviderInfo, Meta, Post, Run, Topic } from "../types";
+import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
 import { canContinueAnalysis, isRemoteText, matchesJobType, parseTimestamp } from "../logic";
@@ -36,6 +37,8 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
   const [filter, setFilter] = useState<string | null>(null);
   const setTab = onTab;
   const { t, locale, cat } = useI18n();
+
+  useEffect(() => { const reload = () => setRetry((value) => value + 1); window.addEventListener("feedlens:topicsChanged", reload); return () => window.removeEventListener("feedlens:topicsChanged", reload); }, []);
 
   useEffect(() => {
     let alive = true;
@@ -187,6 +190,13 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
 }) {
   const posts = run.posts ?? [];
   const d = run.digest!;
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [topicError, setTopicError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    api.topics().then((data) => { if (alive) setTopics(data.topics); }).catch((e) => { if (alive) setTopicError(e.message); });
+    return () => { alive = false; };
+  }, [run.id, run.digest]);
   const jobs = useMemo(
     () => posts.filter((p) => p.job).sort((a, b) => b.job!.match_score - a.job!.match_score),
     [posts],
@@ -258,19 +268,30 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
       </nav>
 
       <div key={tab} role="tabpanel" id={`run-${run.id}-panel`} aria-labelledby={`run-${run.id}-tab-${tab}`} tabIndex={0} className="page-enter min-w-0 py-7">
-        {tab === "digest" && <DigestView d={d} name={name} />}
+        {topicError && <p role="alert" className="mb-4 text-sm text-danger">{topicError}</p>}
+        {tab === "digest" && <DigestView d={d} name={name} posts={posts} topics={topics} />}
         {tab === "jobs" && <JobsBoard jobs={jobs} runId={run.id} />}
-        {tab === "posts" && <PostList posts={posts} filter={filter} setFilter={setFilter} name={name} />}
+        {tab === "posts" && <PostList posts={posts} filter={filter} setFilter={setFilter} name={name} topics={topics} />}
       </div>
     </>
   );
 }
 
-function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: string) => string }) {
+function DigestView({ d, name, posts, topics }: { d: NonNullable<Run["digest"]>; name: (c: string) => string; posts: Post[]; topics: Topic[] }) {
   const { t } = useI18n();
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_240px]">
       <div className="min-w-0">
+        {!!d.topics?.length && <section className="mb-8 border-b border-line pb-7" aria-label={t("topics.yours")}>
+          <h2 className="mb-5 font-headline text-3xl font-semibold">{t("topics.yours")}</h2>
+          <div className="space-y-6">{d.topics.map((topic) => <section key={topic.topic_id}>
+            <h3 className="flex items-baseline gap-2 font-headline text-xl"><span className="size-2.5 shrink-0 rounded-full" style={{ background: topicColor(topics.find((item) => item.id === topic.topic_id)?.color ?? "red") }} />{topic.name}<span className="font-sans text-xs text-ink-soft">{t("run.nPosts", { n: topic.count })}</span></h3>
+            {topic.count === 0 ? <p className="mt-2 text-sm text-ink-soft">{t("topics.noMatch")}</p> : <>
+              {topic.summary && <p className="prose-reading mt-3 [overflow-wrap:anywhere]">{topic.summary}</p>}
+              <ul className="mt-3 space-y-3">{topic.post_ids.map((id) => posts.find((post) => post.id === id)).filter((post): post is Post => !!post).map((post) => <li key={post.id} className="[overflow-wrap:anywhere]">{post.url ? <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-4">{post.summary || post.text.slice(0, 160)}</a> : <span>{post.summary || post.text.slice(0, 160)}</span>}<p className="mt-1 text-xs text-ink-soft">{post.source} · {post.author || t("posts.unknownAuthor")}</p></li>)}</ul>
+            </>}
+          </section>)}</div>
+        </section>}
         <p className="prose-reading text-xl! leading-relaxed! [overflow-wrap:anywhere] sm:text-2xl!">{d.overall}</p>
         <div className="mt-8 space-y-7">
           {d.categories.map((c) => (
@@ -483,14 +504,19 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
   );
 }
 
-function PostList({ posts, filter, setFilter, name }: {
-  posts: Post[]; filter: string | null; setFilter: (c: string | null) => void; name: (c: string) => string;
+function PostList({ posts, filter, setFilter, name, topics = [] }: {
+  posts: Post[]; filter: string | null; setFilter: (c: string | null) => void; name: (c: string) => string; topics?: Topic[];
 }) {
-  const shown = filter ? posts.filter((p) => p.category === filter) : posts;
+  const [topicId, setTopicId] = useState<number | null>(null);
+  const shown = filterTopicPosts(filter ? posts.filter((p) => p.category === filter) : posts, topicId);
   const { t } = useI18n();
   const [categoryBefore, categoryAfter] = t("posts.viewingCategory", { n: shown.length, category: "{category}" }).split("{category}");
   return (
     <>
+      {!!topics.length && <div className="mb-5 flex gap-2 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)]" role="group" aria-label={t("topics.title")}>
+        <button type="button" aria-pressed={topicId === null} onClick={() => setTopicId(null)} className="min-h-11 shrink-0 rounded-full border border-line px-3 text-sm aria-pressed:bg-sunken aria-pressed:font-semibold">{t("topics.all")}</button>
+        {topics.map((topic) => <button key={topic.id} type="button" aria-pressed={topicId === topic.id} onClick={() => setTopicId(topicId === topic.id ? null : topic.id)} className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line px-3 text-sm aria-pressed:bg-sunken aria-pressed:font-semibold"><span className="size-2 rounded-full" style={{ background: topicColor(topic.color) }} />{topic.name}</button>)}
+      </div>}
       {filter && (
         <p className="mb-4 text-sm">
           {categoryBefore}<b>{name(filter)}</b>{categoryAfter}{" "}
@@ -499,14 +525,14 @@ function PostList({ posts, filter, setFilter, name }: {
       )}
       {shown.length === 0 && <EmptyState icon={<FileSearch className="size-6" />} title={t("hist.empty")} />}
       <ul className="divide-y divide-line-strong">
-        {shown.map((p) => <ReadingPost key={p.id} p={p} name={name} />)}
+        {shown.map((p) => <ReadingPost key={p.id} p={p} name={name} topics={topics} />)}
       </ul>
     </>
   );
 }
 
 
-function ReadingPost({ p, name }: { p: Post; name: (c: string) => string }) {
+function ReadingPost({ p, name, topics }: { p: Post; name: (c: string) => string; topics: Topic[] }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   return (
@@ -518,6 +544,7 @@ function ReadingPost({ p, name }: { p: Post; name: (c: string) => string }) {
           <span>{p.source}</span>
           <span>{p.author || t("posts.unknownAuthor")}</span>
         </div>
+        {!!p.topic_ids?.length && <ul className="mt-3 flex flex-wrap gap-2" aria-label={t("topics.title")}>{p.topic_ids.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is Topic => !!topic).map((topic) => <li key={topic.id}><span tabIndex={p.topic_reason ? 0 : undefined} title={p.topic_reason} aria-label={p.topic_reason ? `${topic.name}: ${p.topic_reason}` : topic.name} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs" style={{ color: topicColor(topic.color), borderColor: topicColor(topic.color) }}><span className="size-1.5 shrink-0 rounded-full bg-current" />{topic.name}</span></li>)}</ul>}
         <p id={`post-${p.id}-text`} className={`prose-reading mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] ${expanded ? "" : "line-clamp-3"}`}>{p.text}</p>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <button type="button" aria-expanded={expanded} aria-controls={`post-${p.id}-text`} onClick={() => setExpanded((v) => !v)}

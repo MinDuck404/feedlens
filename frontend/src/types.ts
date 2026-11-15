@@ -89,6 +89,8 @@ export interface Job {
 }
 
 export interface Post {
+  topic_ids?: number[];
+  topic_reason?: string;
   analyzed?: boolean;
   id: number;
   platform: string;
@@ -103,6 +105,7 @@ export interface Post {
 }
 
 export interface Digest {
+  topics?: TopicDigest[];
   overall: string;
   categories: { category: string; count: number; summary: string; highlights: string[] }[];
   action_items: string[];
@@ -155,4 +158,48 @@ export interface CVAnalysis {
   suggested_roles: string[];
   adjacent_roles: JobProfile["adjacent_roles"];
   offline: boolean;
+}
+
+export type TopicColor = "red" | "navy" | "amber" | "teal" | "purple" | "rose" | "slate" | "brown";
+export interface Topic {
+  id: number;
+  name: string;
+  description: string;
+  include_keywords: string[];
+  exclude_keywords: string[];
+  enabled: boolean;
+  color: TopicColor;
+}
+export interface TopicDigest { topic_id: number; name: string; count: number; summary: string; post_ids: number[] }
+export interface TopicApplyStatus { state: "idle" | "running" | "done" | "error"; done: number; total: number; error: string }
+
+export interface TrendSeries {
+  id: string;
+  name: string;
+  color: string;
+  total: number;
+  counts: number[];
+  growth: number | null;
+  previous_total?: number;
+  is_new?: boolean;
+}
+
+export interface TrendsResponse {
+  range: {
+    group: "category" | "topic";
+    bucket: "day" | "week";
+    days: number;
+    start_date: string;
+    end_date: string;
+    previous_start_date?: string;
+    previous_end_date?: string;
+  };
+  timeline: string[];
+  series: TrendSeries[];
+  summary: {
+    total_posts: number;
+    top_gainer: { id: string; name: string; growth: number } | null;
+    new_emerging: { id: string; name: string; count: number } | null;
+  };
+  fallback_count: number;
 }

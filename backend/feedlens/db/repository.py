@@ -4,7 +4,8 @@ Mọi truy vấn lượt/bài viết đều lọc theo user_id để user này k
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import create_engine, delete, event, inspect, select, text
@@ -376,6 +377,237 @@ class Database:
             q = select(PostRow).join(RunRow).where(RunRow.user_id == user_id, PostRow.id.in_(list(updates)))
             for p in s.scalars(q):
                 p.topic_ids, p.topic_reason = updates[p.id]
+
+    def init_search_index(self) -> bool:
+        """Thiết lập FTS5 cho SQLite nếu được hỗ trợ, đồng bộ bài cũ và trigger."""
+        if self.engine.dialect.name != "sqlite":
+            return False
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
+                        post_id UNINDEXED,
+                        text,
+                        summary,
+                        author,
+                        source,
+                        tokenize = 'unicode61'
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN
+                        INSERT INTO posts_fts(post_id, text, summary, author, source)
+                        VALUES (new.id, new.text, new.summary, new.author, new.source);
+                    END;
+                """))
+                conn.execute(text("""
+                    CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN
+                        DELETE FROM posts_fts WHERE post_id = old.id;
+                    END;
+                """))
+                conn.execute(text("""
+                    CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
+                        DELETE FROM posts_fts WHERE post_id = old.id;
+                        INSERT INTO posts_fts(post_id, text, summary, author, source)
+                        VALUES (new.id, new.text, new.summary, new.author, new.source);
+                    END;
+                """))
+                conn.execute(text("""
+                    INSERT INTO posts_fts(post_id, text, summary, author, source)
+                    SELECT id, text, summary, author, source FROM posts
+                    WHERE id NOT IN (SELECT post_id FROM posts_fts);
+                """))
+            return True
+        except Exception:
+            return False
+
+    def search_posts(
+        self,
+        user_id: int,
+        q: str = "",
+        platform: str | None = None,
+        categories: list[str] | None = None,
+        topic_ids: list[int] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        job_only: bool = False,
+        work_modes: list[str] | None = None,
+        min_score: int | None = None,
+        has_link: bool | None = None,
+        has_github: bool | None = None,
+        limit: int = 40,
+        offset: int = 0,
+        _use_fts: bool = True,
+    ) -> tuple[list[dict], int]:
+        if not hasattr(self, "_fts_ready"):
+            self._fts_ready = self.init_search_index()
+
+        words = [w for w in re.findall(r"[\w\.\-]+", q.strip()) if len(w) > 0] if q else []
+        fts_ids = None
+
+        if words and self._fts_ready and _use_fts:
+            try:
+                fts_query = " ".join(f'"{w}"' for w in words)
+                with self.engine.connect() as conn:
+                    rows = conn.execute(
+                        text("SELECT post_id FROM posts_fts WHERE posts_fts MATCH :query"),
+                        {"query": fts_query},
+                    ).fetchall()
+                    fts_ids = {r[0] for r in rows}
+            except Exception:
+                fts_ids = None
+
+        stmt = (
+            select(PostRow, RunRow.created_at)
+            .join(RunRow, PostRow.run_id == RunRow.id)
+            .where(RunRow.user_id == user_id)
+        )
+
+        if platform:
+            stmt = stmt.where(PostRow.platform == platform)
+        if categories:
+            stmt = stmt.where(PostRow.category.in_(categories))
+
+        if fts_ids is not None:
+            if not fts_ids:
+                return [], 0
+            stmt = stmt.where(PostRow.id.in_(fts_ids))
+        elif words:
+            is_sqlite = self.engine.dialect.name == "sqlite"
+            for w in words:
+                w_pattern = f"%{w}%"
+                if is_sqlite:
+                    stmt = stmt.where(
+                        PostRow.text.like(w_pattern)
+                        | PostRow.summary.like(w_pattern)
+                        | PostRow.author.like(w_pattern)
+                        | PostRow.source.like(w_pattern)
+                    )
+                else:
+                    stmt = stmt.where(
+                        PostRow.text.ilike(w_pattern)
+                        | PostRow.summary.ilike(w_pattern)
+                        | PostRow.author.ilike(w_pattern)
+                        | PostRow.source.ilike(w_pattern)
+                    )
+
+        with self.Session() as s:
+            results = s.execute(stmt).all()
+
+        matched = []
+        for post, r_created_at in results:
+            p_date = _parse_post_date(post.posted_at, r_created_at)
+            p_date_str = p_date.isoformat()
+
+            if date_from and p_date_str < date_from:
+                continue
+            if date_to and p_date_str > date_to:
+                continue
+
+            if topic_ids:
+                p_topics = post.topic_ids or []
+                if not any(t in p_topics for t in topic_ids):
+                    continue
+
+            if job_only and post.category != "job" and not post.job:
+                continue
+            if work_modes:
+                mode = (post.job or {}).get("work_mode", "").lower()
+                if not any(wm.lower() in mode for wm in work_modes):
+                    continue
+            if min_score is not None:
+                score = (post.job or {}).get("match_score")
+                if score is None or score < min_score:
+                    continue
+
+            if has_link is True:
+                has_u = bool(post.url and post.url.strip()) or "http://" in post.text or "https://" in post.text
+                if not has_u:
+                    continue
+            if has_github is True:
+                is_gh = "github.com" in (post.url or "").lower() or "github.com" in post.text.lower()
+                if not is_gh:
+                    continue
+
+            snippet = _make_snippet(post.text, post.summary, words)
+            matched.append({
+                "id": post.id,
+                "run_id": post.run_id,
+                "platform": post.platform,
+                "source": post.source,
+                "author": post.author,
+                "text": post.text,
+                "summary": post.summary,
+                "snippet": snippet,
+                "url": post.url,
+                "posted_at": post.posted_at,
+                "date": p_date_str,
+                "category": post.category,
+                "job": post.job,
+                "topic_ids": list(post.topic_ids or []),
+                "topic_reason": post.topic_reason or "",
+            })
+
+        matched.sort(key=lambda x: (x["date"], x["id"]), reverse=True)
+        total = len(matched)
+        page = matched[offset : offset + limit]
+        return page, total
+
+
+def _parse_post_date(posted_at: str | None, run_created_at: Any) -> date:
+    if posted_at:
+        s = posted_at.strip()
+        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+        if m:
+            try:
+                return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            except ValueError:
+                pass
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+        except Exception:
+            pass
+    if isinstance(run_created_at, datetime):
+        return run_created_at.date()
+    if isinstance(run_created_at, date):
+        return run_created_at
+    return datetime.now(timezone.utc).date()
+
+
+def _make_snippet(text: str, summary: str, words: list[str]) -> str:
+    target = summary if summary else text
+    if not words:
+        return target[:200] + ("…" if len(target) > 200 else "")
+
+    lower_target = target.lower()
+    first_pos = -1
+    for w in words:
+        pos = lower_target.find(w.lower())
+        if pos != -1 and (first_pos == -1 or pos < first_pos):
+            first_pos = pos
+
+    if first_pos == -1 and text and text != target:
+        target = text
+        lower_target = target.lower()
+        for w in words:
+            pos = lower_target.find(w.lower())
+            if pos != -1 and (first_pos == -1 or pos < first_pos):
+                first_pos = pos
+
+    if first_pos == -1:
+        return target[:200] + ("…" if len(target) > 200 else "")
+
+    start = max(0, first_pos - 60)
+    end = min(len(target), first_pos + 140)
+    snip = target[start:end]
+    if start > 0:
+        snip = "…" + snip
+    if end < len(target):
+        snip = snip + "…"
+
+    for w in sorted(words, key=len, reverse=True):
+        snip = re.sub(rf"(?i)({re.escape(w)})", r"«\1»", snip)
+    return snip
 
 
 def _topic(r: TopicRow) -> Topic:

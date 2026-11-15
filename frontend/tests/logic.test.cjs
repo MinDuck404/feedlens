@@ -330,3 +330,73 @@ test("continue analysis depends on saved content, not the failure status name", 
     assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: false }], can_continue_analysis: true }), false);
   }
 });
+
+
+test("topic filters combine safely with category filters and support multiple tags", () => {
+  const { filterTopicPosts, TOPIC_INKS, topicColor } = require("../src/topics.ts");
+  const posts = [{ id: 1, category: "tech", topic_ids: [4, 7] }, { id: 2, category: "job", topic_ids: [7] }, { id: 3, category: "tech" }];
+  assert.equal(filterTopicPosts(posts, null), posts);
+  assert.deepEqual(filterTopicPosts(posts, 4).map((p) => p.id), [1]);
+  assert.deepEqual(filterTopicPosts(posts, 7).map((p) => p.id), [1, 2]);
+  assert.deepEqual(filterTopicPosts(posts.filter((p) => p.category === "tech"), 7).map((p) => p.id), [1]);
+  assert.deepEqual(filterTopicPosts(posts, 99), []);
+  assert.equal(Object.keys(TOPIC_INKS).length, 8);
+  assert.equal(topicColor("unknown"), topicColor("red"));
+});
+
+test("topics CRUD, quick test and background progress use the backend contract", async () => {
+  const original = global.fetch;
+  const requests = [];
+  global.fetch = async (url, init) => { requests.push([url, init.method ?? "GET", init.body ? JSON.parse(init.body) : null]); return new Response(JSON.stringify({ topics: [], state: "idle" })); };
+  try {
+    const topic = { name: "React", description: "React work", enabled: true, color: "navy", include_keywords: ["react"], exclude_keywords: [] };
+    await api.topics(); await api.saveTopic(topic); await api.saveTopic({ ...topic, id: 12 });
+    await api.deleteTopic(12); await api.testTopics("React post"); await api.applyTopics(); await api.topicsProgress();
+    assert.deepEqual(requests.map(([url, method]) => [url, method]), [
+      ["/api/topics", "GET"], ["/api/topics", "POST"], ["/api/topics/12", "PUT"], ["/api/topics/12", "DELETE"],
+      ["/api/topics/test", "POST"], ["/api/topics/apply", "POST"], ["/api/topics/apply", "GET"],
+    ]);
+    assert.deepEqual(requests[1][2], topic);
+    assert.deepEqual(requests[4][2], { text: "React post" });
+  } finally { global.fetch = original; }
+});
+
+
+test("trend paths stay within a zero-based plot and handle one point", () => {
+  const { trendPoints, trendPath, trendColor } = require("../src/trends.ts");
+  const points = trendPoints([0, 4, 0, 2], 730, 280, 4);
+  assert.deepEqual(points.map((p) => p.y), [280, 0, 280, 140]);
+  assert.ok(points.every((p) => p.x >= 0 && p.x <= 730 && p.y >= 0 && p.y <= 280));
+  assert.deepEqual(trendPoints([0], 100, 40, 4), [{ x: 50, y: 40 }]);
+  assert.ok(trendPoints([-1, 8], 100, 40, 4).every((p) => p.y >= 0 && p.y <= 40));
+  assert.equal(trendPath(points).includes("C"), false);
+  assert.match(trendColor("#2B5C8F"), /#6D9ECE/);
+});
+
+test("changing trend filters cannot be overwritten by an older response", async () => {
+  const TrendsPage = require("../src/components/TrendsPage.tsx").default;
+  const original = api.trends, originalContext = React.useContext;
+  const context = hooks(i18n.I18nProvider);
+  const value = context.render({ children: null }).props.value; context.close(); React.useContext = () => value;
+  const requests = [];
+  api.trends = (params) => { const gate = deferred(); requests.push({ params, ...gate }); return gate.promise; };
+  const harness = hooks(TrendsPage);
+  const props = { onNewRun() {} };
+  const find = (node, label) => {
+    if (!node || typeof node !== "object") return null;
+    if (node.props?.label === label) return node;
+    for (const child of [node.props?.children].flat(Infinity)) { const found = find(child, label); if (found) return found; }
+    return null;
+  };
+  const response = (group, title) => ({ range: { group, days: 30, bucket: "day", start_date: "2026-11-01", end_date: "2026-11-30" }, timeline: ["2026-11-01"], series: [{ id: "1", name: title, color: "#AE3824", counts: [1], total: 1, growth: null }], summary: { total_posts: 1, top_gainer: null, new_emerging: null }, fallback_count: 0 });
+  try {
+    const tree = harness.render(props);
+    find(tree, i18n.translate("trends.group")).props.onChange("topic");
+    harness.render(props);
+    assert.equal(requests.length, 2);
+    requests[1].resolve(response("topic", "Latest topic")); await tick();
+    requests[0].resolve(response("category", "Old category")); await tick();
+    const rendered = JSON.stringify(harness.render(props));
+    assert.ok(rendered.includes("Latest topic")); assert.ok(!rendered.includes("Old category"));
+  } finally { harness.close(); api.trends = original; React.useContext = originalContext; }
+});

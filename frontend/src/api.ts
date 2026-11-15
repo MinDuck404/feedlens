@@ -1,6 +1,6 @@
 import { serverMessage, translate } from "./i18n";
 import { serialWriter } from "./logic";
-import type { AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -56,6 +56,19 @@ const savePreferences = serialWriter<{ body: string; token: string }>(({ body, t
 });
 
 export const api = {
+  trends: (params: { group?: "category" | "topic"; bucket?: "day" | "week"; days?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.group) q.set("group", params.group);
+    if (params.bucket) q.set("bucket", params.bucket);
+    if (params.days) q.set("days", String(params.days));
+    return call<TrendsResponse>(`/api/trends?${q.toString()}`);
+  },
+  topics: () => call<{ topics: Topic[]; colors: string[]; max: number }>("/api/topics"),
+  saveTopic: (topic: Omit<Topic, "id"> & { id?: number }) => call<Topic>(`/api/topics${topic.id == null ? "" : `/${topic.id}`}`, { method: topic.id == null ? "POST" : "PUT", body: JSON.stringify(topic) }),
+  deleteTopic: (id: number) => call(`/api/topics/${id}`, { method: "DELETE" }),
+  testTopics: (text: string) => call<{ matches: { topic_id: number; reason: string }[] }>("/api/topics/test", { method: "POST", body: JSON.stringify({ text }) }),
+  applyTopics: () => call<TopicApplyStatus>("/api/topics/apply", { method: "POST" }),
+  topicsProgress: () => call<TopicApplyStatus>("/api/topics/apply"),
   meta: () => call<Meta>("/api/meta"),
   login: (email: string, password: string) =>
     call<{ token: string; email: string }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),

@@ -54,7 +54,7 @@ interface Props {
   onPrefsChange: (p: Preferences) => void;
   onClose: () => void;
   onCreated: (id: number) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (tab?: string) => void;
 }
 
 export default function Composer({ meta, me, platforms, prefs, onPrefsChange, onClose, onCreated, onOpenSettings }: Props) {
@@ -66,6 +66,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
 
   const saved = prefs.composer ?? {};
   const { t, lang } = useI18n();
+  const [topicCount, setTopicCount] = useState<number | null>(null);
   const [jobProfile, setJobProfile] = useState<JobProfile | null>(null);
   const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
   const [sessions, setSessions] = useState<PlatformSession[]>([]);
@@ -120,7 +121,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                      ai_model: selected === saved.ai_provider ? saved.ai_model ?? "" : "" }));
     }).catch((e) => { setProviders([]); setLoadError(e.message); });
   };
-  useEffect(() => { loadProviders(); api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)); }, []);
+  useEffect(() => { api.topics().then((data) => setTopicCount(data.topics.filter((topic) => topic.enabled).length)).catch((e) => setLoadError(e.message)); loadProviders(); api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)); }, []);
 
   const snapshot = (next: Partial<Preferences> = {}): Preferences => ({
     composer: { ...f, sources: undefined, keywords: undefined, keywords_text: keywordsText },
@@ -185,7 +186,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       {serverMode && (!session || session.status === "invalid") && (
         <p className="mb-3 text-sm text-danger">
           {session ? t("cmp.cookieExpired", { name: PLATFORM_LABEL[f.platform] }) : t("cmp.noCookie", { name: PLATFORM_LABEL[f.platform] })}{" "}
-          <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
+          <button type="button" onClick={() => onOpenSettings()} className="font-medium text-link hover:underline">
             {session ? t("cmp.sendCookie") : t("cmp.addCookie")}
           </button>
         </p>
@@ -193,7 +194,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       {!serverMode && cloud && me && !me.agent.online && (
         <p className="mb-3 text-sm text-ink-soft">
           {t("cmp.agentOff")}{" "}
-          <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
+          <button type="button" onClick={() => onOpenSettings()} className="font-medium text-link hover:underline">
             {me.agent.has_token ? t("cmp.howToStart") : t("cmp.connectAgent")}
           </button>
         </p>
@@ -216,6 +217,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       footer={footerNode}
       className="[&_h2]:font-headline [&_footer]:bg-surface [&_footer]:shadow-[0_-8px_16px_-12px_rgba(0,0,0,0.18)]"
     >
+      {topicCount !== null && <p className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-3 text-sm text-ink-soft"><span>{t(topicCount === 1 ? "topics.followingOne" : "topics.following", { n: topicCount })}</span><button type="button" className="min-h-11 text-link underline underline-offset-4" onClick={() => onOpenSettings("topics")}>{t("topics.manage")}</button></p>}
       {cloud && meta.server_scrape && (
             <Group label={t("cmp.runner")}>
               <SegmentedControl compact label={t("cmp.runner")} value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
@@ -358,7 +360,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 {usable.length === 1 && (
                   <p className="mt-2 text-sm text-ink-soft">
                     {t("cmp.noKeys")}{" "}
-                    <button type="button" onClick={onOpenSettings} className="font-medium text-link hover:underline">
+                    <button type="button" onClick={() => onOpenSettings()} className="font-medium text-link hover:underline">
                       {t("cmp.addKey")}
                     </button>
                   </p>
@@ -411,7 +413,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                     ))}
                   </div>
                 </div>
-                {jobProfile && <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-y border-line py-3 text-sm"><span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span><button type="button" onClick={onOpenSettings} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button></p>}
+                {jobProfile && <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-y border-line py-3 text-sm"><span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span><button type="button" onClick={() => onOpenSettings()} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button></p>}
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
                   <textarea aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="field resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}

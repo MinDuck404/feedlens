@@ -591,6 +591,10 @@ from .profile_api import profile_router
 app.include_router(profile_router(db, lambda: settings.is_cloud))
 from .topics_api import topics_router
 app.include_router(topics_router(db))
+from .trends_api import trends_router
+app.include_router(trends_router(db))
+from .search_api import search_router
+app.include_router(search_router(db))
 
 # ================================================================== frontend build (chế độ local, tùy chọn)
 DIST = BACKEND_DIR.parent / "frontend" / "dist"

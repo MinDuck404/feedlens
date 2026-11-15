@@ -1,4 +1,5 @@
 import {
+  House, History, TrendingUp,
   Loader2,
   LogIn,
   Menu,
@@ -42,10 +43,11 @@ interface Props {
   platforms: PlatformState[];
   runs: Run[];
   selected: number | null;
-  page: "home" | "history" | "run";
+  page: "home" | "history" | "trends" | "run";
   onSelect: (id: number) => void;
   onGoHome: () => void;
   onGoHistory: () => void;
+  onGoTrends?: () => void;
   onNewRun: () => void;
   onPlatformChanged: () => void;
   onLogout?: () => void;
@@ -141,6 +143,7 @@ export default function Sidebar(props: Props) {
           {...props}
           onGoHome={() => handleMobileNav(props.onGoHome)}
           onGoHistory={() => handleMobileNav(props.onGoHistory)}
+          onGoTrends={() => handleMobileNav(() => props.onGoTrends?.())}
           onSelect={(id) => handleMobileNav(() => props.onSelect(id))}
           onNewRun={() => handleMobileNav(props.onNewRun)}
           onOpenSettings={() => handleMobileNav(props.onOpenSettings)}
@@ -197,18 +200,19 @@ function SidebarBody({
   onSelect,
   onGoHome,
   onGoHistory,
+  onGoTrends,
   onPlatformChanged,
   onLogout,
 }: Props) {
   const { t } = useI18n();
 
   const navCls =
-    "rounded-full px-3.5 py-1.5 text-sm font-medium transition-all interactive-tap text-ink-soft hover:text-ink hover:bg-sunken/60 aria-[current=page]:bg-primary aria-[current=page]:text-primary-ink aria-[current=page]:shadow-xs";
+    "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2 text-sm font-medium transition-colors interactive-tap text-ink-soft hover:text-ink hover:bg-sunken/60 aria-[current=page]:bg-primary aria-[current=page]:text-primary-ink aria-[current=page]:shadow-xs";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Navigation Pills */}
-      <nav className="flex gap-1.5 px-4 pb-4" aria-label={t("nav.label")}>
+      <nav className="flex flex-col gap-1 px-4 pb-4" aria-label={t("nav.label")}>
         <a
           href="#/"
           aria-current={page === "home" ? "page" : undefined}
@@ -218,7 +222,7 @@ function SidebarBody({
             onGoHome();
           }}
         >
-          {t("nav.home")}
+          <House aria-hidden="true" className="size-4 shrink-0" /><span className="whitespace-nowrap">{t("nav.home")}</span>
         </a>
         <a
           href="#/history"
@@ -229,7 +233,18 @@ function SidebarBody({
             onGoHistory();
           }}
         >
-          {t("nav.history")}
+          <History aria-hidden="true" className="size-4 shrink-0" /><span className="whitespace-nowrap">{t("nav.history")}</span>
+        </a>
+        <a
+          href="#/trends"
+          aria-current={page === "trends" ? "page" : undefined}
+          className={navCls}
+          onClick={(e) => {
+            e.preventDefault();
+            onGoTrends?.();
+          }}
+        >
+          <TrendingUp aria-hidden="true" className="size-4 shrink-0" /><span className="whitespace-nowrap">{t("nav.trends")}</span>
         </a>
       </nav>
 

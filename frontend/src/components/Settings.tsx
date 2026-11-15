@@ -4,32 +4,36 @@ import { parseTimestamp } from "../logic";
 import { API_BASE, api } from "../api";
 import type { AIProviderInfo, Me, Meta } from "../types";
 import CookieSessions from "./CookieSessions";
+import TopicSettings from "./TopicSettings";
 import JobProfileSettings from "./JobProfileSettings";
 import { ThemeMenu } from "./PreferenceMenus";
 import { useI18n } from "../i18n";
 import { Sheet, Button, SkeletonCard, SegmentedControl } from "./ui";
 
 interface Props {
+  initialTab?: string;
   meta: Meta;
   me: Me | null;
   onClose: () => void;
   onChanged: () => void;
 }
 
-export default function Settings({ meta, me, onClose, onChanged }: Props) {
+export default function Settings({ meta, me, onClose, onChanged, initialTab }: Props) {
   const [open, setOpen] = useState(true);
   const id = useId();
   const body = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState(() => {
-    try { const saved = localStorage.getItem("feedlens.settingsTab"); return ["keys", "profile", "agent", "cookies"].includes(saved ?? "") ? saved! : "keys"; } catch { return "keys"; }
+    if (initialTab) return initialTab;
+    try { const saved = localStorage.getItem("feedlens.settingsTab"); return ["keys", "profile", "topics", "agent", "cookies"].includes(saved ?? "") ? saved! : "keys"; } catch { return "keys"; }
   });
+  useEffect(() => { try { localStorage.setItem("feedlens.settingsTab", tab); } catch { /* Keep the current tab in memory. */ } }, [tab]);
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const { t } = useI18n();
   const reload = () => api.providers().then((p) => { setProviders(p); setLoadError(""); }).finally(() => setLoading(false));
 
-  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "agent", label: t("set.tab.agent") }, { value: "cookies", label: t("set.tab.cookies") }];
+  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, { value: "agent", label: t("set.tab.agent") }, { value: "cookies", label: t("set.tab.cookies") }];
   const changeTab = (value: string) => {
     setTab(value); if (body.current) body.current.scrollTop = 0;
     try { localStorage.setItem("feedlens.settingsTab", value); } catch { /* Keep the current tab in memory. */ }
@@ -72,6 +76,7 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
           </ul>}
         </div>
         <div hidden={tab !== "profile"} role="tabpanel" id={`${id}-panel-profile`} aria-labelledby={`${id}-tab-profile`} tabIndex={0}><JobProfileSettings providers={providers} /></div>
+        <div hidden={tab !== "topics"} role="tabpanel" id={`${id}-panel-topics`} aria-labelledby={`${id}-tab-topics`} tabIndex={0}><TopicSettings /></div>
         <div hidden={tab !== "agent"} role="tabpanel" id={`${id}-panel-agent`} aria-labelledby={`${id}-tab-agent`} tabIndex={0}>
           <div className="mb-5 flex items-center justify-between gap-3 border-b border-line pb-3"><span className="text-sm">{t("theme.label")}</span><ThemeMenu above={false} /></div>
           {meta.mode === "cloud" && me ? <AgentSection me={me} onChanged={onChanged} /> : <><h3 className="font-headline text-2xl">{t("set.tab.agent")}</h3><p className="mt-3 text-sm leading-relaxed text-ink-soft">{t("set.localAgent")}</p></>}
