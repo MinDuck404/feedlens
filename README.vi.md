@@ -1,5 +1,7 @@
 <div align="center">
 
+[English](README.md) · **Tiếng Việt** · [简体中文](README.zh-CN.md)
+
 # FeedLens
 
 **Đọc ít hơn, biết nhiều hơn.**
@@ -28,11 +30,12 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 |---|---|
 | **4 nền tảng** | Facebook, LinkedIn, X (Twitter), Reddit: bảng tin, group, hoặc kết quả tìm kiếm |
 | **Tóm tắt kiểu báo** | Bài được chia theo loại (việc làm, công nghệ, tin tức, mua bán…), mỗi loại có đoạn tóm tắt riêng và một bản tóm tắt chung |
-| **Lọc việc làm** | Trích vị trí, mức lương, địa điểm, liên hệ; chấm điểm 0–100 theo mô tả bản thân bạn |
+| **Lọc việc làm theo CV** | Tải CV PDF một lần; AI chấm từng tin 0–100 theo vai trò, cấp độ, hình thức (remote/hybrid/onsite), địa điểm, lương. Gợi ý cả việc ngành gần (vd junior dev → IT helpdesk) kèm kỹ năng còn thiếu |
+| **Không mất bài khi AI lỗi** | Bài đã lướt được lưu trước khi AI đọc; sửa key xong bấm "Phân tích lại", không cần lướt lại |
 | **Chọn AI** | Claude, ChatGPT, Gemini, hoặc bộ lọc từ khóa offline khi không có key |
 | **Chạy trên máy bạn** | Phiên đăng nhập nằm trong profile Chrome riêng, dữ liệu trong SQLite; chỉ nội dung bài đi tới AI bạn chọn |
 | **3 ngôn ngữ** | Giao diện và bản tóm tắt bằng tiếng Việt, English hoặc 中文 (tự theo ngôn ngữ trình duyệt) |
-| **Sáng / tối** | Giấy kem khi sáng, gỗ trầm khi tối, theo cài đặt của hệ điều hành |
+| **Sáng / tối** | Giấy kem khi sáng, gỗ trầm khi tối; theo hệ điều hành hoặc chọn bằng nút trên thanh bên |
 
 <table>
   <tr>
@@ -53,8 +56,9 @@ Cần cài sẵn [Python 3.10+](https://www.python.org/downloads/) (nhớ tick *
 2. **Windows:** bấm đúp `start.bat`. **macOS/Linux:** chạy `./start.sh`.
    Lần đầu mất vài phút để cài thư viện và build giao diện. Trình duyệt tự mở http://127.0.0.1:8765.
 3. Bấm **Đăng nhập** cạnh Facebook (trên điện thoại: mở menu ☰). Một cửa sổ Chrome hiện ra; đăng nhập như bình thường, kể cả xác minh 2 bước. Xong thì cửa sổ tự đóng.
-4. **Cài đặt** (bánh răng): dán API key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
-5. Bấm **Lướt mới**, chọn bảng tin hoặc các nhóm, rồi **Bắt đầu lướt**.
+4. **Cài đặt** (bánh răng) → tab **API key**: thêm key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
+5. Tìm việc? Tab **Hồ sơ tìm việc**: tải CV PDF, kiểm tra bản tóm tắt, chọn tiêu chí và vai trò muốn chuyển sang.
+6. Bấm **Lướt mới**, chọn bảng tin hoặc các nhóm, rồi **Bắt đầu lướt**.
 
 Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 
@@ -62,15 +66,28 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 
 ## Cách hoạt động
 
-```
-Chrome (phiên của bạn) ──lướt──▶ bài viết ──▶ AI phân loại + tóm tắt + chấm việc ──▶ tờ báo trên web
-        backend/data/profiles          SQLite: backend/data/feedlens.db
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/how-it-works-dark.svg">
+  <img src="docs/diagrams/how-it-works.svg" alt="Chrome của bạn lướt bài, lưu bài thô vào SQLite, AI phân loại và tóm tắt, rồi hiện thành bản tin">
+</picture>
 
 - **Lướt:** bot mở Chrome thật với profile riêng của FeedLens và cuộn như người đọc. Chế độ *Nhanh* nghỉ khoảng 1 giây; *Cẩn thận* cuộn chậm hơn.
 - **Nhiều nhóm:** lưu sẵn danh sách nhóm, tick nhóm cần lướt. "Số bài" tính **mỗi nhóm**; cả lượt tối đa `FEEDLENS_MAX_POSTS` (mặc định 500). Nhóm lỗi thì bỏ qua và lướt tiếp.
 - **Xác minh / checkpoint:** nếu nền tảng đòi đăng nhập lại, bot dừng và chờ bạn tự hoàn tất trong cửa sổ Chrome (tối đa 10 phút) rồi lướt tiếp.
 - **AI:** đọc tối đa 4 lô song song, 20 bài mỗi lô. Mọi nhà cung cấp dùng chung một JSON schema nên kết quả cùng định dạng.
+- **AI lỗi giữa chừng:** bài thô đã nằm trong DB. Lượt hiện lý do lỗi, vẫn xem và tải được bài thô (.json/.md), và có nút **Phân tích lại** để chạy lại bằng key hoặc model khác.
+
+### Chấm việc theo CV
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cv-matching-dark.svg">
+  <img src="docs/diagrams/cv-matching.svg" alt="CV PDF được tách chữ trên máy, AI tạo hồ sơ Markdown, rồi dùng để chấm từng tin tuyển dụng">
+</picture>
+
+- Chữ trong PDF được tách ngay trên máy (`pypdf`). AI chuyển thành hồ sơ Markdown và bỏ số điện thoại, email, địa chỉ. **File PDF không được lưu.**
+- Bạn tự đặt tiêu chí (remote/hybrid/onsite, địa điểm, lương tối thiểu, cấp độ) và bật từng vai trò lân cận muốn thử.
+- Mỗi tin có nhãn **Đúng ngành / Ngành gần / Thử sức**, lý do, kỹ năng còn thiếu và cảnh báo khi trái tiêu chí. Server tự giới hạn điểm: trái 1 tiêu chí tối đa 65, trái 2 tiêu chí tối đa 30; việc ngành gần tối đa 80, và tối đa 40 nếu bạn chưa cho phép.
+- Hồ sơ chỉ gửi kèm một lần cho mỗi lô 20 bài.
 
 ## Chọn AI
 
@@ -129,7 +146,7 @@ cd backend && .venv\Scripts\feedlens run facebook --type group --source https://
 Test:
 
 ```bash
-cd backend && python -m pytest -q
+cd backend && .venv\Scripts\python -m pytest -q
 cd frontend && node --test tests/logic.test.cjs
 ```
 
@@ -152,6 +169,8 @@ backend/            Python, FastAPI: API, bot lướt (Playwright), lớp AI, DB
     scrapers.py     URL + JS trích bài cho từng nền tảng, vòng cuộn giống người
     analyzer.py     phân loại, trích job, tóm tắt (dùng chung cho mọi AI)
     pipeline.py     lướt → phân loại → tóm tắt, chạy nền, báo tiến độ
+    job_profile.py  CV → hồ sơ Markdown, tiêu chí, vai trò lân cận (adjacent_roles.json)
+    profile_api.py  /api/profile: lưu, đọc, xóa hồ sơ; phân tích CV
   tests/
 frontend/           React + Vite + TypeScript + Tailwind
   src/components/ui/  Dialog/Sheet, Button, Skeleton, EmptyState dùng chung
@@ -191,18 +210,10 @@ Hiện không có bản online nào đang chạy; FeedLens được thiết kế
 
 Muốn dùng Railway thì `backend/railway.json`, `frontend/railway.json` và hai Dockerfile đã có sẵn.
 
-```
- Máy bạn                                     Cloud
-┌───────────────────────────┐  hỏi việc  ┌──────────────────────────┐   ┌──────────┐
-│ feedlens agent (chạy nền)  │ ◀────────▶ │ backend (FastAPI)         │──▶│ Postgres │
-│ Chrome + phiên đăng nhập   │  gửi bài   │ tài khoản, key mã hóa,    │   └──────────┘
-└───────────────────────────┘ token fla_ │ hàng đợi, AI tóm tắt      │
-                                          └─────────────▲────────────┘
-                                                        │ email + mật khẩu
-                                          ┌─────────────┴────────────┐
-                                          │ frontend (GitHub Pages)   │
-                                          └──────────────────────────┘
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cloud-architecture-dark.svg">
+  <img src="docs/diagrams/cloud-architecture.svg" alt="Agent trên máy người dùng nhận việc từ backend FastAPI qua token fla_, backend lưu vào Postgres, frontend trên GitHub Pages">
+</picture>
 
 Việc lướt **luôn chạy trên máy người dùng**, vì cần Chrome thật, phiên đăng nhập của họ và IP nhà (IP datacenter rất dễ bị checkpoint). Server không giữ cookie mạng xã hội nào, trừ khi bật chế độ Server (cookie) bên dưới.
 
@@ -272,12 +283,18 @@ Tùy số bài và tốc độ chọn. Chế độ *Nhanh* nghỉ khoảng 1 gi�
 Thường do mạng xã hội đổi giao diện. Xem đoạn JS của nền tảng đó trong `backend/feedlens/scrapers.py`, hoặc mở issue.
 
 **Dữ liệu của tôi nằm ở đâu?**
-Trong `backend/data/`: phiên Chrome ở `profiles/`, bài viết và kết quả ở `feedlens.db`. Xóa thư mục này là xóa sạch.
+Trong `backend/data/`: phiên Chrome ở `profiles/`, bài viết, kết quả, hồ sơ CV và API key (đã mã hóa) ở `feedlens.db`, khóa mã hóa ở `secret.key`. Thư mục này không bao giờ được commit. Đừng gửi nó cho người khác. Xóa thư mục này là xóa sạch.
+
+**CV của tôi có bị lưu lại không?**
+Không lưu file PDF. Chỉ lưu bản hồ sơ Markdown bạn đã duyệt, sau khi bỏ thông tin liên hệ. Bạn xóa được bất cứ lúc nào trong tab Hồ sơ tìm việc.
+
+**AI báo lỗi giữa chừng thì sao?**
+Bài đã lướt vẫn còn. Sửa key hoặc đổi model trong Cài đặt, rồi mở lượt đó và bấm **Phân tích lại**.
 
 ## Lộ trình
 
 - [ ] Lịch chạy tự động mỗi sáng + báo Telegram/email khi có job điểm ≥ 80
-- [ ] Upload CV (PDF) để chấm độ phù hợp chính xác hơn
+- [x] Upload CV (PDF) để chấm độ phù hợp chính xác hơn
 - [ ] Hỏi đáp trên dữ liệu đã thu ("tuần này có job React remote nào lương > 30 triệu?")
 - [ ] Biểu đồ xu hướng chủ đề theo thời gian
 - [ ] Thêm Ollama (chạy AI hoàn toàn trên máy), Threads, TopCV/ITviec

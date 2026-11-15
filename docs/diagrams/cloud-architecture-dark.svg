@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="960" height="480" style="background:#16120E;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#B5ABA0" />
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#6A9BC3" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#D6553E" />
+    </marker>
+  </defs>
+
+  <!-- Title & Eyebrow Header -->
+  <g transform="translate(48, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.14em" fill="#D6553E">DEPLOYMENT TOPOLOGY · MULTI-USER CLOUD</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="24" font-weight="600" fill="#F5EFE6" y="28">Cloud Architecture</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" fill="#B5ABA0" y="48">By default the cloud holds no social cookies: user agents scrape locally and stream structured posts via token fla_</text>
+  </g>
+
+  <!-- Container 1: Local Machine -->
+  <g transform="translate(48, 116)">
+    <rect width="256" height="312" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.1em" fill="#D6553E" x="16" y="24">ZONE 1 · YOUR COMPUTER</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="16" y="44">Your Machine</text>
+
+    <!-- Node 1: feedlens agent -->
+    <g transform="translate(16, 60)">
+      <rect width="224" height="96" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#6A9BC3" x="12" y="20">CLI BACKGROUND DAEMON</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">feedlens agent</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" fill="#D6553E" x="12" y="58">token fla_xxx (Bearer auth)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="74">Polls server queue every 2 seconds</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="88">Pushes raw scraped items via HTTPS</text>
+    </g>
+
+    <!-- DevTools CDP Connector -->
+    <path d="M 128 156 L 128 184" stroke="#B5ABA0" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow)" fill="none" />
+    <rect x="80" y="164" width="96" height="16" rx="3" fill="#2A231C" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" fill="#8F857A" text-anchor="middle" x="128" y="176">Chrome DevTools (CDP)</text>
+
+    <!-- Node 2: Chrome Browser -->
+    <g transform="translate(16, 188)">
+      <rect width="224" height="96" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#B5ABA0" x="12" y="20">LOCAL AUTOMATION</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">Chrome (Dedicated Profile)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="58">Headed browser with active user session</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="74">Natural scrolling &amp; interaction</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5BAA7E" x="12" y="88">Runs on your own home network</text>
+    </g>
+  </g>
+
+  <!-- Connector: Agent <-> Backend -->
+  <path d="M 304 220 L 372 220" stroke="#D6553E" stroke-width="1.6" marker-end="url(#arrow-accent)" fill="none" />
+  <rect x="312" y="202" width="54" height="16" rx="3" fill="#16120E" stroke="#D6553E" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" font-weight="600" fill="#D6553E" text-anchor="middle" x="339" y="214">token fla_</text>
+
+  <!-- Container 2: Cloud Backend -->
+  <g transform="translate(376, 116)">
+    <rect width="280" height="312" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.1em" fill="#D6553E" x="16" y="24">ZONE 2 · CLOUD SERVER</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="16" y="44">FastAPI Backend (Render / Docker)</text>
+
+    <!-- Node 3: FastAPI Core -->
+    <g transform="translate(16, 60)">
+      <rect width="248" height="124" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#D6553E" x="12" y="20">CORE WEB SERVICE</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">FastAPI Application</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="58">• User auth &amp; session tokens</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="74">• Run orchestration &amp; task queue</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="90">• Fernet key encryption (FEEDLENS_SECRET)</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#6A9BC3" x="12" y="108">AI dispatch with caller's own API key</text>
+    </g>
+
+    <!-- Connector: FastAPI -> Postgres -->
+    <path d="M 140 184 L 140 212" stroke="#B5ABA0" stroke-width="1.3" marker-end="url(#arrow)" fill="none" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" fill="#8F857A" text-anchor="middle" x="140" y="202">SQLAlchemy / SSL</text>
+
+    <!-- Node 4: Postgres DB -->
+    <g transform="translate(16, 216)">
+      <rect width="248" height="76" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#B5ABA0" x="12" y="20">PERSISTENCE TIER</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">PostgreSQL (Neon / Managed)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="58">User accounts · Digest archives · Hashed fla_ tokens</text>
+    </g>
+  </g>
+
+  <!-- Container 3: Frontend & External AI -->
+  <g transform="translate(688, 116)">
+    <!-- Frontend Box -->
+    <g>
+      <rect width="224" height="140" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.1em" fill="#6A9BC3" x="16" y="24">ZONE 3 · CLIENT INGRESS</text>
+      <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14.5" font-weight="600" fill="#F5EFE6" x="16" y="44">GitHub Pages / Static CDN</text>
+
+      <g transform="translate(16, 56)">
+        <rect width="192" height="68" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+        <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="12" y="24">React 18 + Vite SPA</text>
+        <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="40">Newspaper-style reader UI</text>
+        <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="56">VITE_API_URL → Cloud FastAPI</text>
+      </g>
+    </g>
+
+    <!-- AI Providers Box -->
+    <g transform="translate(0, 168)">
+      <rect width="224" height="144" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.1em" fill="#D6553E" x="16" y="24">ZONE 4 · AI PROVIDERS</text>
+      <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14.5" font-weight="600" fill="#F5EFE6" x="16" y="44">External LLM Services</text>
+
+      <g transform="translate(16, 56)">
+        <rect width="192" height="72" rx="6" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.2" />
+        <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="12" y="24">Gemini · Claude · OpenAI</text>
+        <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="40">Decrypted per-call in memory</text>
+        <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#D6553E" x="12" y="56">Server holds NO owner quota</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Frontend -> Backend API Call -->
+  <path d="M 688 190 L 624 190" stroke="#6A9BC3" stroke-width="1.4" marker-end="url(#arrow-link)" fill="none" />
+  <rect x="632" y="174" width="48" height="16" rx="3" fill="#16120E" stroke="#6A9BC3" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" font-weight="600" fill="#6A9BC3" text-anchor="middle" x="656" y="186">REST API</text>
+
+  <!-- Backend -> AI Providers API Call -->
+  <path d="M 624 250 L 656 250 L 656 350 L 688 350" stroke="#D6553E" stroke-width="1.4" marker-end="url(#arrow-accent)" fill="none" />
+  <rect x="634" y="290" width="44" height="16" rx="3" fill="#16120E" stroke="#D6553E" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" font-weight="600" fill="#D6553E" text-anchor="middle" x="656" y="302">LLM API</text>
+
+  <!-- Bottom Security Callout -->
+  <g transform="translate(48, 442)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A">SECURITY PRINCIPLE:</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#B5ABA0" x="135">Social cookies stay on your machine unless you opt in to Server (cookie) mode.</text>
+  </g>
+</svg>

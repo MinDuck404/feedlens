@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" width="960" height="440" style="background:#FAF7F0;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#5C534A" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#AE3824" />
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#24527A" />
+    </marker>
+  </defs>
+
+  <!-- Title & Eyebrow Header -->
+  <g transform="translate(48, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.14em" fill="#AE3824">CAREER BRIDGE ENGINE · SEMANTIC MATCHING</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="24" font-weight="600" fill="#16120E" y="28">CV Matching Pipeline</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" fill="#5C534A" y="48">From raw CV PDF to multi-dimensional job matching with adjacent transition pathways</text>
+  </g>
+
+  <!-- Stage 1: Local Ingestion & Privacy -->
+  <g transform="translate(48, 120)">
+    <rect width="180" height="268" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.08em" fill="#AE3824" x="14" y="24">STAGE 1 · PRIVACY</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Local Extraction</text>
+
+    <!-- Upload Node -->
+    <g transform="translate(14, 58)">
+      <rect width="152" height="74" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#5C534A" x="10" y="18">INPUT ARTIFACT</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">User CV / Resume</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" fill="#5C534A" x="10" y="52">PDF format (≤ 5 MB)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9" fill="#7D7368" x="10" y="66">or raw pasted text</text>
+    </g>
+
+    <path d="M 90 132 L 90 156" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Privacy Filter Node -->
+    <g transform="translate(14, 160)">
+      <rect width="152" height="92" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#2E6E4D" x="10" y="18">PYPDF SANITIZATION</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">PII Scrubbing</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="52">• Strips phone, email, home</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="66">• Retains skills &amp; roles</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="80">PDF is NEVER stored</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 1 -> Stage 2 -->
+  <path d="M 228 254 L 260 254" stroke="#5C534A" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 2: Structured Profile Synthesis -->
+  <g transform="translate(264, 120)">
+    <rect width="212" height="268" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.08em" fill="#24527A" x="14" y="24">STAGE 2 · SYNTHESIS</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Job Profile Generation</text>
+
+    <!-- AI Profile Synthesis Node -->
+    <g transform="translate(14, 58)">
+      <rect width="184" height="66" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#24527A" x="10" y="18">LLM RESTRUCTURING</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Markdown Profile</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="52">Summary · Competencies · Timeline</text>
+    </g>
+
+    <path d="M 106 124 L 106 148" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Criteria & Adjacent Roles Node -->
+    <g transform="translate(14, 152)">
+      <rect width="184" height="100" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TARGETS &amp; BRIDGES</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Criteria &amp; Adjacent Roles</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="52">• Primary roles (max 3)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="66">• Adjacent bridge roles (3–5)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="80">• Work mode, salary, level</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#24527A" x="10" y="94">User can toggle each role</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 2 -> Stage 3 -->
+  <path d="M 476 254 L 508 254" stroke="#5C534A" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 3: Matching Engine -->
+  <g transform="translate(512, 120)">
+    <rect width="204" height="268" rx="8" fill="rgba(174, 56, 36, 0.08)" stroke="#AE3824" stroke-width="1.4" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.08em" fill="#AE3824" x="14" y="24">STAGE 3 · SCORING</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Job Matching Engine</text>
+
+    <!-- Raw Job Posts Input -->
+    <g transform="translate(14, 58)">
+      <rect width="176" height="66" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#5C534A" x="10" y="18">SCRAPED INGRESS</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Unfiltered Job Posts</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="52">From Facebook, LinkedIn, X, etc.</text>
+    </g>
+
+    <path d="M 102 124 L 102 148" stroke="#AE3824" stroke-width="1.2" marker-end="url(#arrow-accent)" fill="none" />
+
+    <!-- Evaluation Matrix Node -->
+    <g transform="translate(14, 152)">
+      <rect width="176" height="100" rx="6" fill="#FFFFFF" stroke="#AE3824" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">MULTI-AXIS SCORING</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Fit Assessment</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="52">• Match Score (0–100)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="66">• Missing skill gaps (gaps)</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#5C534A" x="10" y="80">• Constraint verification</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#AE3824" x="10" y="94">Offline keyword fallback</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 3 -> Stage 4 -->
+  <path d="M 716 254 L 748 254" stroke="#AE3824" stroke-width="1.4" marker-end="url(#arrow-accent)" fill="none" />
+
+  <!-- Stage 4: Classified Results Badges -->
+  <g transform="translate(752, 120)">
+    <rect width="160" height="268" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.08em" fill="#5C534A" x="14" y="24">STAGE 4 · OUTPUT</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Match Types</text>
+
+    <!-- Badge 1: Primary -->
+    <g transform="translate(12, 58)">
+      <rect width="136" height="44" rx="5" fill="rgba(46, 110, 77, 0.08)" stroke="#2E6E4D" stroke-width="1.2" />
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#2E6E4D" x="10" y="20">Primary Match</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5C534A" x="10" y="34">Direct role alignment</text>
+    </g>
+
+    <!-- Badge 2: Adjacent -->
+    <g transform="translate(12, 110)">
+      <rect width="136" height="44" rx="5" fill="#FFFFFF" stroke="#24527A" stroke-width="1.2" />
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#24527A" x="10" y="20">Adjacent Match</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5C534A" x="10" y="34">Bridge transition role</text>
+    </g>
+
+    <!-- Badge 3: Stretch -->
+    <g transform="translate(12, 162)">
+      <rect width="136" height="44" rx="5" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#16120E" x="10" y="20">Stretch Match</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5C534A" x="10" y="34">Seniority / skill gap</text>
+    </g>
+
+    <!-- Badge 4: Constraint Warning -->
+    <g transform="translate(12, 214)">
+      <rect width="136" height="44" rx="5" fill="rgba(174, 56, 36, 0.08)" stroke="#AE3824" stroke-width="1.2" />
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#AE3824" x="10" y="19">Constraint Flag</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#5C534A" x="10" y="33">Work mode / Loc mismatch</text>
+    </g>
+  </g>
+</svg>
