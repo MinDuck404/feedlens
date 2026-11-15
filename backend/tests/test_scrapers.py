@@ -32,7 +32,7 @@ def test_collector_applies_facebook_link_selection_before_creating_post(monkeypa
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(
         goto=lambda *args, **kwargs: None,
-        evaluate=lambda script: None if script == scraper.expand_js else [{
+        evaluate=lambda script, *args: None if script == scraper.expand_js or args or "scroll" in script else [{
             "text": "A community post with a photo and a timestamp.", "author": "Author", "posted_at": "", "url": "",
             "links": [["https://www.facebook.com/photo/1", False], ["https://www.facebook.com/user/posts/2?__tn__=track", True]],
         }],
@@ -242,3 +242,17 @@ def test_collect_all_records_report_per_source(monkeypatch):
     report: dict = {}
     pipeline.collect_all(None, RunRequest(platform="facebook", count=5), set(), lambda *a: None, False, report)
     assert report["sources"][0]["skipped_old"] == 3 and report["missing_link_samples"] == ["<div>x</div>"]
+
+
+def test_facebook_query_only_timestamp_is_hovered_and_scroll_is_restored(facebook_page):
+    # Shape seen in a real feed sample: obfuscated timestamp with aria-labelledby and href="?__cft__…".
+    facebook_page.set_content('''<div style="height:3000px"></div><div role="feed"><div role="article"><h3><a href="/page">Page</a></h3>
+      <a aria-labelledby="_r_v_" href="?__cft__[0]=TOKEN&amp;__tn__=R" role="link"
+         onmouseover="this.href='/page/posts/pfbidREAL/?__cft__[0]=TOKEN'"><span id="_r_v_">x</span></a>
+      <div data-ad-preview="message">A page post whose timestamp only resolves on hover.</div>
+      <a href="/photo/?fbid=1&amp;set=a.2" role="link"><img src="x.png"></a></div></div>''')
+    facebook_page.evaluate("() => window.scrollTo(0, 0)")
+    item = scrapers._facebook_items(facebook_page)[0]
+    assert item["url"] == "https://www.facebook.com/page/posts/pfbidREAL/"
+    assert "_missing_header" not in item
+    assert facebook_page.evaluate("() => window.scrollY") == 0

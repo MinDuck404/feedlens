@@ -82,10 +82,14 @@ FB_JS = r"""
     const links = anchors.flatMap(a => [...new Set(['href', 'data-href', 'data-url', 'ajaxify']
       .map(key => a.getAttribute(key)).filter(Boolean))].map(href => [href, timestamp(a)]));
     // Obfuscated timestamps fail the text test; their href is "#" or missing until hover.
-    const lazy = a => !a.closest('h2, h3, h4, strong') && (!a.getAttribute('href') || a.getAttribute('href') === '#')
+    // Real feed (2026-11): the timestamp is <a aria-labelledby=… href="?__cft__…"> until hovered.
+    const placeholder = h => !h || h === '#' || h.startsWith('?');
+    const lazy = a => !a.closest('h2, h3, h4, strong') && placeholder(a.getAttribute('href'))
       && !a.querySelector('img, svg image') && (a.innerText || '').trim().length <= 40;
-    const hover = [...anchors.flatMap((a, i) => timestamp(a) ? [i] : []),
-      ...anchors.flatMap((a, i) => !timestamp(a) && lazy(a) ? [i] : [])].slice(0, 3);
+    const hover = [...new Set([
+      ...anchors.flatMap((a, i) => a.hasAttribute('aria-labelledby') && lazy(a) ? [i] : []),
+      ...anchors.flatMap((a, i) => timestamp(a) ? [i] : []),
+      ...anchors.flatMap((a, i) => lazy(a) ? [i] : [])])].slice(0, 3);
     const adWords = /^(?:sponsored|được tài trợ|赞助内容|广告)$/i;
     const sponsored = [...n.querySelectorAll('a, span')].slice(0, 60).some(el =>
       adWords.test((el.getAttribute('aria-label') || el.innerText || '').trim()))
@@ -121,6 +125,15 @@ FB_HEADER_SNAPSHOT_JS = r"""
 
 def _facebook_items(page: Page) -> list[dict]:
     items = page.evaluate(FB_JS)
+    # Hovering scrolls each anchor into view; without restoring, the feed never advances.
+    scroll_y = page.evaluate("() => window.scrollY")
+    try:
+        return _resolve_facebook_items(page, items)
+    finally:
+        page.evaluate("y => window.scrollTo(0, y)", scroll_y)
+
+
+def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
     # Bound extra work on long feeds; never click or open the post.
     hover_budget = 6
     snapshots = 3
