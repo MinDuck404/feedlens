@@ -11,9 +11,9 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">LUỒNG DỮ LIỆU CỤC BỘ · BẢO MẬT & BỀN BỈ</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">LUỒNG DỮ LIỆU CỤC BỘ · BẢO MẬT &amp; BỀN BỈ</text>
     <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">Cách FeedLens hoạt động</text>
     <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" fill="#B5ABA0" y="48">Lướt bằng Chrome với phiên của bạn, lưu bài thô vào SQLite, AI phân tích độc lập</text>
   </g>
@@ -37,7 +37,7 @@
     <rect x="12" y="12" width="144" height="18" rx="4" fill="#2E261F" />
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#B5ABA0" x="18" y="24">BƯỚC 2 · LƯỚT BÀI</text>
     <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">Bộ cào dữ liệu</text>
-    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Trích xuất bài viết & việc làm</text>
+    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Trích xuất bài viết &amp; việc làm</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Cuộn tự nhiên theo nhịp</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#B5ABA0" x="12" y="97">FB · LinkedIn · X · Reddit</text>
   </g>
@@ -57,12 +57,12 @@
 
   <path d="M 556 181 L 572 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 4: AI & CV -->
+  <!-- Step 4: AI &amp; CV -->
   <g transform="translate(576, 126)">
     <rect width="176" height="110" rx="8" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.5" />
     <rect x="12" y="12" width="152" height="18" rx="4" fill="#D6553E" />
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#211B16" x="18" y="24">BƯỚC 4 · PHÂN TÍCH AI</text>
-    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">AI & Hồ sơ CV</text>
+    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">AI &amp; Hồ sơ CV</text>
     <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Gemini · Claude · OpenAI</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Phân loại 10 nhóm · Tóm tắt</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#D6553E" x="12" y="97">Chấm độ phù hợp CV</text>

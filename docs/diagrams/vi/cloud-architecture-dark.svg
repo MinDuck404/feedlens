@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">KIẾN TRÚC TRIỂN KHAI · ĐA NGƯỜI DÙNG</text>
     <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">Kiến trúc đám mây</text>
@@ -67,7 +67,7 @@
       <rect width="268" height="122" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#D6553E" x="12" y="18">DỊCH VỤ CỐT LÕI</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="38">Ứng dụng FastAPI</text>
-      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="56">• Xác thực & Hàng đợi công việc</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="56">• Xác thực &amp; Hàng đợi công việc</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="72">• Quản lý lượt chạy và kết quả</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="88">• Mã hóa Fernet (FEEDLENS_SECRET)</text>
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#6A9BC3" x="12" y="106">Gọi AI bằng key của từng user</text>
@@ -86,7 +86,7 @@
     </g>
   </g>
 
-  <!-- Container 3: Frontend & External AI -->
+  <!-- Container 3: Frontend &amp; External AI -->
   <g transform="translate(714, 116)">
     <!-- Frontend Box -->
     <g>

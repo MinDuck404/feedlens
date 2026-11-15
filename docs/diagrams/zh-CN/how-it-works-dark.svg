@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">本地优先数据流 · 隐私与高可用</text>
     <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">FeedLens 工作原理</text>
@@ -57,7 +57,7 @@
 
   <path d="M 556 181 L 572 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 4: AI & CV -->
+  <!-- Step 4: AI &amp; CV -->
   <g transform="translate(576, 126)">
     <rect width="176" height="110" rx="8" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.5" />
     <rect x="12" y="12" width="152" height="18" rx="4" fill="#D6553E" />

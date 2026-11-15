@@ -11,9 +11,9 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#AE3824">LOCAL-FIRST DATAFLOW · PRIVACY & RESILIENCE</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#AE3824">LOCAL-FIRST DATAFLOW · PRIVACY &amp; RESILIENCE</text>
     <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#16120E" y="28">How FeedLens Works</text>
     <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" fill="#5C534A" y="48">Chrome with your own session scrapes feeds, saves raw posts to SQLite, then analyzes with AI</text>
   </g>
@@ -37,7 +37,7 @@
     <rect x="12" y="12" width="144" height="18" rx="4" fill="#ECE5D8" />
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#5C534A" x="18" y="24">STEP 2 · SCRAPE</text>
     <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#16120E" x="12" y="48">Scraper Engine</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#5C534A" x="12" y="66">Feed & group extraction</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#5C534A" x="12" y="66">Feed &amp; group extraction</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#7D7368" x="12" y="82">Human-like scroll cadence</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5C534A" x="12" y="97">FB · LinkedIn · X · Reddit</text>
   </g>
@@ -57,12 +57,12 @@
 
   <path d="M 556 181 L 572 181" stroke="#5C534A" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 4: AI & CV -->
+  <!-- Step 4: AI &amp; CV -->
   <g transform="translate(576, 126)">
     <rect width="176" height="110" rx="8" fill="rgba(174, 56, 36, 0.08)" stroke="#AE3824" stroke-width="1.5" />
     <rect x="12" y="12" width="152" height="18" rx="4" fill="#AE3824" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#FFFFFF" x="18" y="24">STEP 4 · AI & CV</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#16120E" x="12" y="48">AI Synthesis & Match</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#FFFFFF" x="18" y="24">STEP 4 · AI &amp; CV</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#16120E" x="12" y="48">AI Synthesis &amp; Match</text>
     <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#5C534A" x="12" y="66">Gemini · Claude · OpenAI</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#7D7368" x="12" y="82">Topic digest · 10 categories</text>
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#AE3824" x="12" y="97">CV job match scoring</text>

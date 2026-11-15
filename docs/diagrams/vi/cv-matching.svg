@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#AE3824">CÔNG CỤ CẦU NỐI NGHỀ NGHIỆP · CHẤM ĐIỂM VIỆC LÀM</text>
     <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#16120E" y="28">Quy trình chấm việc theo CV</text>
@@ -41,7 +41,7 @@
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#2E6E4D" x="10" y="18">KHỬ THÔNG TIN CÁ NHÂN</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#16120E" x="10" y="36">Lọc sạch bằng pypdf</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Xóa SĐT, email, địa chỉ</text>
-      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Giữ kỹ năng & kinh nghiệm</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Giữ kỹ năng &amp; kinh nghiệm</text>
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="82">TUYỆT ĐỐI không lưu PDF</text>
     </g>
   </g>
@@ -65,11 +65,11 @@
 
     <path d="M 110 124 L 110 148" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
 
-    <!-- Criteria & Adjacent Roles Node -->
+    <!-- Criteria &amp; Adjacent Roles Node -->
     <g transform="translate(14, 152)">
       <rect width="192" height="102" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
-      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TIÊU CHÍ & NGÀNH GẦN</text>
-      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Vai trò & Tiêu chí</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TIÊU CHÍ &amp; NGÀNH GẦN</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Vai trò &amp; Tiêu chí</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Vai trò chính (tối đa 3)</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Ngành gần chuyển đổi (3–5)</text>
       <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="80">• Hình thức, lương, cấp bậc</text>

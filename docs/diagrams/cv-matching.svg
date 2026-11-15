@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#AE3824">CAREER BRIDGE ENGINE · SEMANTIC MATCHING</text>
     <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#16120E" y="28">CV Matching Pipeline</text>
@@ -41,7 +41,7 @@
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#2E6E4D" x="10" y="18">PYPDF SANITIZATION</text>
       <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#16120E" x="10" y="36">PII Scrubbing</text>
       <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Strips phone, email, home</text>
-      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Retains skills & roles</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Retains skills &amp; roles</text>
       <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="82">PDF is NEVER stored</text>
     </g>
   </g>
@@ -65,11 +65,11 @@
 
     <path d="M 110 124 L 110 148" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
 
-    <!-- Criteria & Adjacent Roles Node -->
+    <!-- Criteria &amp; Adjacent Roles Node -->
     <g transform="translate(14, 152)">
       <rect width="192" height="102" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
-      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TARGETS & BRIDGES</text>
-      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Criteria & Roles</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TARGETS &amp; BRIDGES</text>
+      <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Criteria &amp; Roles</text>
       <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Primary roles (max 3)</text>
       <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Adjacent bridge roles (3–5)</text>
       <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="80">• Work mode, salary, level</text>

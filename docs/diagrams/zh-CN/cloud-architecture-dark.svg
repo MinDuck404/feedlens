@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">多用户云端部署架构</text>
     <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">云端架构</text>
@@ -86,7 +86,7 @@
     </g>
   </g>
 
-  <!-- Container 3: Frontend & External AI -->
+  <!-- Container 3: Frontend &amp; External AI -->
   <g transform="translate(714, 116)">
     <!-- Frontend Box -->
     <g>

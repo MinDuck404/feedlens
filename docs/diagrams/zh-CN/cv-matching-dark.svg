@@ -11,7 +11,7 @@
     </marker>
   </defs>
 
-  <!-- Title & Eyebrow Header -->
+  <!-- Title &amp; Eyebrow Header -->
   <g transform="translate(40, 36)">
     <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">职业转型与跨界路径引擎 · 语义匹配</text>
     <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">简历智能求职匹配流程</text>
@@ -65,7 +65,7 @@
 
     <path d="M 110 124 L 110 148" stroke="#B5ABA0" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
 
-    <!-- Criteria & Adjacent Roles Node -->
+    <!-- Criteria &amp; Adjacent Roles Node -->
     <g transform="translate(14, 152)">
       <rect width="192" height="102" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
       <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#D6553E" x="10" y="18">求职条件与相近岗位</text>
