@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
-from playwright.sync_api import Page
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from .models import RawPost
 
@@ -27,6 +27,8 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
     """Prefer post permalinks, then timestamp anchors, then media fallbacks."""
     best_url, best_rank = "", (3, True)
     for href, timestamp in links:
+        if not href or href.startswith("#"):
+            continue
         try:
             url = urlsplit(urljoin("https://www.facebook.com/", href))
         except ValueError:
@@ -34,10 +36,12 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
         host = (url.hostname or "").lower()
         if url.scheme not in ("http", "https") or not (host == "facebook.com" or host.endswith(".facebook.com") or host == "fb.watch"):
             continue
+        if url.path in ("", "/"):
+            continue
         query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
                  if not k.startswith(("__cft__", "__tn__")) and k != "fbclid"]
-        post = bool(re.search(r"/(?:posts|permalink)/[^/]+", url.path)) or any(k == "story_fbid" and v for k, v in query)
-        media = bool(re.search(r"/(?:photos?|videos?)(?:/|\.php$)|^/watch/?$", url.path)) or host == "fb.watch"
+        post = bool(re.search(r"/(?:posts|permalink)/[^/]+|^/share/(?:[prv]/)?[^/]+", url.path)) or any(k == "story_fbid" and v for k, v in query)
+        media = bool(re.search(r"/(?:photos?|videos?|reels?)(?:/|\.php$)|^/watch/?$", url.path)) or host == "fb.watch"
         rank = (0 if post else 1 if timestamp else 2 if media else 3, not timestamp)
         if rank < best_rank:
             best_url = urlunsplit((url.scheme, url.netloc, url.path, urlencode(query), url.fragment))
@@ -46,11 +50,18 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
 
 # --- JS extractors: trả về [{author, text, url, posted_at}] ---------------------------
 
+FB_NODE_SELECTOR = 'div[role="feed"] > div, [role="article"], [aria-posinset]'
+FB_LINK_SELECTOR = 'a, [role="link"]'
+
 FB_JS = r"""
 () => {
   const out = [];
-  const nodes = document.querySelectorAll('div[role="feed"] > div, div[role="article"][aria-posinset], div[aria-posinset]');
-  for (const n of nodes) {
+  const nodes = document.querySelectorAll('__NODES__');
+  for (const [nodeIndex, n] of [...nodes].entries()) {
+    // Feed wrappers and nested shared articles must not produce duplicate posts.
+    const article = '[role="article"], [aria-posinset]';
+    if (!n.matches(article) && n.querySelector(article)) continue;
+    if (n.parentElement?.closest(article)) continue;
     const msg = n.querySelector('[data-ad-preview="message"], [data-ad-comet-preview="message"]');
     let text = msg ? msg.innerText : '';
     if (!text) {
@@ -59,13 +70,64 @@ FB_JS = r"""
     }
     if (!text || text.length < 15) continue;
     const authorEl = n.querySelector('h2 a, h3 a, h4 a, strong a, h2, h3, h4');
-    const links = [...n.querySelectorAll('a[href]')].map(a => [a.href,
-      !!a.querySelector('time, abbr, [data-utime]') || a.hasAttribute('data-utime') || /timestamp/i.test(a.getAttribute('data-testid') || '')]);
-    out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links, posted_at: '' });
+    const anchors = [...n.querySelectorAll('__LINKS__')];
+    const timestamp = a => {
+      if (a.closest('h2, h3, h4, strong')) return false;
+      if (a.querySelector('time, abbr, [data-utime]') || a.hasAttribute('data-utime') ||
+          /timestamp/i.test(a.getAttribute('data-testid') || '')) return true;
+      const label = (a.innerText || a.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+      return /^(?:\d+\s*(?:s|m|h|d|w|y|sec|min|hr|hrs|hours?|days?|weeks?|minutes?|秒|分钟|小时|天|周|年|giây|phút|giờ|ngày|tuần|năm)(?:\s*(?:ago|前))?|just now|yesterday|vừa xong|hôm qua|刚刚|昨天)$/i.test(label) ||
+        /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|tháng)\b|\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}|\d+月\d+日/i.test(a.getAttribute('aria-label') || '');
+    };
+    const links = anchors.flatMap(a => [...new Set(['href', 'data-href', 'data-url', 'ajaxify']
+      .map(key => a.getAttribute(key)).filter(Boolean))].map(href => [href, timestamp(a)]));
+    const hover = anchors.flatMap((a, i) => timestamp(a) ? [i] : []).slice(0, 3);
+    out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
+      _node_index: nodeIndex, _hover: hover, posted_at: '' });
   }
   return out;
 }
-"""
+""".replace("__NODES__", FB_NODE_SELECTOR).replace("__LINKS__", FB_LINK_SELECTOR)
+
+
+def _facebook_items(page: Page) -> list[dict]:
+    items = page.evaluate(FB_JS)
+    # Bound extra work on long feeds; never click or open the post.
+    hover_budget = 6
+    deadline = time.monotonic() + 4
+    for item in items:
+        node_index = item.pop("_node_index", None)
+        hover = item.pop("_hover", [])
+        item["url"] = select_facebook_link(item.pop("links", []))
+        if node_index is None or not hover:
+            continue
+        node = page.locator(FB_NODE_SELECTOR).nth(node_index)
+        for index in hover:
+            anchor = node.locator(FB_LINK_SELECTOR).nth(index)
+            if not hover_budget or time.monotonic() >= deadline:
+                break
+            try:
+                href = anchor.get_attribute("href", timeout=700) or ""
+                # The outer post's known timestamp takes precedence over shared posts.
+                if re.search(r"/(?:posts|permalink)/|story_fbid=|^https?://[^/]+/share/|^/share/", href):
+                    break
+                hover_budget -= 1
+                anchor.hover(timeout=700)
+                page.wait_for_timeout(150)
+                links = node.evaluate(
+                    "(n, args) => n.innerText.includes(args.text) ? "
+                    "[...n.querySelectorAll('a, [role=link]')].flatMap((a, i) => "
+                    "['href', 'data-href', 'data-url', 'ajaxify'].map(k => a.getAttribute(k))"
+                    ".filter(Boolean).map(h => [h, i === args.index])) : []",
+                    {"index": index, "text": item["text"]})
+                # The feed can recycle this DOM node while hovering.
+                if any(timestamp and select_facebook_link([(href, True)]) for href, timestamp in links):
+                    item["url"] = select_facebook_link([(item["url"], False), *links])
+                    break
+            except PlaywrightTimeoutError:
+                continue  # Virtualized/hidden timestamp: retain the best static link.
+    return items
+
 
 FB_EXPAND_JS = r"""
 () => {
@@ -130,6 +192,7 @@ class Scraper:
         self.ensure_access(page, url, progress, interactive)
         _human_pause(*pace["settle"])
         posts: list[RawPost] = []
+        collected: dict[str, RawPost] = {}
         stale_rounds = 0
         while len(posts) < target and stale_rounds < pace["stale"]:
             if self.ensure_access(page, url, progress, interactive):
@@ -138,15 +201,16 @@ class Scraper:
                 page.evaluate(self.expand_js)
                 _human_pause(*pace["expand"])
             before = len(posts)
-            for item in page.evaluate(self.extract_js):
-                links = item.pop("links", None)
-                if self.platform == "facebook" and links is not None:
-                    item["url"] = select_facebook_link(links)
+            for item in (_facebook_items(page) if self.platform == "facebook" else page.evaluate(self.extract_js)):
                 p = RawPost(platform=self.platform, source=label, **item)
                 fp = p.fingerprint
                 if fp in seen:
+                    # A virtualized timestamp can gain its href on a later scroll.
+                    if fp in collected and not collected[fp].url and p.url:
+                        collected[fp].url = p.url
                     continue
                 seen.add(fp)
+                collected[fp] = p
                 posts.append(p)
                 if len(posts) >= target:
                     break
