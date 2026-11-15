@@ -421,3 +421,33 @@ test("snippet and citation tokens keep markup inert and link only returned post 
   assert.equal(history.length, 20); assert.equal(history[0], "Question 5"); assert.equal(history.filter((value) => value === "Question 5").length, 1);
   assert.deepEqual(questionHistory({ unexpected: true }), []);
 });
+
+
+test("run category and topic filters round-trip through post URLs", () => {
+  const { runPostFiltersFromHash, runPostsHref } = require("../src/components/RunView.tsx");
+  for (const category of ["job", "news", "tech", "marketplace", "question", "event", "promotion", "personal", "entertainment", "other", null]) {
+    for (const topicId of [null, 12]) {
+      const filters = { category, topicId };
+      const href = runPostsHref(42, filters);
+      assert.deepEqual(runPostFiltersFromHash(href), filters);
+      assert.ok(href.startsWith("#/runs/42/posts"));
+    }
+  }
+  assert.equal(runPostsHref(42, { category: "news", topicId: 12 }), "#/runs/42/posts?category=news&topic=12");
+  assert.equal(runPostsHref(42, { category: null, topicId: null }), "#/runs/42/posts");
+  assert.deepEqual(runPostFiltersFromHash("#/runs/42/posts?topic=12&category=promotion"), { category: "promotion", topicId: 12 });
+});
+
+test("run post filters ignore invalid categories, topics and non-post routes", () => {
+  const { runPostFiltersFromHash, runPostsHref } = require("../src/components/RunView.tsx");
+  for (const category of ["unknown", "__proto__", "constructor", "toString", "NEWS", "<script>"]) {
+    assert.deepEqual(runPostFiltersFromHash(`#/runs/42/posts?category=${encodeURIComponent(category)}&topic=3`), { category: null, topicId: 3 });
+    assert.equal(runPostsHref(42, { category, topicId: 3 }), "#/runs/42/posts?topic=3");
+  }
+  for (const topic of ["-1", "NaN", "1.5", "0", "9007199254740992"]) {
+    assert.deepEqual(runPostFiltersFromHash(`#/runs/42/posts?category=job&topic=${topic}`), { category: "job", topicId: null });
+  }
+  for (const hash of ["#/runs/42/digest?category=news&topic=2", "#/ask?category=job", "#/runs/42?category=news"]) {
+    assert.deepEqual(runPostFiltersFromHash(hash), { category: null, topicId: null });
+  }
+});

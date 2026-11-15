@@ -34,7 +34,6 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
   const [loadError, setLoadError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  const [filter, setFilter] = useState<string | null>(null);
   const setTab = onTab;
   const { t, locale, cat } = useI18n();
 
@@ -132,7 +131,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
       ) : run.status !== "done" || !run.digest ? (
         <InProgress run={run} />
       ) : (
-        <Done run={run} meta={meta} tab={tab} setTab={setTab} filter={filter} setFilter={setFilter} />
+        <Done run={run} meta={meta} tab={tab} setTab={setTab} />
       )}
     </div>
   );
@@ -185,23 +184,42 @@ function InProgress({ run }: { run: Run }) {
   );
 }
 
-function runTopicFromHash(hash: string): number | null {
+type RunPostFilters = { category: string | null; topicId: number | null };
+
+export function runPostFiltersFromHash(hash: string): RunPostFilters {
   const [path, query = ""] = hash.split("?");
-  if (!/^#\/runs\/\d+\/posts$/.test(path)) return null;
-  const value = Number(new URLSearchParams(query).get("topic"));
-  return Number.isSafeInteger(value) && value > 0 ? value : null;
+  if (!/^#\/runs\/\d+\/posts$/.test(path)) return { category: null, topicId: null };
+  const params = new URLSearchParams(query);
+  const category = params.get("category");
+  const value = Number(params.get("topic"));
+  return {
+    category: category && Object.prototype.hasOwnProperty.call(CATEGORY_INK, category) ? category : null,
+    topicId: Number.isSafeInteger(value) && value > 0 ? value : null,
+  };
 }
 
-function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
-  run: Run; meta: Meta; tab: Tab; setTab: (t: Tab) => void; filter: string | null; setFilter: (c: string | null) => void;
+export function runPostsHref(runId: number, filters: RunPostFilters): string {
+  const params = new URLSearchParams();
+  if (filters.category && Object.prototype.hasOwnProperty.call(CATEGORY_INK, filters.category)) params.set("category", filters.category);
+  if (filters.topicId !== null && Number.isSafeInteger(filters.topicId) && filters.topicId > 0) params.set("topic", String(filters.topicId));
+  return routeHref({ page: "run", id: runId, tab: "posts" }) + (params.size ? `?${params}` : "");
+}
+
+function Done({ run, meta, tab: requested, setTab }: {
+  run: Run; meta: Meta; tab: Tab; setTab: (t: Tab) => void;
 }) {
   const posts = run.posts ?? [];
   const d = run.digest!;
-  const [topicId, setTopicId] = useState<number | null>(() => runTopicFromHash(window.location?.hash ?? ""));
+  const [filters, setFilters] = useState(() => runPostFiltersFromHash(window.location?.hash ?? ""));
+  const { category: filter, topicId } = filters;
   const panel = useRef<HTMLDivElement>(null);
-  const jumpToPosts = useRef(topicId !== null);
+  const jumpToPosts = useRef(filter !== null || topicId !== null);
   useEffect(() => {
-    const sync = () => setTopicId(runTopicFromHash(window.location.hash));
+    const sync = () => {
+      jumpToPosts.current = true;
+      setFilters(runPostFiltersFromHash(window.location.hash));
+    };
+    sync();
     window.addEventListener("hashchange", sync); return () => window.removeEventListener("hashchange", sync);
   }, [run.id]);
   useEffect(() => {
@@ -209,14 +227,15 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
     jumpToPosts.current = false;
     panel.current?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     panel.current?.focus({ preventScroll: true });
-  }, [requested, topicId]);
-  const selectTopic = (id: number | null, clearCategory = false) => {
-    if (clearCategory) setFilter(null);
-    jumpToPosts.current = true; setTopicId(id);
-    const href = routeHref({ page: "run", id: run.id, tab: "posts" }) + (id === null ? "" : `?topic=${id}`);
+  }, [requested, filters]);
+  const selectPosts = (next: RunPostFilters) => {
+    jumpToPosts.current = true; setFilters(next);
+    const href = runPostsHref(run.id, next);
     if (window.location.hash !== href) window.location.hash = href;
     else { panel.current?.scrollIntoView({ block: "start" }); panel.current?.focus({ preventScroll: true }); }
   };
+  const selectTopic = (id: number | null) => selectPosts({ ...filters, topicId: id });
+  const selectCategory = (category: string | null) => selectPosts({ ...filters, category });
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicError, setTopicError] = useState("");
   useEffect(() => {
@@ -249,7 +268,7 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
     });
   }, [run.id]);
 
-  const pick = (c: string) => { setFilter(filter === c ? null : c); setTab("posts"); };
+  const pick = selectCategory;
 
   return (
     <>
@@ -267,7 +286,7 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
         <ul className="mt-2 flex max-w-full gap-1 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:pr-0 sm:[mask-image:none]">
           {counts.map(([c, n]) => (
             <li key={c} className="shrink-0">
-              <button onClick={() => pick(c)} aria-pressed={filter === c} className="interactive-tap flex min-h-10 items-center gap-1.5 px-2 py-1 text-xs hover:bg-sunken aria-pressed:bg-sunken aria-pressed:font-semibold">
+              <button onClick={() => pick(c)} aria-pressed={filter === c} aria-label={t("run.viewCategory", { name: name(c), n })} className="interactive-tap flex min-h-10 items-center gap-1.5 rounded-sm px-2 py-1 text-xs hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2 aria-pressed:bg-sunken aria-pressed:font-semibold">
                 <span className="size-2.5 rounded-full" style={{ background: categoryTone(c) }} />
                 {name(c)} <span className="font-mono text-xs text-ink-soft">{formatNumber(n, lang)}</span>
               </button>
@@ -277,7 +296,7 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
       </section>
 
       {topics.length > 0 && <section aria-label={t("topics.yours")} className="mt-3 min-w-0"><h2 className="text-xs text-ink-soft">{t("topics.yours")}</h2><div className="mt-1 flex gap-2 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:flex-wrap sm:pr-0 sm:[mask-image:none]">
-        {topics.map((topic) => <button key={topic.id} type="button" onClick={() => selectTopic(topic.id, true)} aria-label={t("run.catCount", { name: topic.name, n: filterTopicPosts(posts, topic.id).length })} aria-pressed={topicId === topic.id && tab === "posts"} className="flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-line px-3 text-xs hover:bg-sunken aria-pressed:bg-sunken aria-pressed:font-semibold"><span className="size-2 rounded-full" style={{ background: topicColor(topic.color) }} />{topic.name}<span className="font-mono text-ink-soft">{formatNumber(filterTopicPosts(posts, topic.id).length, lang)}</span></button>)}
+        {topics.map((topic) => <button key={topic.id} type="button" onClick={() => selectTopic(topic.id)} aria-label={t("run.catCount", { name: topic.name, n: filterTopicPosts(posts, topic.id).length })} aria-pressed={topicId === topic.id && tab === "posts"} className="flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-line px-3 text-xs hover:bg-sunken aria-pressed:bg-sunken aria-pressed:font-semibold"><span className="size-2 rounded-full" style={{ background: topicColor(topic.color) }} />{topic.name}<span className="font-mono text-ink-soft">{formatNumber(filterTopicPosts(posts, topic.id).length, lang)}</span></button>)}
       </div></section>}
 
       <nav data-run-tabs className="mt-3 flex gap-1 border-b border-line" role="tablist" aria-label={t("run.composition")}>
@@ -300,15 +319,15 @@ function Done({ run, meta, tab: requested, setTab, filter, setFilter }: {
 
       <div ref={panel} key={tab} role="tabpanel" id={`run-${run.id}-panel`} aria-labelledby={`run-${run.id}-tab-${tab}`} tabIndex={0} className="page-enter min-w-0 scroll-mt-20 py-7">
         {topicError && <p role="alert" className="mb-4 text-sm text-danger">{topicError}</p>}
-        {tab === "digest" && <DigestView d={d} name={name} posts={posts} topics={topics} onTopic={(id) => selectTopic(id, true)} />}
+        {tab === "digest" && <DigestView d={d} name={name} posts={posts} topics={topics} onTopic={selectTopic} onCategory={selectCategory} />}
         {tab === "jobs" && <JobsBoard jobs={jobs} runId={run.id} />}
-        {tab === "posts" && <PostList posts={posts} filter={filter} setFilter={setFilter} name={name} topics={topics} topicId={topicId} onTopicChange={selectTopic} />}
+        {tab === "posts" && <PostList posts={posts} filter={filter} setFilter={selectCategory} name={name} topics={topics} topicId={topicId} onTopicChange={selectTopic} />}
       </div>
     </>
   );
 }
 
-function DigestView({ d, name, posts, topics, onTopic }: { d: NonNullable<Run["digest"]>; name: (c: string) => string; posts: Post[]; topics: Topic[]; onTopic: (id: number) => void }) {
+function DigestView({ d, name, posts, topics, onTopic, onCategory }: { d: NonNullable<Run["digest"]>; name: (c: string) => string; posts: Post[]; topics: Topic[]; onTopic: (id: number) => void; onCategory: (category: string) => void }) {
   const { t, locale } = useI18n();
   const byId = new Map(posts.map((post) => [post.id, post]));
   return (
@@ -336,7 +355,9 @@ function DigestView({ d, name, posts, topics, onTopic }: { d: NonNullable<Run["d
             <section key={c.category} className="border-t border-line pt-5">
               <h3 className="flex flex-wrap items-baseline gap-2 font-headline text-2xl font-semibold">
                 <span className="size-2.5 rounded-full" style={{ background: categoryTone(c.category) }} />
-                {name(c.category)} <span className="font-sans text-xs font-normal text-ink-soft">{t("run.nPosts", { n: c.count })}</span>
+                <button type="button" onClick={() => onCategory(c.category)} aria-label={t("run.viewCategory", { name: name(c.category), n: c.count })} className="group flex min-h-11 flex-wrap items-baseline gap-x-3 gap-y-1 rounded-sm text-left transition-colors hover:text-link focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-4">
+                  <span>{name(c.category)}</span><span className="font-sans text-xs font-normal text-ink-soft group-hover:text-link">{t("run.viewCategoryCount", { n: c.count })}</span>
+                </button>
               </h3>
               <p className="prose-reading mt-3 [overflow-wrap:anywhere]">{c.summary}</p>
               {c.highlights.length > 0 && (
