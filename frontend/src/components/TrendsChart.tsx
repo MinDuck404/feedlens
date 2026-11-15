@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useState, type PointerEvent } from "react";
 import type { TrendsResponse } from "../types";
 import { useI18n, formatNumber } from "../i18n";
 import { routeHref, navigate } from "../router";
@@ -9,6 +9,12 @@ interface Props {
   data: TrendsResponse;
   viewMode: "overview" | "grid";
   className?: string;
+}
+
+function snapTrendIndex(x: number, count: number, plotWidth = 730): number | null {
+  if (count <= 0) return null;
+  if (count === 1) return 0;
+  return Math.max(0, Math.min(count - 1, Math.round(Math.max(0, Math.min(plotWidth, x)) / plotWidth * (count - 1))));
 }
 
 export function TrendsChart({ data, viewMode, className = "" }: Props) {
@@ -23,7 +29,11 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
   const date = (value: string) => new Date(`${value}T00:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" });
   const growth = (value: number | null) => value === null ? t("trends.newPeriod") : `${value > 0 ? "+" : ""}${formatNumber(value, lang)}%`;
   const explore = (id: string, date?: string) => routeHref({ page: "ask", filters: trendSearchFilters(data, id, date) });
-  const current = index !== null && index < timeline.length ? index : null;
+  const current = timeline.length ? Math.max(0, Math.min(timeline.length - 1, index ?? timeline.length - 1)) : null;
+  const pointerIndex = (event: PointerEvent<SVGRectElement>) => {
+    const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
+    return snapTrendIndex((event.clientX - rect.left) / rect.width * 800 - 46, timeline.length, width);
+  };
   if (viewMode === "grid") return <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${className}`}>
     {series.map((item) => {
       const points = trendPoints(item.counts, 180, 50, max);
@@ -43,10 +53,8 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
   const ticks = [...new Set([0, ...timeline.map((_, i) => i).filter((i) => i % step === 0), timeline.length - 1])].filter((i) => i >= 0);
   return <div className={`space-y-4 ${className}`}>
     <div className="paper-card min-w-0 overflow-hidden p-3 sm:p-5">
-      <p id={`${clipId}-hint`} className="mb-3 text-xs text-ink-soft">{t("trends.chartHint")}</p>
+      <p id={`${clipId}-hint`} className="mb-3 text-xs text-ink-soft">{t("trends.stableHint")}</p>
       <svg viewBox="0 0 800 340" className="h-auto w-full overflow-hidden" tabIndex={0} role="img" aria-label={t("trends.title")} aria-describedby={`${clipId}-hint`}
-        onPointerMove={(event) => { if (event.pointerType === "mouse") { const rect = event.currentTarget.getBoundingClientRect(); setIndex(Math.max(0, Math.min(timeline.length - 1, Math.round(((event.clientX - rect.left) / rect.width * 800 - 46) / width * (timeline.length - 1))))); } }}
-        onPointerDown={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setIndex(Math.max(0, Math.min(timeline.length - 1, Math.round(((event.clientX - rect.left) / rect.width * 800 - 46) / width * (timeline.length - 1))))); }}
         onPointerLeave={(event) => { if (event.pointerType === "mouse") setIndex(null); }} onKeyDown={(event) => {
           if (event.key === "Enter" && focal) { event.preventDefault(); navigate({ page: "ask", filters: trendSearchFilters(data, focal, current !== null ? timeline[current] : undefined) }); }
           if (["ArrowLeft", "ArrowRight", "Home", "End", "Escape"].includes(event.key)) { event.preventDefault(); setIndex((value) => event.key === "Escape" ? null : event.key === "Home" ? 0 : event.key === "End" ? timeline.length - 1 : Math.max(0, Math.min(timeline.length - 1, (value ?? 0) + (event.key === "ArrowRight" ? 1 : -1)))); }
@@ -59,7 +67,7 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
             const points = trendPoints(item.counts.slice(0, timeline.length), width, height, max);
             const line = trendPath(points);
             const color = trendColor(item.color), focus = focal === item.id;
-            return <g key={item.id} transform="translate(46 24)" opacity={focus ? 1 : hovered ? 0.25 : 0.65}>
+            return <g key={item.id} data-series-id={item.id} transform="translate(46 24)" opacity={focus ? 1 : hovered ? 0.25 : 0.65}>
               {focus && points.length > 0 && <path d={`${line} L ${points.at(-1)!.x} ${height} L ${points[0].x} ${height} Z`} fill={color} fillOpacity="0.14" />}
               <path d={line} stroke={color} strokeWidth={focus ? 2.4 : 1.3} fill="none" strokeLinejoin="round" />
               {focus && points.map((point, i) => <a key={i} href={explore(item.id, timeline[i])} tabIndex={-1} aria-label={`${t("trends.exploreDate")}: ${item.name}`}><circle cx={point.x} cy={point.y} r={i === current ? 4 : 2.5} fill={color} stroke="var(--paper)" /></a>)}
@@ -67,8 +75,19 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
           })}
           {current !== null && <line x1={46 + (timeline.length <= 1 ? width / 2 : current / (timeline.length - 1) * width)} x2={46 + (timeline.length <= 1 ? width / 2 : current / (timeline.length - 1) * width)} y1="24" y2="304" stroke="var(--ink)" strokeDasharray="3,3" />}
         </g>
+        <rect data-trend-hover x="46" y="24" width={width} height={height} fill="transparent" pointerEvents="all"
+          onPointerMove={(event) => setIndex(pointerIndex(event))} onPointerDown={(event) => setIndex(pointerIndex(event))}
+          onClick={(event) => { const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect(); const selected = snapTrendIndex((event.clientX - rect.left) / rect.width * 800 - 46, timeline.length, width); if (focal && selected !== null) navigate({ page: "ask", filters: trendSearchFilters(data, focal, timeline[selected]) }); }} />
       </svg>
-      {current !== null && <div role="status" aria-live="polite" className="mt-3 border-t border-line pt-3 text-sm"><p className="font-medium">{date(timeline[current])}</p><ul className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">{series.map((item) => <li key={item.id} className="flex min-w-0 items-baseline justify-between gap-3"><span className="min-w-0 [overflow-wrap:anywhere]">{item.name}</span><span className="shrink-0 font-mono">{formatNumber(item.counts[current] ?? 0, lang)}</span></li>)}</ul>{focal && <a href={explore(focal, timeline[current])} className="mt-2 inline-flex min-h-11 items-center text-link underline">{t("trends.exploreDate")}</a>}</div>}
+      <div data-trend-details role="status" aria-live="polite" className="mt-3 h-64 overflow-y-auto border-t border-line pt-3 text-sm">
+        <p className="font-medium">{current !== null ? `${index === null ? `${t("trends.latestDate")} · ` : ""}${date(timeline[current])}` : t("trends.periodTotals")}</p>
+        <ul className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">{series.map((item) => <li key={item.id}>
+          <a href={explore(item.id, current === null ? undefined : timeline[current])} onPointerEnter={() => setHovered(item.id)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(item.id)} onBlur={() => setHovered(null)} className="flex min-h-10 min-w-0 items-center gap-2 rounded-lg px-1 hover:bg-sunken focus-visible:bg-sunken">
+            <span className="size-2.5 shrink-0 rounded-full" style={{ background: trendColor(item.color) }} /><span className="min-w-0 flex-1 truncate" title={item.name}>{item.name}</span><span className="shrink-0 font-mono">{formatNumber(current === null ? item.total : item.counts[current] ?? 0, lang)}</span>
+          </a>
+        </li>)}</ul>
+        {focal && <a href={explore(focal, current === null ? undefined : timeline[current])} className="mt-2 inline-flex min-h-11 items-center text-link underline">{t("trends.exploreDate")}</a>}
+      </div>
     </div>
     <div role="group" aria-label={t("trends.focalSeries")} className="flex max-w-full gap-2 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:flex-wrap sm:pr-0 sm:[mask-image:none]">
       {series.map((item) => <a key={item.id} href={explore(item.id)} onPointerEnter={() => setHovered(item.id)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(item.id)} onBlur={() => setHovered(null)} className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line px-3 text-sm hover:bg-sunken"><span className="size-2.5 rounded-full" style={{ background: trendColor(item.color) }} /><span>{item.name}</span><span className="font-mono text-xs text-ink-soft">{formatNumber(item.total, lang)}</span></a>)}

@@ -160,7 +160,9 @@ export interface CVAnalysis {
   offline: boolean;
 }
 
-export type TopicColor = "red" | "navy" | "amber" | "teal" | "purple" | "rose" | "slate" | "brown";
+export type TopicColor =
+  | "red" | "navy" | "amber" | "teal" | "purple" | "rose" | "slate" | "brown"
+  | "emerald" | "indigo" | "coral" | "olive" | "cyan" | "wine" | "ochre" | "rust";
 export interface Topic {
   id: number;
   name: string;

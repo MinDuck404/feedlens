@@ -8,6 +8,14 @@ import { Button, EmptyState, SkeletonCard } from "./ui";
 const blank = (): Omit<Topic, "id"> & { id?: number } => ({ name: "", description: "", include_keywords: [], exclude_keywords: [], enabled: true, color: "red" });
 const keywords = (text: string) => [...new Set(text.split(/[,，\n]/).map((k) => k.trim()).filter(Boolean))].slice(0, 20);
 
+function pickUnusedColor(existingTopics: Topic[]): TopicColor {
+  const allColors = Object.keys(TOPIC_INKS) as TopicColor[];
+  const used = new Set(existingTopics.map((t) => t.color));
+  const unused = allColors.find((c) => !used.has(c));
+  if (unused) return unused;
+  return allColors[existingTopics.length % allColors.length];
+}
+
 export default function TopicSettings() {
   const { t } = useI18n();
   const id = useId();
@@ -45,7 +53,13 @@ export default function TopicSettings() {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [job]);
   useEffect(() => { if (job?.state === "done") window.dispatchEvent(new Event("feedlens:topicsChanged")); }, [job?.state]);
-  const edit = (topic = blank()) => { setDraft({ ...topic }); setInclude(topic.include_keywords.join(", ")); setExclude(topic.exclude_keywords.join(", ")); setError(""); };
+  const edit = (topic?: Topic | (Omit<Topic, "id"> & { id?: number })) => {
+    const item = topic ?? { ...blank(), color: pickUnusedColor(topics) };
+    setDraft({ ...item });
+    setInclude(item.include_keywords.join(", "));
+    setExclude(item.exclude_keywords.join(", "));
+    setError("");
+  };
   const mutate = async (action: () => Promise<unknown>) => {
     setBusy(true); setError("");
     try { await action(); await reload(); setMatches(null); window.dispatchEvent(new Event("feedlens:topicsChanged")); return true; }
@@ -80,7 +94,10 @@ export default function TopicSettings() {
       <label className="block text-sm">{t("topics.description")}<textarea maxLength={400} rows={3} className="field mt-2 resize-y" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} /></label>
       <label className="block text-sm">{t("topics.include")}<input className="field mt-2" value={include} onChange={(e) => setInclude(e.target.value)} /></label>
       <label className="block text-sm">{t("topics.exclude")}<input className="field mt-2" value={exclude} onChange={(e) => setExclude(e.target.value)} /></label>
-      <fieldset><legend className="text-sm">{t("topics.color")}</legend><div className="mt-2 flex flex-wrap gap-1">{(Object.keys(TOPIC_INKS) as TopicColor[]).map((color) => <label key={color} className="relative grid size-11 cursor-pointer place-items-center"><input type="radio" name={`${id}-color`} value={color} checked={draft.color === color} onChange={() => setDraft({ ...draft, color })} className="peer sr-only" /><span className="size-7 rounded-full border-2 border-transparent ring-offset-2 ring-offset-sheet peer-checked:ring-2 peer-checked:ring-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent" style={{ background: topicColor(color) }} /><span className="sr-only">{t(`topics.color.${color}` as Key)}</span></label>)}</div></fieldset>
+      <fieldset><legend className="text-sm">{t("topics.color")}</legend><div className="mt-2 flex flex-wrap gap-1">{(Object.keys(TOPIC_INKS) as TopicColor[]).map((color) => {
+        const usedBy = topics.find((t) => t.id !== draft.id && t.color === color);
+        return <label key={color} title={usedBy ? usedBy.name : undefined} className="relative grid size-11 cursor-pointer place-items-center"><input type="radio" name={`${id}-color`} value={color} checked={draft.color === color} onChange={() => setDraft({ ...draft, color })} className="peer sr-only" /><span className={`relative grid size-7 place-items-center rounded-full border-2 border-transparent ring-offset-2 ring-offset-sheet peer-checked:ring-2 peer-checked:ring-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent ${usedBy ? "opacity-60 hover:opacity-100" : ""}`} style={{ background: topicColor(color) }}>{usedBy && <span aria-hidden="true" className="size-1.5 rounded-full bg-paper shadow-xs" />}</span><span className="sr-only">{t(`topics.color.${color}` as Key)}</span></label>;
+      })}</div></fieldset>
       <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" className="size-5 accent-accent" checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} />{t("topics.enabled")}</label>
       <div className="flex justify-end gap-2"><Button variant="ghost" disabled={busy} onClick={() => setDraft(null)}>{t("act.cancel")}</Button><Button type="submit" busy={busy} disabled={!draft.name.trim()}>{t("topics.save")}</Button></div>
     </form>}

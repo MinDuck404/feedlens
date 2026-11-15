@@ -320,3 +320,47 @@ def test_symbol_search_is_literal_instead_of_match_all(cloud):
     result = client.get("/api/search", params={"q": "%"}, headers=headers).json()
     assert result["total"] == 1 and result["posts"][0]["text"] == "100% remote"
     assert client.get("/api/search?has_github=true", headers=headers).json()["total"] == 0
+
+
+def test_prefix_and_multiword_and_special_character_search(cloud):
+    client = cloud()
+    headers = _signup(client, "prefix-search@example.test")
+    db = api.db()
+    user = db.get_user_by_email("prefix-search@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [
+        AnalyzedPost(platform="facebook", source="feed", text="We are looking for developer skills in Python and React", summary="Python dev with great skills"),
+        AnalyzedPost(platform="facebook", source="feed", text="Công ty tuyển dụng kỹ sư phần mềm remote lương cao", summary="Tuyển dụng kỹ sư"),
+        AnalyzedPost(platform="facebook", source="feed", text="Tin tức công nghệ mới trong tuần", summary="Tin tức"),
+    ])
+
+    # 1. "skill" matches post containing "skills" (FTS)
+    res_skill = client.get("/api/search", params={"q": "skill"}, headers=headers).json()
+    assert res_skill["total"] == 1
+    assert "skills" in res_skill["posts"][0]["text"].lower()
+
+    # 1b. "skill" with LIKE fallback (_use_fts=False)
+    posts_like, tot_like = db.search_posts(user.id, q="skill", _use_fts=False)
+    assert tot_like == 1
+    assert "skills" in posts_like[0]["text"].lower()
+
+    # 2. "tuyển" matches post containing "tuyển dụng"
+    res_tuyen = client.get("/api/search", params={"q": "tuyển"}, headers=headers).json()
+    assert res_tuyen["total"] == 1
+    assert "tuyển dụng" in res_tuyen["posts"][0]["text"].lower()
+
+    # 3. Two words query: "python skill" AND matches post 1, not post 2 or 3
+    res_two_words = client.get("/api/search", params={"q": "python skill"}, headers=headers).json()
+    assert res_two_words["total"] == 1
+    assert res_two_words["posts"][0]["id"] == 1
+
+    # Two words that don't co-exist: "tuyển python" -> 0 matches
+    res_no_cooccur = client.get("/api/search", params={"q": "tuyển python"}, headers=headers).json()
+    assert res_no_cooccur["total"] == 0
+
+    # 4. Query containing special characters: " * ( ) does not cause syntax error
+    res_special = client.get("/api/search", params={"q": 'skill" * ( )'}, headers=headers).json()
+    assert res_special["total"] == 1
+
+    res_only_special = client.get("/api/search", params={"q": '" * ( )'}, headers=headers).json()
+    assert res_only_special["total"] == 0

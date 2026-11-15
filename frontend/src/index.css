@@ -185,7 +185,7 @@
 
 :root.theme-changing {
   transition-property: var(--theme-transition-properties);
-  transition-duration: 240ms;
+  transition-duration: 380ms;
   transition-timing-function: var(--ease-micro);
 }
 

@@ -340,7 +340,7 @@ test("topic filters combine safely with category filters and support multiple ta
   assert.deepEqual(filterTopicPosts(posts, 7).map((p) => p.id), [1, 2]);
   assert.deepEqual(filterTopicPosts(posts.filter((p) => p.category === "tech"), 7).map((p) => p.id), [1]);
   assert.deepEqual(filterTopicPosts(posts, 99), []);
-  assert.equal(Object.keys(TOPIC_INKS).length, 8);
+  assert.equal(Object.keys(TOPIC_INKS).length, 16);
   assert.equal(topicColor("unknown"), topicColor("red"));
 });
 

@@ -61,7 +61,10 @@ class AnalyzedPost(RawPost):
     topic_reason: str = ""
 
 
-TOPIC_COLORS = ("red", "navy", "amber", "teal", "purple", "rose", "slate", "brown")
+TOPIC_COLORS = (
+    "red", "navy", "amber", "teal", "purple", "rose", "slate", "brown",
+    "emerald", "indigo", "coral", "olive", "cyan", "wine", "ochre", "rust",
+)
 MAX_TOPICS = 12
 
 

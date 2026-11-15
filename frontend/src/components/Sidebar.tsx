@@ -354,35 +354,39 @@ function SidebarBody({
       </section>
 
       {/* Bottom Bar: Account & Settings */}
-      <div className="flex items-center gap-2 border-t border-line px-4 py-2 text-sm bg-bg/60">
-        <span
-          className="min-w-0 flex-1 truncate text-xs font-medium text-ink-soft"
-          title={email ?? t("sb.thisMachine")}
-        >
-          {email ?? t("sb.thisMachine")}
-        </span>
-
-        <LanguageMenu />
-
-        {/* Settings Button */}
-        <IconButton
-          icon={<SettingsIcon className="size-4" />}
-          label={t("act.settings")}
-          variant="ghost"
-          size="sm"
-          className="outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-          onClick={onOpenSettings}
-        />
-
-        {/* Logout Button */}
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            className="rounded-lg px-2 py-1 text-xs font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-danger outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-2 text-sm bg-bg/60">
+        {email ? (
+          <span
+            className="min-w-0 flex-1 truncate text-xs font-medium text-ink-soft"
+            title={email}
           >
-            {t("act.logout")}
-          </button>
-        )}
+            {email}
+          </span>
+        ) : null}
+
+        <div className="flex items-center gap-1 ml-auto">
+          <LanguageMenu />
+
+          {/* Settings Button */}
+          <IconButton
+            icon={<SettingsIcon className="size-4" />}
+            label={t("act.settings")}
+            variant="ghost"
+            size="sm"
+            className="outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            onClick={onOpenSettings}
+          />
+
+          {/* Logout Button */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="rounded-lg px-2 py-1 text-xs font-medium text-ink-soft transition-colors hover:bg-sunken hover:text-danger outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {t("act.logout")}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

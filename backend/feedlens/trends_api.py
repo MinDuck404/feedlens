@@ -20,6 +20,14 @@ TOPIC_PALETTE: dict[str, str] = {
     "rose": "#A04462",
     "slate": "#54626F",
     "brown": "#70665C",
+    "emerald": "#2D6A4F",
+    "indigo": "#3F4E8C",
+    "coral": "#C8553D",
+    "olive": "#58641D",
+    "cyan": "#1D6F8A",
+    "wine": "#7A2038",
+    "ochre": "#996B1F",
+    "rust": "#9E4324",
 }
 
 CATEGORY_COLORS: dict[str, str] = {

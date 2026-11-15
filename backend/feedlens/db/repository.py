@@ -469,9 +469,11 @@ class Database:
         if categories:
             stmt = stmt.where(PostRow.category.in_(categories))
 
-        if words and self._fts_ready and _use_fts and not re.search(r"[\u3400-\u9fff]", q):
-            # Keep the matching IDs in SQL, already scoped to this user; never materialize a global ID set.
-            fts_query = " ".join(f'"{word}"' for word in words[:40])
+        try_fts = bool(words and self._fts_ready and _use_fts and not re.search(r"[\u3400-\u9fff]", q))
+        if try_fts:
+            # Prefix query for each word, combined with AND, safe from raw user input injection
+            escaped = [w.replace('"', '""') for w in words[:40]]
+            fts_query = " AND ".join(f'"{w}"*' for w in escaped)
             owned_matches = text("SELECT posts_fts.rowid AS post_id FROM posts_fts JOIN posts p ON p.id = posts_fts.rowid JOIN runs r ON r.id = p.run_id WHERE posts_fts MATCH :fts_query AND r.user_id = :fts_owner").bindparams(fts_query=fts_query, fts_owner=user_id).columns(post_id=PostRow.id.type)
             stmt = stmt.where(PostRow.id.in_(select(owned_matches.subquery().c.post_id)))
         elif words:
@@ -484,7 +486,20 @@ class Database:
         total = 0
         # Metadata dates/job text still need Python normalization; stream rows and retain only this page.
         with self.Session() as session:
-            for post, r_created_at in session.execute(stmt.execution_options(yield_per=500)):
+            try:
+                rows_iter = session.execute(stmt.execution_options(yield_per=500))
+            except Exception:
+                if try_fts:
+                    return self.search_posts(
+                        user_id=user_id, q=q, platform=platform, categories=categories,
+                        topic_ids=topic_ids, date_from=date_from, date_to=date_to,
+                        job_only=job_only, work_modes=work_modes, min_score=min_score,
+                        min_salary_vnd=min_salary_vnd, locations=locations, match_type=match_type,
+                        has_link=has_link, has_github=has_github, limit=limit, offset=offset,
+                        _use_fts=False
+                    )
+                raise
+            for post, r_created_at in rows_iter:
                 p_date = _parse_post_date(post.posted_at, r_created_at)
                 p_date_str = p_date.isoformat()
 

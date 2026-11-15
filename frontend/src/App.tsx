@@ -335,7 +335,6 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           ) : (
             <HomeLanding
               cloud={cloud}
-              hasRuns={runs.length > 0}
               onNewRun={() => setComposerOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               loggingIn={platforms.find((p) => p.login_state === "waiting")?.name}
@@ -381,13 +380,11 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
 /** Màn hình chào Home Landing theo phong cách báo in Fiorinda */
 function HomeLanding({
   cloud,
-  hasRuns,
   onNewRun,
   onOpenSettings,
   loggingIn,
 }: {
   cloud: boolean;
-  hasRuns: boolean;
   onNewRun: () => void;
   onOpenSettings: () => void;
   loggingIn?: string;
@@ -479,16 +476,6 @@ function HomeLanding({
         <Button onClick={onOpenSettings} size="lg" variant="outline" pill>
           {t("act.settings")}
         </Button>
-        {hasRuns && (
-          <>
-            <span className="hidden md:inline text-sm text-ink-soft pl-1">
-              {t("home.orOpen")}
-            </span>
-            <span className="inline md:hidden text-sm text-ink-soft pl-1">
-              {t("home.orOpenMobile")}
-            </span>
-          </>
-        )}
       </div>
     </div>
   );
