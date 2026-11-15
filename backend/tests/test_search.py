@@ -220,3 +220,103 @@ def test_ask_no_posts_found_does_not_call_step3(cloud, monkeypatch):
     assert "Không tìm thấy" in res["answer"]
     # Chỉ gọi đúng 1 bước (bước 1 parser), TUYỆT ĐỐI không gọi bước 3
     assert len(calls) == 1
+
+
+def test_search_applies_salary_location_match_type_and_validates_dates(cloud):
+    client = cloud(); headers = _signup(client, "job-search@example.test")
+    db = api.db(); user = db.get_user_by_email("job-search@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"React salary {i}", category="job", job=JobInfo(title="React", salary=salary, location="Hà Nội", work_mode="远程", match_type="primary")) for i,salary in enumerate(["35-45M VND", "25 triệu/tháng", "2000 USD", "35M VND annually", "35000000USD", "9" * 500 + "M VND"])])
+    result = client.get("/api/search?min_salary_vnd=30000000&locations=Hanoi&match_type=primary&work_modes=remote", headers=headers).json()
+    assert result["total"] == 1
+    assert result["posts"][0]["job"]["salary"] == "35-45M VND"
+    assert client.get("/api/search?min_score=101", headers=headers).status_code == 422
+    assert client.get("/api/search?date_from=2026-12-01&date_to=2026-01-01", headers=headers).status_code == 422
+
+
+def test_fts_keeps_owned_ids_in_sql_and_pagination_counts_all_matches(cloud):
+    from sqlalchemy import event
+    client = cloud(); headers = _signup(client, "sql-search@example.test")
+    db = api.db(); user = db.get_user_by_email("sql-search@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"React test-{i}") for i in range(6)])
+    statements = []
+    def capture(_conn, _cursor, statement, parameters, _context, _many):
+        if "posts_fts MATCH" in statement: statements.append(statement)
+    event.listen(db.engine, "before_cursor_execute", capture)
+    try:
+        posts, total = db.search_posts(user.id, q="React", limit=2, offset=2)
+        assert total == 6 and len(posts) == 2
+        assert [p["id"] for p in posts] == sorted([p.id for p in db.get_posts(run)], reverse=True)[2:4]
+        assert statements and all("r.user_id" in statement for statement in statements)
+    finally: event.remove(db.engine, "before_cursor_execute", capture)
+
+
+def test_ask_edited_filters_skip_parser_and_provider_errors_are_codes(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client, "edited-ask@example.test")
+    db = api.db(); user = db.get_user_by_email("edited-ask@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="React sample", summary="React")])
+    post = db.get_posts(run)[0]
+    llm, calls = fake_llm(lambda prompt, schema: {"answer": f"React [#{post.id}]"})
+    monkeypatch.setattr(search_api, "get_analyzer", lambda *a, **k: llm)
+    monkeypatch.setattr(search_api, "resolve_provider_key", lambda *a, **k: "gemini")
+    response = client.post("/api/ask", headers=headers, json={"question": "React?", "filters": {"q": "React"}})
+    assert response.status_code == 200 and response.json()["applied_filters"]["q"] == "React"
+    assert len(calls) == 1 and "query_terms" not in calls[0][2]["properties"]
+    def fail(*args, **kwargs): raise RuntimeError("429 quota; secret=DO_NOT_EXPOSE")
+    llm.provider.complete_json = fail
+    failed = client.post("/api/ask", headers=headers, json={"question": "React?"})
+    assert failed.status_code == 502 and failed.json()["code"] == "error.ai_quota"
+    assert "DO_NOT_EXPOSE" not in failed.text
+
+
+def test_unknown_ai_topic_does_not_broaden_search_and_snippet_markers_do_not_nest(cloud, monkeypatch):
+    from feedlens.db.repository import _make_snippet
+    snippet = _make_snippet("ReactJS and React", "", ["React", "ReactJS"])
+    assert "««" not in snippet and "«ReactJS»" in snippet
+    client = cloud(); headers = _signup(client, "invalid-topic-ask@example.test")
+    llm, calls = fake_llm(lambda prompt, schema: {"topics": ["Not my topic"]})
+    monkeypatch.setattr(search_api, "get_analyzer", lambda *a, **k: llm)
+    monkeypatch.setattr(search_api, "resolve_provider_key", lambda *a, **k: "gemini")
+    response = client.post("/api/ask", headers=headers, json={"question": "Topic?"})
+    assert response.status_code == 502 and response.json()["code"] == "error.ask_filters_invalid"
+    assert len(calls) == 1
+
+
+def test_chinese_substring_search_uses_like_when_unicode61_cannot_segment(cloud):
+    client = cloud(); headers = _signup(client, "chinese-search@example.test")
+    db = api.db(); user = db.get_user_by_email("chinese-search@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="招聘支持远程工作的开发人员")])
+    result = client.get("/api/search", params={"q": "远程"}, headers=headers).json()
+    assert result["total"] == 1 and "«远程»" in result["posts"][0]["snippet"]
+
+
+def test_fts_repairs_old_row_ids_and_metadata_updates_do_not_reindex(cloud):
+    from sqlalchemy import text
+    client = cloud(); headers = _signup(client, "fts-migrate@example.test")
+    db = api.db(); user = db.get_user_by_email("fts-migrate@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="React repair")])
+    post = db.get_posts(run)[0]
+    with db.engine.begin() as conn:
+        conn.execute(text("CREATE VIRTUAL TABLE posts_fts USING fts5(post_id UNINDEXED, text, summary, author, source)"))
+        conn.execute(text("INSERT INTO posts_fts(rowid,post_id,text) VALUES(9000,:post_id,'React repair')"), {"post_id": post.id})
+    assert db.init_search_index()
+    with db.engine.begin() as conn:
+        assert conn.execute(text("SELECT rowid FROM posts_fts")).scalar() == post.id
+        before = conn.execute(text("SELECT total_changes()")).scalar()
+        conn.execute(text("UPDATE posts SET topic_reason='metadata only' WHERE id=:id"), {"id": post.id})
+        assert conn.execute(text("SELECT total_changes()")).scalar() - before == 1
+    assert client.get("/api/search?q=React", headers=headers).json()["total"] == 1
+
+
+def test_symbol_search_is_literal_instead_of_match_all(cloud):
+    client = cloud(); headers = _signup(client, "symbol-search@example.test")
+    db = api.db(); user = db.get_user_by_email("symbol-search@example.test")
+    run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
+    db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="100% remote"), AnalyzedPost(platform="facebook", source="feed", text="ordinary post notgithub.com/spam")])
+    result = client.get("/api/search", params={"q": "%"}, headers=headers).json()
+    assert result["total"] == 1 and result["posts"][0]["text"] == "100% remote"
+    assert client.get("/api/search?has_github=true", headers=headers).json()["total"] == 0

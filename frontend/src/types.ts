@@ -203,3 +203,13 @@ export interface TrendsResponse {
   };
   fallback_count: number;
 }
+
+export interface SearchFilters {
+  q?: string; platform?: Platform | null; categories?: string[]; topic_ids?: number[];
+  date_from?: string | null; date_to?: string | null; job_only?: boolean;
+  work_modes?: string[]; min_salary_vnd?: number | null; locations?: string[];
+  min_score?: number | null; match_type?: MatchType | null; has_link?: boolean | null; has_github?: boolean | null;
+}
+export interface SearchPost extends Post { run_id: number; snippet: string; date: string }
+export interface SearchResponse { posts: SearchPost[]; total: number; limit: number; offset: number }
+export interface AskResponse { applied_filters: SearchFilters; answer: string; citations: number[]; posts: SearchPost[]; total: number; ai_label: string }

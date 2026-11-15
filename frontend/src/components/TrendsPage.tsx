@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { TrendingUp, Layers, Sparkles, FilterX, AlertCircle } from "lucide-react";
+import { TrendingUp, Layers, Sparkles, AlertCircle } from "lucide-react";
 import { api } from "../api";
 import { formatNumber, useI18n } from "../i18n";
 import type { TrendsResponse } from "../types";
@@ -20,7 +20,6 @@ export default function TrendsPage({ onNewRun }: Props) {
   const [bucket, setBucket] = useState<"day" | "week">("day");
   const [days, setDays] = useState<number>(30);
   const [viewMode, setViewMode] = useState<"overview" | "grid">(() => window.matchMedia?.("(max-width: 639px)").matches ? "grid" : "overview");
-  const [activeSeriesId, setActiveSeriesId] = useState<string | null>(null);
 
   const [rawData, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +33,6 @@ export default function TrendsPage({ onNewRun }: Props) {
     api.trends({ group, bucket, days }).then((result) => {
       if (!alive) return;
       setData(result);
-      setActiveSeriesId((current) => result.series.some((item) => item.id === current) ? current : null);
     }).catch((err) => { if (alive) setError(err.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -48,11 +46,6 @@ export default function TrendsPage({ onNewRun }: Props) {
       new_emerging: rawData.summary.new_emerging ? { ...rawData.summary.new_emerging, name: rawData.range.group === "category" ? cat(rawData.summary.new_emerging.id) : rawData.summary.new_emerging.name } : null,
     },
   } : null, [rawData, cat]);
-
-  const activeSeries = useMemo(() => {
-    if (!data || !activeSeriesId) return null;
-    return data.series.find((s) => s.id === activeSeriesId) ?? null;
-  }, [data, activeSeriesId]);
 
   return (
     <div className="mx-auto flex min-h-full max-w-5xl flex-col justify-start px-4 py-8 sm:px-6 md:py-12">
@@ -86,7 +79,6 @@ export default function TrendsPage({ onNewRun }: Props) {
             value={group}
             onChange={(v) => {
               setGroup(v as "category" | "topic");
-              setActiveSeriesId(null);
             }}
             options={[
               { value: "category", label: t("trends.groupCategory") },
@@ -243,35 +235,10 @@ export default function TrendsPage({ onNewRun }: Props) {
             </div>
           </div>
 
-          {/* Active Filter Indicator */}
-          {activeSeries && (
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-sunken border border-line px-4 py-2.5 rounded-xl text-xs">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: activeSeries.color }} />
-                <span className="text-ink-soft">
-                  {t("trends.focalSeries")}: {activeSeries.name}
-                </span>
-                <b className="text-ink font-semibold">
-                  {t("trends.articles", { n: activeSeries.total })}
-                </b>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveSeriesId(null)}
-                className="flex items-center gap-1 font-medium text-accent hover:underline cursor-pointer"
-              >
-                <FilterX className="size-3.5" />
-                <span>{t("trends.clearFilter")}</span>
-              </button>
-            </div>
-          )}
-
           {/* Biểu đồ chính */}
           <TrendsChart
             key={`${group}-${bucket}-${days}`}
             data={data}
-            activeSeriesId={activeSeriesId}
-            onSelectSeries={setActiveSeriesId}
             viewMode={viewMode}
           />
 

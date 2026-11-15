@@ -1,3 +1,5 @@
+import type { SearchFilters } from "./types";
+import { readSearchParams, searchParams } from "./search";
 import { useEffect, useState } from "react";
 
 /** Router dựa trên hash (#/...): chạy được với server local lẫn GitHub Pages mà không cần cấu hình,
@@ -11,12 +13,15 @@ export type Route =
   | { page: "home" }
   | { page: "history" }
   | { page: "trends" }
+  | { page: "ask"; filters?: SearchFilters }
   | { page: "run"; id: number; tab: RunTab };
 
 const TABS: RunTab[] = ["digest", "jobs", "posts"];
 
 export function parseRoute(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const [path, query = ""] = hash.split("?");
+  if (path.replace(/^#\/?/, "") === "ask") return { page: "ask", filters: readSearchParams(new URLSearchParams(query)) };
+  const parts = path.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "history") return { page: "history" };
   if (parts[0] === "trends") return { page: "trends" };
   if (parts[0] === "runs" && /^\d+$/.test(parts[1] ?? "")) {
@@ -28,6 +33,7 @@ export function parseRoute(hash: string): Route {
 
 export function routeHref(r: Route): string {
   if (r.page === "history") return "#/history";
+  if (r.page === "ask") { const params = searchParams(r.filters ?? {}); return `#/ask${params.size ? `?${params}` : ""}`; }
   if (r.page === "trends") return "#/trends";
   if (r.page === "run") return r.tab === "digest" ? `#/runs/${r.id}` : `#/runs/${r.id}/${r.tab}`;
   return "#/";

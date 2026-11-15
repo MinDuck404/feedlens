@@ -400,3 +400,24 @@ test("changing trend filters cannot be overwritten by an older response", async 
     assert.ok(rendered.includes("Latest topic")); assert.ok(!rendered.includes("Old category"));
   } finally { harness.close(); api.trends = original; React.useContext = originalContext; }
 });
+
+
+test("search links preserve repeated filters and explicit false without accepting unknown keys", () => {
+  const { searchParams, readSearchParams, trendSearchFilters } = require("../src/search.ts");
+  const { parseRoute, routeHref } = require("../src/router.ts");
+  const filters = { q: "React & 中文", categories: ["job", "tech"], topic_ids: [3, 5], has_link: false, min_score: 0 };
+  assert.deepEqual(readSearchParams(searchParams(filters)), filters);
+  assert.deepEqual(parseRoute(routeHref({ page: "ask", filters })), { page: "ask", filters });
+  assert.deepEqual(readSearchParams(new URLSearchParams("unknown=x&topic_ids=bad&has_link=oops")), { topic_ids: [] });
+  const weekly = { range: { group: "topic", bucket: "week", start_date: "2026-11-12", end_date: "2026-11-18" } };
+  assert.deepEqual(trendSearchFilters(weekly, "3", "2026-11-09"), { topic_ids: [3], date_from: "2026-11-12", date_to: "2026-11-15" });
+});
+
+test("snippet and citation tokens keep markup inert and link only returned post IDs", () => {
+  const { textParts, questionHistory } = require("../src/search.ts");
+  assert.deepEqual(textParts('<img src=x onerror=alert(1)> «React»', "snippet"), [{ text: '<img src=x onerror=alert(1)> ' }, { text: "React", highlight: true }]);
+  assert.deepEqual(textParts("See [#12] and [#999]", "citation", [12]), [{ text: "See " }, { text: "[#12]", id: 12 }, { text: " and " }, { text: "[#999]" }]);
+  const history = questionHistory(Array.from({ length: 30 }, (_, i) => `Question ${i}`), "Question 5");
+  assert.equal(history.length, 20); assert.equal(history[0], "Question 5"); assert.equal(history.filter((value) => value === "Question 5").length, 1);
+  assert.deepEqual(questionHistory({ unexpected: true }), []);
+});

@@ -5,6 +5,8 @@ Mọi truy vấn lượt/bài viết đều lọc theo user_id để user này k
 from __future__ import annotations
 
 import re
+import heapq
+import unicodedata
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -384,6 +386,7 @@ class Database:
             return False
         try:
             with self.engine.begin() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")  # Keep index repair and trigger replacement atomic for concurrent writers.
                 conn.execute(text("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
                         post_id UNINDEXED,
@@ -394,28 +397,33 @@ class Database:
                         tokenize = 'unicode61'
                     );
                 """))
+                # Older indexes used an unrelated FTS rowid and scanned post_id on every update.
+                if conn.execute(text("SELECT 1 FROM posts_fts WHERE rowid != post_id LIMIT 1")).first():
+                    conn.execute(text("DELETE FROM posts_fts"))
+                for trigger in ("posts_ai", "posts_ad", "posts_au"):
+                    conn.execute(text(f"DROP TRIGGER IF EXISTS {trigger}"))
                 conn.execute(text("""
-                    CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN
-                        INSERT INTO posts_fts(post_id, text, summary, author, source)
-                        VALUES (new.id, new.text, new.summary, new.author, new.source);
+                    CREATE TRIGGER posts_ai AFTER INSERT ON posts BEGIN
+                        INSERT INTO posts_fts(rowid, post_id, text, summary, author, source)
+                        VALUES (new.id, new.id, new.text, new.summary, new.author, new.source);
                     END;
                 """))
                 conn.execute(text("""
-                    CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN
-                        DELETE FROM posts_fts WHERE post_id = old.id;
+                    CREATE TRIGGER posts_ad AFTER DELETE ON posts BEGIN
+                        DELETE FROM posts_fts WHERE rowid = old.id;
                     END;
                 """))
                 conn.execute(text("""
-                    CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
-                        DELETE FROM posts_fts WHERE post_id = old.id;
-                        INSERT INTO posts_fts(post_id, text, summary, author, source)
-                        VALUES (new.id, new.text, new.summary, new.author, new.source);
+                    CREATE TRIGGER posts_au AFTER UPDATE OF text, summary, author, source ON posts BEGIN
+                        DELETE FROM posts_fts WHERE rowid = old.id;
+                        INSERT INTO posts_fts(rowid, post_id, text, summary, author, source)
+                        VALUES (new.id, new.id, new.text, new.summary, new.author, new.source);
                     END;
                 """))
                 conn.execute(text("""
-                    INSERT INTO posts_fts(post_id, text, summary, author, source)
-                    SELECT id, text, summary, author, source FROM posts
-                    WHERE id NOT IN (SELECT post_id FROM posts_fts);
+                    INSERT INTO posts_fts(rowid, post_id, text, summary, author, source)
+                    SELECT id, id, text, summary, author, source FROM posts
+                    WHERE id NOT IN (SELECT rowid FROM posts_fts);
                 """))
             return True
         except Exception:
@@ -433,6 +441,9 @@ class Database:
         job_only: bool = False,
         work_modes: list[str] | None = None,
         min_score: int | None = None,
+        min_salary_vnd: int | None = None,
+        locations: list[str] | None = None,
+        match_type: str | None = None,
         has_link: bool | None = None,
         has_github: bool | None = None,
         limit: int = 40,
@@ -443,19 +454,9 @@ class Database:
             self._fts_ready = self.init_search_index()
 
         words = [w for w in re.findall(r"[\w\.\-]+", q.strip()) if len(w) > 0] if q else []
-        fts_ids = None
-
-        if words and self._fts_ready and _use_fts:
-            try:
-                fts_query = " ".join(f'"{w}"' for w in words)
-                with self.engine.connect() as conn:
-                    rows = conn.execute(
-                        text("SELECT post_id FROM posts_fts WHERE posts_fts MATCH :query"),
-                        {"query": fts_query},
-                    ).fetchall()
-                    fts_ids = {r[0] for r in rows}
-            except Exception:
-                fts_ids = None
+        if q.strip() and not words:
+            words = [q.strip()]
+            _use_fts = False  # Preserve literal symbols instead of silently returning every post.
 
         stmt = (
             select(PostRow, RunRow.created_at)
@@ -468,110 +469,127 @@ class Database:
         if categories:
             stmt = stmt.where(PostRow.category.in_(categories))
 
-        if fts_ids is not None:
-            if not fts_ids:
-                return [], 0
-            stmt = stmt.where(PostRow.id.in_(fts_ids))
+        if words and self._fts_ready and _use_fts and not re.search(r"[\u3400-\u9fff]", q):
+            # Keep the matching IDs in SQL, already scoped to this user; never materialize a global ID set.
+            fts_query = " ".join(f'"{word}"' for word in words[:40])
+            owned_matches = text("SELECT posts_fts.rowid AS post_id FROM posts_fts JOIN posts p ON p.id = posts_fts.rowid JOIN runs r ON r.id = p.run_id WHERE posts_fts MATCH :fts_query AND r.user_id = :fts_owner").bindparams(fts_query=fts_query, fts_owner=user_id).columns(post_id=PostRow.id.type)
+            stmt = stmt.where(PostRow.id.in_(select(owned_matches.subquery().c.post_id)))
         elif words:
-            is_sqlite = self.engine.dialect.name == "sqlite"
-            for w in words:
-                w_pattern = f"%{w}%"
-                if is_sqlite:
-                    stmt = stmt.where(
-                        PostRow.text.like(w_pattern)
-                        | PostRow.summary.like(w_pattern)
-                        | PostRow.author.like(w_pattern)
-                        | PostRow.source.like(w_pattern)
-                    )
-                else:
-                    stmt = stmt.where(
-                        PostRow.text.ilike(w_pattern)
-                        | PostRow.summary.ilike(w_pattern)
-                        | PostRow.author.ilike(w_pattern)
-                        | PostRow.source.ilike(w_pattern)
-                    )
+            for word in words[:40]:
+                pattern = "%" + word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+                stmt = stmt.where(PostRow.text.ilike(pattern, escape="\\") | PostRow.summary.ilike(pattern, escape="\\") | PostRow.author.ilike(pattern, escape="\\") | PostRow.source.ilike(pattern, escape="\\"))
 
-        with self.Session() as s:
-            results = s.execute(stmt).all()
-
+        stmt = stmt.order_by(PostRow.id.desc())
         matched = []
-        for post, r_created_at in results:
-            p_date = _parse_post_date(post.posted_at, r_created_at)
-            p_date_str = p_date.isoformat()
+        total = 0
+        # Metadata dates/job text still need Python normalization; stream rows and retain only this page.
+        with self.Session() as session:
+            for post, r_created_at in session.execute(stmt.execution_options(yield_per=500)):
+                p_date = _parse_post_date(post.posted_at, r_created_at)
+                p_date_str = p_date.isoformat()
 
-            if date_from and p_date_str < date_from:
-                continue
-            if date_to and p_date_str > date_to:
-                continue
-
-            if topic_ids:
-                p_topics = post.topic_ids or []
-                if not any(t in p_topics for t in topic_ids):
+                if date_from and p_date_str < date_from:
+                    continue
+                if date_to and p_date_str > date_to:
                     continue
 
-            if job_only and post.category != "job" and not post.job:
-                continue
-            if work_modes:
-                mode = (post.job or {}).get("work_mode", "").lower()
-                if not any(wm.lower() in mode for wm in work_modes):
-                    continue
-            if min_score is not None:
-                score = (post.job or {}).get("match_score")
-                if score is None or score < min_score:
-                    continue
+                if topic_ids:
+                    p_topics = post.topic_ids or []
+                    if not any(t in p_topics for t in topic_ids):
+                        continue
 
-            if has_link is True:
-                has_u = bool(post.url and post.url.strip()) or "http://" in post.text or "https://" in post.text
-                if not has_u:
+                if job_only and post.category != "job" and not post.job:
                     continue
-            if has_github is True:
-                is_gh = "github.com" in (post.url or "").lower() or "github.com" in post.text.lower()
-                if not is_gh:
+                if work_modes:
+                    mode = (post.job or {}).get("work_mode", "").lower()
+                    if not any(_work_mode(mode) == wm for wm in work_modes):
+                        continue
+                if min_score is not None:
+                    score = (post.job or {}).get("match_score")
+                    if score is None or score < min_score:
+                        continue
+
+                if min_salary_vnd is not None:
+                    salary = _salary_vnd((post.job or {}).get("salary", ""))
+                    if salary is None or salary < min_salary_vnd:
+                        continue
+                if locations and not any(_location(location) in _location((post.job or {}).get("location", "")) for location in locations):
                     continue
+                if match_type and (post.job or {}).get("match_type") != match_type:
+                    continue
+                if has_link is not None:
+                    has_u = bool(post.url and post.url.strip()) or "http://" in post.text or "https://" in post.text
+                    if has_u != has_link:
+                        continue
+                if has_github is not None:
+                    is_gh = bool(re.search(r"(?<![\w.-])(?:https?://)?(?:www\.)?github\.com(?=$|[/:?#\s)])", (post.url or "") + "\n" + post.text, re.I))
+                    if is_gh != has_github:
+                        continue
 
-            snippet = _make_snippet(post.text, post.summary, words)
-            matched.append({
-                "id": post.id,
-                "run_id": post.run_id,
-                "platform": post.platform,
-                "source": post.source,
-                "author": post.author,
-                "text": post.text,
-                "summary": post.summary,
-                "snippet": snippet,
-                "url": post.url,
-                "posted_at": post.posted_at,
-                "date": p_date_str,
-                "category": post.category,
-                "job": post.job,
-                "topic_ids": list(post.topic_ids or []),
-                "topic_reason": post.topic_reason or "",
-            })
+                total += 1
+                if len(matched) >= offset + limit and (p_date_str, post.id) <= matched[0][:2]:
+                    continue
+                snippet = _make_snippet(post.text, post.summary, words)
+                result = {
+                    "id": post.id,
+                    "run_id": post.run_id,
+                    "platform": post.platform,
+                    "source": post.source,
+                    "author": post.author,
+                    "text": post.text,
+                    "summary": post.summary,
+                    "snippet": snippet,
+                    "url": post.url,
+                    "posted_at": post.posted_at,
+                    "date": p_date_str,
+                    "category": post.category,
+                    "job": post.job,
+                    "topic_ids": list(post.topic_ids or []),
+                    "topic_reason": post.topic_reason or "",
+                }
+                entry = (p_date_str, post.id, result)
+                if len(matched) < offset + limit:
+                    heapq.heappush(matched, entry)
+                else:
+                    heapq.heappushpop(matched, entry)
 
-        matched.sort(key=lambda x: (x["date"], x["id"]), reverse=True)
-        total = len(matched)
-        page = matched[offset : offset + limit]
-        return page, total
+        matched.sort(reverse=True)
+        return [entry[2] for entry in matched[offset:offset + limit]], total
+
 
 
 def _parse_post_date(posted_at: str | None, run_created_at: Any) -> date:
-    if posted_at:
-        s = posted_at.strip()
-        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
-        if m:
-            try:
-                return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-            except ValueError:
-                pass
-        try:
-            return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
-        except Exception:
-            pass
-    if isinstance(run_created_at, datetime):
-        return run_created_at.date()
-    if isinstance(run_created_at, date):
-        return run_created_at
-    return datetime.now(timezone.utc).date()
+    from ..trends_api import parse_post_date
+    return parse_post_date(posted_at, run_created_at)[0]
+
+
+def _work_mode(value: str) -> str:
+    value = value.casefold()
+    aliases = {"remote": ("remote", "wfh", "từ xa", "远程"), "hybrid": ("hybrid", "kết hợp", "混合"), "onsite": ("onsite", "on-site", "tại văn phòng", "现场", "到岗")}
+    return next((key for key, words in aliases.items() if any(word in value for word in words)), value)
+
+
+def _location(value: str) -> str:
+    folded = "".join(char for char in unicodedata.normalize("NFKD", value.casefold().replace("đ", "d")) if not unicodedata.combining(char))
+    normalized = re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", folded)
+    return "hochiminh" if normalized in {"hcm", "tphcm", "saigon"} else normalized
+
+
+def _salary_vnd(value: str) -> int | None:
+    if re.search(r"\$|usd|/year|per year|per annum|annual|yearly|/năm|mỗi năm", value, re.I):
+        return None  # No exchange-rate or annual-salary guesses.
+    match = re.search(r"(\d[\d.,]*)(?:\s*[-–~]\s*(\d[\d.,]*))?\s*(triệu|tr\b|m\b|million|k\b|nghìn)?", value, re.I)
+    if not match:
+        return None
+    number = match[1].rstrip(".,")
+    if len(number) > 20:
+        return None
+    unit = (match[3] or "").lower()
+    if unit:
+        multiplier = 1000 if unit in {"k", "nghìn"} else 1_000_000
+        return int(float(number.replace(",", ".")) * multiplier) if number.count(".") + number.count(",") <= 1 else None
+    digits = re.sub(r"[.,]", "", number)
+    return int(digits) if digits.isdigit() and int(digits) >= 1_000_000 else None
 
 
 def _make_snippet(text: str, summary: str, words: list[str]) -> str:
@@ -605,8 +623,8 @@ def _make_snippet(text: str, summary: str, words: list[str]) -> str:
     if end < len(target):
         snip = snip + "…"
 
-    for w in sorted(words, key=len, reverse=True):
-        snip = re.sub(rf"(?i)({re.escape(w)})", r"«\1»", snip)
+    pattern = "|".join(re.escape(word) for word in sorted(set(words), key=len, reverse=True))
+    snip = re.sub(pattern, lambda match: "«" + match[0] + "»", snip, flags=re.I)
     return snip
 
 

@@ -5,13 +5,14 @@ import Login from "./components/Login";
 import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import HistoryPage from "./components/HistoryPage";
+import AskPage from "./components/AskPage";
 import TrendsPage from "./components/TrendsPage";
 import Sidebar from "./components/Sidebar";
 import { ThemeSwitch } from "./components/PreferenceMenus";
 import { Button } from "./components/ui/Button";
 import { Skeleton, SkeletonCard } from "./components/ui/Skeleton";
 import { useI18n } from "./i18n";
-import { navigate, useRoute } from "./router";
+import { navigate, routeHref, useRoute } from "./router";
 import type { Me, Meta, PlatformState, Preferences, Run } from "./types";
 
 export default function App() {
@@ -124,6 +125,17 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [prefsError, setPrefsError] = useState("");
   const latestPrefs = useRef<Preferences | null>(null);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if (event.isComposing || document.querySelector('[role="dialog"]')) return;
+      const editable = (event.target as HTMLElement)?.closest("input,textarea,select,[contenteditable=true]");
+      if ((event.key === "/" && !editable) || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k")) {
+        event.preventDefault(); if (!location.hash.startsWith("#/ask")) navigate({ page: "ask" });
+        window.setTimeout(() => document.querySelector<HTMLInputElement>("[data-ask-input]")?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", shortcut); return () => window.removeEventListener("keydown", shortcut);
+  }, []);
   const [workspaceErrors, setWorkspaceErrors] = useState<Record<string, string>>({});
   const { t } = useI18n();
 
@@ -232,6 +244,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
         onGoHome={() => navigate({ page: "home" })}
         onGoHistory={() => navigate({ page: "history" })}
         onGoTrends={() => navigate({ page: "trends" })}
+        onGoAsk={() => navigate({ page: "ask" })}
         onNewRun={() => setComposerOpen(true)}
         onPlatformChanged={refreshPlatforms}
         onLogout={onLogout}
@@ -313,6 +326,8 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               onOpen={(id) => navigate({ page: "run", id, tab: "digest" })}
               onNewRun={() => setComposerOpen(true)}
             />
+          ) : route.page === "ask" ? (
+            <AskPage key={routeHref(route)} initialFilters={route.filters} account={cloud ? me?.email ?? "" : "local"} onNewRun={() => setComposerOpen(true)} onSettings={() => setSettingsOpen(true)} />
           ) : route.page === "trends" ? (
             <TrendsPage
               onNewRun={() => setComposerOpen(true)}
@@ -356,7 +371,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           meta={meta}
           me={me}
           onClose={() => { setSettingsOpen(false); setSettingsTab(undefined); }}
-          onChanged={refreshMe}
+          onChanged={() => { refreshMe(); window.dispatchEvent(new Event("feedlens:aiChanged")); }}
         />
       )}
     </div>

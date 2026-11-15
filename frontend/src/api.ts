@@ -1,6 +1,7 @@
 import { serverMessage, translate } from "./i18n";
+import { searchParams } from "./search";
 import { serialWriter } from "./logic";
-import type { Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -56,6 +57,8 @@ const savePreferences = serialWriter<{ body: string; token: string }>(({ body, t
 });
 
 export const api = {
+  search: (filters: SearchFilters, offset = 0) => { const params = searchParams(filters); params.set("limit", "40"); params.set("offset", String(offset)); return call<SearchResponse>(`/api/search?${params}`); },
+  ask: (question: string, language: string, filters?: SearchFilters) => call<AskResponse>("/api/ask", { method: "POST", body: JSON.stringify({ question, language, ...(filters ? { filters } : {}) }) }),
   trends: (params: { group?: "category" | "topic"; bucket?: "day" | "week"; days?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.group) q.set("group", params.group);

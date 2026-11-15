@@ -43,11 +43,12 @@ interface Props {
   platforms: PlatformState[];
   runs: Run[];
   selected: number | null;
-  page: "home" | "history" | "trends" | "run";
+  page: "home" | "history" | "trends" | "ask" | "run";
   onSelect: (id: number) => void;
   onGoHome: () => void;
   onGoHistory: () => void;
   onGoTrends?: () => void;
+  onGoAsk?: () => void;
   onNewRun: () => void;
   onPlatformChanged: () => void;
   onLogout?: () => void;
@@ -144,6 +145,7 @@ export default function Sidebar(props: Props) {
           onGoHome={() => handleMobileNav(props.onGoHome)}
           onGoHistory={() => handleMobileNav(props.onGoHistory)}
           onGoTrends={() => handleMobileNav(() => props.onGoTrends?.())}
+          onGoAsk={() => handleMobileNav(() => props.onGoAsk?.())}
           onSelect={(id) => handleMobileNav(() => props.onSelect(id))}
           onNewRun={() => handleMobileNav(props.onNewRun)}
           onOpenSettings={() => handleMobileNav(props.onOpenSettings)}
@@ -201,6 +203,7 @@ function SidebarBody({
   onGoHome,
   onGoHistory,
   onGoTrends,
+  onGoAsk,
   onPlatformChanged,
   onLogout,
 }: Props) {
@@ -246,6 +249,7 @@ function SidebarBody({
         >
           <TrendingUp aria-hidden="true" className="size-4 shrink-0" /><span className="whitespace-nowrap">{t("nav.trends")}</span>
         </a>
+        <a href="#/ask" aria-current={page === "ask" ? "page" : undefined} className={navCls} onClick={(event) => { event.preventDefault(); onGoAsk?.(); }}><Search aria-hidden="true" className="size-4 shrink-0" /><span className="whitespace-nowrap">{t("ask.title")}</span></a>
       </nav>
 
       {/* Cloud Agent / Platform Accounts */}
