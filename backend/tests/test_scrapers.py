@@ -155,3 +155,90 @@ def test_facebook_standalone_article_without_posinset(facebook_page):
       <div data-ad-preview="message">Post outside the old feed wrapper selector.</div>
       <a href="/author/posts/pfbidSTANDALONE/">1 h</a></article>''')
     assert scrapers._facebook_items(facebook_page)[0]['url'] == 'https://www.facebook.com/author/posts/pfbidSTANDALONE/'
+
+
+
+def fake_collect(monkeypatch, rounds, seen=(), target=2, url="https://www.facebook.com/"):
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    batches = iter(rounds)
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda page: next(batches, []))
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
+                           mouse=SimpleNamespace(wheel=lambda *args: None))
+    progress=[]
+    posts=scraper.collect(page, url, "feed", target, set(seen), lambda n,msg:progress.append((n,msg)))
+    return posts, scraper, progress
+
+
+def item(text):
+    return dict(text=text, author="Author", posted_at="", url="")
+
+
+def fingerprint(text):
+    return scrapers.RawPost(platform="facebook", source="feed", text=text).fingerprint
+
+
+def test_old_posts_are_not_a_stuck_feed(monkeypatch):
+    old=[item(f"Old feed post number {i}") for i in range(7)]
+    posts,scraper,_=fake_collect(monkeypatch, [[p] for p in old]+[[item("New feed post one"),item("New feed post two")]],
+        seen=[fingerprint(p['text']) for p in old])
+    assert len(posts)==2
+    assert scraper.last_report['skipped_old']==7
+    assert scraper.last_report['stop_reason']=='target_reached'
+
+
+def test_total_examined_budget_bounds_nonchronological_feed(monkeypatch):
+    old=[item(f"Old feed post number {i}") for i in range(30)]
+    posts,scraper,_=fake_collect(monkeypatch, [[p] for p in old],seen=[fingerprint(p['text']) for p in old])
+    assert posts==[]
+    assert scraper.last_report['stop_reason']=='budget_exhausted'
+    assert scraper.last_report['examined']==max(4*2,20)
+
+
+def test_chronological_group_catches_up_after_eight_distinct_old_posts(monkeypatch):
+    old=[item(f"Old group post number {i}") for i in range(12)]
+    _,scraper,_=fake_collect(monkeypatch, [[p] for p in old],seen=[fingerprint(p['text']) for p in old],
+        target=20,url="https://www.facebook.com/groups/demo/?sorting_setting=CHRONOLOGICAL")
+    assert scraper.last_report['skipped_old']==8
+    assert scraper.last_report['stop_reason']=='caught_up'
+
+
+def test_facebook_sponsored_post_is_flagged_and_snapshotted_without_tokens(facebook_page):
+    facebook_page.set_content('''<div role="feed"><div role="article"><h3><a href="/elevenlabs">ElevenLabs</a></h3>
+      <a href="#"><span>Được tài trợ</span></a>
+      <div data-ad-preview="message">Now available in Claude, ChatGPT, Cursor and more tools today.</div>
+      <a href="/elevenlabs?__cft__[0]=SECRETTOKEN&amp;__tn__=R"><img src="x.png"></a></div></div>''')
+    item = scrapers._facebook_items(facebook_page)[0]
+    assert item["sponsored"] is True
+    snapshot = item["_missing_header"]
+    assert "SECRETTOKEN" not in snapshot and "<img" not in snapshot
+    assert "Now available in Claude, ChatG…" in snapshot  # text nodes are cut to 30 chars
+
+
+def test_facebook_regular_post_with_permalink_has_no_snapshot(facebook_page):
+    facebook_page.set_content('''<div role="feed"><div role="article"><h3>Author</h3>
+      <div data-ad-preview="message">A normal post that has a real permalink.</div>
+      <a href="/author/posts/pfbidOK/">2 h</a></div></div>''')
+    item = scrapers._facebook_items(facebook_page)[0]
+    assert item["sponsored"] is False and "_missing_header" not in item
+
+
+def test_collect_all_records_report_per_source(monkeypatch):
+    from feedlens import pipeline
+    from feedlens.models import RunRequest
+
+    class Fake:
+        def urls(self, source_type, sources):
+            return [("Feed", "https://www.facebook.com/")]
+
+        def collect(self, page, url, label, quota, seen, progress, speed, interactive):
+            self.last_report = dict(target=quota, collected=1, skipped_old=3, examined=4, stop_reason="no_more_posts")
+            self.missing_headers = ["<div>x</div>"]
+            return [scrapers.RawPost(platform="facebook", source=label, text="Some new post body text")]
+
+    monkeypatch.setitem(pipeline.SCRAPERS, "facebook", Fake)
+    report: dict = {}
+    pipeline.collect_all(None, RunRequest(platform="facebook", count=5), set(), lambda *a: None, False, report)
+    assert report["sources"][0]["skipped_old"] == 3 and report["missing_link_samples"] == ["<div>x</div>"]

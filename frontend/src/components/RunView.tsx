@@ -4,7 +4,7 @@ import { ApiError, api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { AIProviderInfo, Meta, Post, Run, Topic } from "../types";
+import type { AIProviderInfo, Meta, Post, Run, ScrapeReport, Topic } from "../types";
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
@@ -106,6 +106,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
           {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
           {run.ai_label && t("run.readBy", { ai: run.ai_label })}
         </p>
+        {run.request?.scrape_report && <ScrapeReportLine report={run.request.scrape_report} />}
         <div className="mt-2 flex items-center justify-center gap-1 text-ink-soft">
           {!!run.posts?.length && (["md", "csv", "json"] as const).map((f) => (
             <Button key={f} variant="ghost" size="sm" onClick={() => api.download(run.id, f).catch((e) => alert(e.message))} className="font-mono text-xs hover:bg-sunken hover:text-ink hover:underline underline-offset-4">
@@ -134,6 +135,17 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
         <Done run={run} meta={meta} tab={tab} setTab={setTab} />
       )}
     </div>
+  );
+}
+
+function ScrapeReportLine({ report }: { report: ScrapeReport }) {
+  const { t } = useI18n();
+  const reason = report.stop_reason && report.stop_reason !== "target_reached" ? t(`run.stop.${report.stop_reason}` as Key) : "";
+  return (
+    <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+      {t("run.scrapeReport", { got: report.collected, target: report.target, old: report.skipped_old })}
+      {reason && ` · ${reason}`}
+    </p>
   );
 }
 
@@ -596,6 +608,7 @@ function ReadingPost({ p, name, topics }: { p: Post; name: (c: string) => string
           <span className="font-medium" style={{ color: categoryTone(p.category) }}>{p.analyzed === false ? t("run.rawPost") : name(p.category)}</span>
           <span>{p.source}</span>
           <span>{p.author || t("posts.unknownAuthor")}</span>
+          {p.sponsored && <span className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-soft">{t("posts.sponsored")}</span>}
         </div>
         {!!p.topic_ids?.length && <ul className="mt-3 flex flex-wrap gap-2" aria-label={t("topics.title")}>{p.topic_ids.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is Topic => !!topic).map((topic) => <li key={topic.id}><span tabIndex={p.topic_reason ? 0 : undefined} title={p.topic_reason} aria-label={p.topic_reason ? `${topic.name}: ${p.topic_reason}` : topic.name} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs" style={{ color: topicColor(topic.color), borderColor: topicColor(topic.color) }}><span className="size-1.5 shrink-0 rounded-full bg-current" />{topic.name}</span></li>)}</ul>}
         <p id={`post-${p.id}-text`} className={`prose-reading mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] ${expanded ? "" : "line-clamp-3"}`}>{p.text}</p>

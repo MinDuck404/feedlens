@@ -75,7 +75,7 @@ def test_server_run_uses_cookies_and_marks_invalid(cloud, monkeypatch):
 
     seen_cookies = {}
 
-    def fake_scrape(rq, cookies, seen, progress):
+    def fake_scrape(rq, cookies, seen, progress, report=None):
         seen_cookies["names"] = {x["name"] for x in cookies}
         assert rq.headless and rq.sources == ["g1", "g2"]
         progress(2, "g1: 2/5")

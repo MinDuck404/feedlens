@@ -60,6 +60,17 @@ export interface RunRequest {
   runner: "agent" | "server";
   /** Ngôn ngữ AI dùng để viết tóm tắt (theo ngôn ngữ giao diện) */
   language?: "vi" | "en" | "zh";
+  /** Lý do dừng lướt; chỉ có ở lượt local/server mới (lượt cũ và agent không có) */
+  scrape_report?: ScrapeReport;
+}
+
+export type StopReason = "target_reached" | "caught_up" | "budget_exhausted" | "no_more_posts" | "interrupted";
+
+export interface ScrapeReport {
+  target: number;
+  collected: number;
+  skipped_old: number;
+  stop_reason: StopReason | null;
 }
 
 export interface SavedGroup {
@@ -99,6 +110,7 @@ export interface Post {
   text: string;
   url: string;
   posted_at: string;
+  sponsored?: boolean;
   category: string;
   summary: string;
   job: Job | null;

@@ -52,13 +52,13 @@ def cookie_page(cookies: list[dict]) -> Iterator:
 
 
 def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
-                        on_progress: Callable[[int, str], None]) -> list[RawPost]:
+                        on_progress: Callable[[int, str], None], report: dict | None = None) -> list[RawPost]:
     from .pipeline import collect_all
     from .scrapers import NeedsVerification
 
     with cookie_page(cookies) as page:
         try:
-            return collect_all(page, req, seen, on_progress, interactive=False)
+            return collect_all(page, req, seen, on_progress, interactive=False, report=report)
         except NeedsVerification as e:
             raise CookieInvalid(
                 f"{req.platform} yêu cầu đăng nhập/xác minh khi lướt từ server, nên cookie không còn dùng được. "

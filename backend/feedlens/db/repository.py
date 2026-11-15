@@ -297,6 +297,11 @@ class Database:
                 job=JobInfo(**r.job) if r.job else None,
                 topic_ids=list(r.topic_ids or []), topic_reason=r.topic_reason or "",
             ) for r in rows]
+            run = s.get(RunRow, run_id)
+            # The posts table has no sponsored column; the raw snapshot keeps it (older runs: False).
+            sponsored = {RawPost(**p).fingerprint for p in ((run.raw_posts if run else None) or []) if p.get("sponsored")}
+        for p in posts:
+            p.sponsored = p.fingerprint in sponsored
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
             raw = self.get_raw_posts(run_id)

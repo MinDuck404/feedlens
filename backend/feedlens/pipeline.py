@@ -18,17 +18,18 @@ PROGRESS: dict[int, dict] = {}
 _platform_locks: dict[str, threading.Lock] = {p: threading.Lock() for p in SCRAPERS}
 
 
-def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None]) -> list[RawPost]:
+def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
+           report: dict | None = None) -> list[RawPost]:
     """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
     from .browser import open_context  # chỉ cần Playwright khi thật sự lướt
 
     with open_context(req.platform, headless=req.headless) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        return collect_all(page, req, seen, on_progress, interactive=not req.headless)
+        return collect_all(page, req, seen, on_progress, interactive=not req.headless, report=report)
 
 
 def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
-                interactive: bool) -> list[RawPost]:
+                interactive: bool, report: dict | None = None) -> list[RawPost]:
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
@@ -45,9 +46,14 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
         base = len(posts)
         prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
         try:
-            posts += scraper.collect(page, url, label, quota, seen,
-                                     lambda n, msg: on_progress(base + n, prefix + msg),
-                                     speed=req.speed, interactive=interactive)
+            try:
+                posts += scraper.collect(page, url, label, quota, seen,
+                                         lambda n, msg: on_progress(base + n, prefix + msg),
+                                         speed=req.speed, interactive=interactive)
+            finally:
+                if report is not None and getattr(scraper, "last_report", None):
+                    report.setdefault("sources", []).append({"label": label, **scraper.last_report})
+                    report.setdefault("missing_link_samples", []).extend(getattr(scraper, "missing_headers", []))
         except NeedsVerification:
             raise
         except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
@@ -58,6 +64,29 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
     if not posts and skipped:
         raise RuntimeError("Không lướt được nguồn nào. " + " | ".join(skipped))
     return posts
+
+
+def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict) -> None:
+    """Keep why scraping stopped next to the run request (JSON, no migration); diagnostics stay local."""
+    sources = report.get("sources") or []
+    if sources:
+        summary = {"target": sum(s.get("target", 0) for s in sources),
+                   "collected": sum(s.get("collected", 0) for s in sources),
+                   "skipped_old": sum(s.get("skipped_old", 0) for s in sources),
+                   "stop_reason": sources[-1].get("stop_reason") if len(sources) == 1 else None,
+                   "sources": sources}
+        db.update_run(run_id, request={**req.model_dump(), "scrape_report": summary})
+    samples = report.get("missing_link_samples") or []
+    if samples:
+        try:
+            folder = settings.data_dir / "debug" / "missing-links"
+            folder.mkdir(parents=True, exist_ok=True)
+            body = "\n<hr>\n".join(samples[:10])
+            (folder / f"run-{run_id}.html").write_text(
+                f"<!-- FeedLens: posts whose permalink was not found (text shortened, tokens removed) -->\n{body}\n",
+                encoding="utf-8")
+        except OSError:
+            pass
 
 
 def total_target(req: RunRequest) -> int:
@@ -87,7 +116,11 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
         with lock:
             db.update_run(run_id, status="scraping")
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
-            raw = scrape(req, seen, report("scraping"))
+            scrape_report: dict = {}
+            try:
+                raw = scrape(req, seen, report("scraping"), scrape_report)
+            finally:
+                save_scrape_report(db, run_id, req, scrape_report)
         _analyze(db, run_id, req, raw, analyzer, report)
     except Exception as e:  # noqa: BLE001 — lỗi được ghi lại cho UI
         _fail(db, run_id, e)
@@ -195,7 +228,11 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
             db.update_run(run_id, status="scraping")
             prog.update(phase="scraping", done=0, target=target, message="Server đang mở trình duyệt…")
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
-            raw = scrape_with_cookies(req, cookies, seen, report("scraping"))
+            scrape_report: dict = {}
+            try:
+                raw = scrape_with_cookies(req, cookies, seen, report("scraping"), scrape_report)
+            finally:
+                save_scrape_report(db, run_id, req, scrape_report)
         finally:
             SERVER_SLOT.release()
         db.set_session_status(user_id, req.platform, "ok", f"Lướt được {len(raw)} bài từ server.")

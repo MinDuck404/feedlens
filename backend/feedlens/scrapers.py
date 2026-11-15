@@ -81,31 +81,61 @@ FB_JS = r"""
     };
     const links = anchors.flatMap(a => [...new Set(['href', 'data-href', 'data-url', 'ajaxify']
       .map(key => a.getAttribute(key)).filter(Boolean))].map(href => [href, timestamp(a)]));
-    const hover = anchors.flatMap((a, i) => timestamp(a) ? [i] : []).slice(0, 3);
+    // Obfuscated timestamps fail the text test; their href is "#" or missing until hover.
+    const lazy = a => !a.closest('h2, h3, h4, strong') && (!a.getAttribute('href') || a.getAttribute('href') === '#')
+      && !a.querySelector('img, svg image') && (a.innerText || '').trim().length <= 40;
+    const hover = [...anchors.flatMap((a, i) => timestamp(a) ? [i] : []),
+      ...anchors.flatMap((a, i) => !timestamp(a) && lazy(a) ? [i] : [])].slice(0, 3);
+    const adWords = /^(?:sponsored|được tài trợ|赞助内容|广告)$/i;
+    const sponsored = [...n.querySelectorAll('a, span')].slice(0, 60).some(el =>
+      adWords.test((el.getAttribute('aria-label') || el.innerText || '').trim()))
+      || anchors.some(a => /\/ads\/about|[?&]ad_id=/.test(a.getAttribute('href') || ''));
     out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
-      _node_index: nodeIndex, _hover: hover, posted_at: '' });
+      _node_index: nodeIndex, _hover: hover, posted_at: '', sponsored });
   }
   return out;
 }
 """.replace("__NODES__", FB_NODE_SELECTOR).replace("__LINKS__", FB_LINK_SELECTOR)
 
 
+POST_LINK_RE = re.compile(r"/(?:posts|permalink)/|story_fbid=|^https?://[^/]+/share/")
+
+# Shrunk outerHTML of a post whose permalink was not found: structure only, short text, no tokens.
+FB_HEADER_SNAPSHOT_JS = r"""
+(n) => {
+  const c = n.cloneNode(true);
+  c.querySelectorAll('img, svg, video, picture, style, script').forEach(e => e.remove());
+  const keep = new Set(['href', 'role', 'aria-label', 'aria-labelledby', 'aria-hidden', 'data-ad-preview',
+                        'data-ad-comet-preview', 'data-testid', 'data-utime', 'dir', 'id']);
+  for (const el of [c, ...c.querySelectorAll('*')]) {
+    for (const at of [...el.attributes]) if (!keep.has(at.name)) el.removeAttribute(at.name);
+    const href = el.getAttribute('href');
+    if (href) el.setAttribute('href', href.replace(/([?&])(?:__cft__|__tn__|fbclid|eav|paipv|_rdr)[^&]*/g, '$1'));
+  }
+  const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.nodeValue.length > 30) t.nodeValue = t.nodeValue.slice(0, 30) + '…';
+  return c.outerHTML.slice(0, 12000);
+}
+"""
+
+
 def _facebook_items(page: Page) -> list[dict]:
     items = page.evaluate(FB_JS)
     # Bound extra work on long feeds; never click or open the post.
     hover_budget = 6
+    snapshots = 3
     deadline = time.monotonic() + 4
     for item in items:
         node_index = item.pop("_node_index", None)
         hover = item.pop("_hover", [])
         item["url"] = select_facebook_link(item.pop("links", []))
-        if node_index is None or not hover:
+        if node_index is None:
             continue
         node = page.locator(FB_NODE_SELECTOR).nth(node_index)
-        for index in hover:
-            anchor = node.locator(FB_LINK_SELECTOR).nth(index)
-            if not hover_budget or time.monotonic() >= deadline:
+        for index in hover if not POST_LINK_RE.search(item["url"]) else []:
+            if hover_budget <= 0 or time.monotonic() >= deadline:
                 break
+            anchor = node.locator(FB_LINK_SELECTOR).nth(index)
             try:
                 href = anchor.get_attribute("href", timeout=700) or ""
                 # The outer post's known timestamp takes precedence over shared posts.
@@ -126,6 +156,12 @@ def _facebook_items(page: Page) -> list[dict]:
                     break
             except PlaywrightTimeoutError:
                 continue  # Virtualized/hidden timestamp: retain the best static link.
+        if snapshots and not POST_LINK_RE.search(item["url"]):
+            snapshots -= 1
+            try:
+                item["_missing_header"] = node.evaluate(FB_HEADER_SNAPSHOT_JS, timeout=700)
+            except Exception:  # noqa: BLE001 — diagnostics must never break a run
+                pass
     return items
 
 
@@ -174,6 +210,31 @@ REDDIT_JS = r"""
 """
 
 
+def is_chronological_url(url: str) -> bool:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    if parts.path in ("", "/"):
+        return False  # Home feeds are ranked, even if an unrelated sort flag exists.
+    return (query.get("sorting_setting", "").upper() == "CHRONOLOGICAL"
+            or query.get("sort", "").strip('"').lower() in {"new", "latest", "date_posted"}
+            or query.get("f") == "live")
+
+
+STOP_REASON_TEXT = {
+    "target_reached": "đủ số bài",
+    "caught_up": "đã gặp toàn bài cũ, coi như hết bài mới",
+    "budget_exhausted": "hết giới hạn thời gian/số bài được duyệt",
+    "no_more_posts": "trang không tải thêm bài",
+    "interrupted": "bị gián đoạn",
+}
+
+
+def collection_message(report: dict) -> str:
+    reason = STOP_REASON_TEXT.get(report.get("stop_reason") or "", "")
+    return (f"Lấy được {report['collected']}/{report['target']} bài mới · bỏ qua {report['skipped_old']} bài đã có"
+            + (f" · dừng vì {reason}" if reason else ""))
+
+
 @dataclass
 class Scraper:
     platform: str
@@ -193,33 +254,68 @@ class Scraper:
         _human_pause(*pace["settle"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
-        stale_rounds = 0
-        while len(posts) < target and stale_rounds < pace["stale"]:
-            if self.ensure_access(page, url, progress, interactive):
-                stale_rounds = 0  # vừa xác minh xong và đã mở lại trang
-            if self.expand_js:
-                page.evaluate(self.expand_js)
-                _human_pause(*pace["expand"])
-            before = len(posts)
-            for item in (_facebook_items(page) if self.platform == "facebook" else page.evaluate(self.extract_js)):
-                p = RawPost(platform=self.platform, source=label, **item)
-                fp = p.fingerprint
-                if fp in seen:
-                    # A virtualized timestamp can gain its href on a later scroll.
+        encountered: set[str] = set()
+        prior = set(seen)
+        stale_rounds = consecutive_old = 0
+        # Scale with the quota so large runs are not cut short; old-post streaks still end within minutes.
+        deadline = time.monotonic() + (max(300, 8 * target) if speed == "careful" else max(180, 4 * target))
+        max_examined = max(20, 4 * target)
+        chronological = is_chronological_url(url)
+        self.last_report = dict(target=target, collected=0, skipped_old=0, examined=0, stop_reason=None)
+        self.missing_headers: list[str] = []
+        reason = None
+        try:
+            while reason is None:
+                if time.monotonic() >= deadline:
+                    reason = "budget_exhausted"; break
+                if self.ensure_access(page, url, progress, interactive):
+                    stale_rounds = 0
+                if self.expand_js:
+                    page.evaluate(self.expand_js)
+                    _human_pause(*pace["expand"])
+                before = len(encountered)
+                items = _facebook_items(page) if self.platform == "facebook" else page.evaluate(self.extract_js)
+                for item in items:
+                    header = item.pop("_missing_header", "")
+                    p = RawPost(platform=self.platform, source=label, **item)
+                    fp = p.fingerprint
                     if fp in collected and not collected[fp].url and p.url:
                         collected[fp].url = p.url
-                    continue
-                seen.add(fp)
-                collected[fp] = p
-                posts.append(p)
-                if len(posts) >= target:
+                    if fp in encountered:
+                        continue
+                    encountered.add(fp)
+                    if header and len(self.missing_headers) < 10:
+                        self.missing_headers.append(header)
+                    if fp in seen:
+                        if fp in prior:
+                            self.last_report["skipped_old"] += 1
+                            consecutive_old += 1
+                    else:
+                        consecutive_old = 0
+                        seen.add(fp)
+                        collected[fp] = p
+                        posts.append(p)
+                    self.last_report.update(collected=len(posts), examined=len(encountered))
+                    if len(posts) >= target:
+                        reason = "target_reached"; break
+                    if chronological and consecutive_old >= 8:
+                        reason = "caught_up"; break
+                    if len(encountered) >= max_examined or time.monotonic() >= deadline:
+                        reason = "budget_exhausted"; break
+                stale_rounds = stale_rounds + 1 if len(encountered) == before else 0
+                if stale_rounds >= pace["stale"]:
+                    reason = "no_more_posts"
+                self.last_report["stop_reason"] = reason
+                progress(len(posts), collection_message(self.last_report))
+                if reason:
                     break
-            stale_rounds = stale_rounds + 1 if len(posts) == before else 0
-            progress(len(posts), f"{label}: {len(posts)}/{target}")
-            page.mouse.wheel(0, random.randint(*pace["scroll"]))
-            _human_pause(*pace["pause"])
-            if random.random() < pace["long_chance"]:  # thỉnh thoảng dừng lâu như đang đọc
-                _human_pause(*pace["long"])
+                page.mouse.wheel(0, random.randint(*pace["scroll"]))
+                _human_pause(*pace["pause"])
+                if random.random() < pace["long_chance"]:
+                    _human_pause(*pace["long"])
+        finally:
+            self.last_report.update(collected=len(posts), stop_reason=reason or "interrupted")
+            progress(len(posts), collection_message(self.last_report))
         return posts
 
     def blocked(self, url: str) -> bool:

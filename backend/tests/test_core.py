@@ -177,7 +177,7 @@ def test_llm_analyzer_with_any_provider():
 
 # ---------------------------------------------------------------- pipeline + DB + API
 def test_pipeline_end_to_end(db, monkeypatch):
-    monkeypatch.setattr(pipeline, "scrape", lambda req, seen, cb: list(SAMPLE))
+    monkeypatch.setattr(pipeline, "scrape", lambda req, seen, cb, report=None: list(SAMPLE))
     req = RunRequest(platform="facebook", source_type="group", sources=["g1"], count=3,
                      job_mode=True, keywords=["python"], ai_provider="offline")
     run_id = db.create_run(req)
@@ -294,7 +294,7 @@ def test_ai_writes_in_requested_language(db, monkeypatch):
             seen.append(system)
             return super().complete_json(system, prompt, schema, effort)
 
-    monkeypatch.setattr(pipeline, "scrape", lambda req, s, cb: list(SAMPLE))
+    monkeypatch.setattr(pipeline, "scrape", lambda req, s, cb, report=None: list(SAMPLE))
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *a, **k: LLMAnalyzer(Spy()))
     req = RunRequest(platform="facebook", language="zh", ai_provider="offline")
     run_id = db.create_run(req)

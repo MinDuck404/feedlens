@@ -30,6 +30,7 @@ class RawPost(BaseModel):
     text: str
     url: str = ""
     posted_at: str = ""
+    sponsored: bool = False
 
     @property
     def fingerprint(self) -> str:
