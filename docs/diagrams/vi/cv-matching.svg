@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" width="960" height="440" style="background:#FAF7F0;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#5C534A" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#AE3824" />
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#24527A" />
+    </marker>
+  </defs>
+
+  <!-- Title & Eyebrow Header -->
+  <g transform="translate(40, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#AE3824">CÔNG CỤ CẦU NỐI NGHỀ NGHIỆP · CHẤM ĐIỂM VIỆC LÀM</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#16120E" y="28">Quy trình chấm việc theo CV</text>
+    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" fill="#5C534A" y="48">Từ CV PDF tới ma trận chấm điểm đa chiều kèm gợi ý chuyển dịch nghề lân cận</text>
+  </g>
+
+  <!-- Stage 1: Local Ingestion -->
+  <g transform="translate(40, 118)">
+    <rect width="180" height="270" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#AE3824" x="14" y="24">GIAI ĐOẠN 1 · RIÊNG TƯ</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Trích xuất tại máy</text>
+
+    <!-- Upload Node -->
+    <g transform="translate(14, 58)">
+      <rect width="152" height="74" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#5C534A" x="10" y="18">ĐẦU VÀO HỒ SƠ</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">CV PDF / Dán text</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5C534A" x="10" y="52">File PDF (≤ 5 MB)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8.5" fill="#7D7368" x="10" y="66">hoặc dán văn bản</text>
+    </g>
+
+    <path d="M 90 132 L 90 156" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Privacy Filter Node -->
+    <g transform="translate(14, 160)">
+      <rect width="152" height="94" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#2E6E4D" x="10" y="18">KHỬ THÔNG TIN CÁ NHÂN</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#16120E" x="10" y="36">Lọc sạch bằng pypdf</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Xóa SĐT, email, địa chỉ</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Giữ kỹ năng & kinh nghiệm</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="82">TUYỆT ĐỐI không lưu PDF</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 1 -> 2 -->
+  <path d="M 220 253 L 250 253" stroke="#5C534A" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 2: Structured Profile Synthesis -->
+  <g transform="translate(254, 118)">
+    <rect width="220" height="270" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#24527A" x="14" y="24">GIAI ĐOẠN 2 · TỔNG HỢP</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Hồ sơ tìm việc</text>
+
+    <!-- AI Profile Synthesis Node -->
+    <g transform="translate(14, 58)">
+      <rect width="192" height="66" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#24527A" x="10" y="18">TỔNG HỢP BẰNG LLM</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Hồ sơ Markdown</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">Tóm tắt · Năng lực · Quá trình</text>
+    </g>
+
+    <path d="M 110 124 L 110 148" stroke="#5C534A" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Criteria & Adjacent Roles Node -->
+    <g transform="translate(14, 152)">
+      <rect width="192" height="102" rx="6" fill="#FFFFFF" stroke="#16120E" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">TIÊU CHÍ & NGÀNH GẦN</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Vai trò & Tiêu chí</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Vai trò chính (tối đa 3)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Ngành gần chuyển đổi (3–5)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="80">• Hình thức, lương, cấp bậc</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#24527A" x="10" y="94">Tùy ý bật/tắt từng vai trò</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 2 -> 3 -->
+  <path d="M 474 253 L 504 253" stroke="#5C534A" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 3: Matching Engine -->
+  <g transform="translate(508, 118)">
+    <rect width="212" height="270" rx="8" fill="rgba(174, 56, 36, 0.08)" stroke="#AE3824" stroke-width="1.4" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#AE3824" x="14" y="24">GIAI ĐOẠN 3 · ĐÁNH GIÁ</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Engine chấm việc</text>
+
+    <!-- Raw Job Posts Input -->
+    <g transform="translate(14, 58)">
+      <rect width="184" height="66" rx="6" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#5C534A" x="10" y="18">TIN TUYỂN DỤNG CÀO ĐƯỢC</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Bài viết việc làm thô</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">Từ Facebook, LinkedIn, X...</text>
+    </g>
+
+    <path d="M 106 124 L 106 148" stroke="#AE3824" stroke-width="1.2" marker-end="url(#arrow-accent)" fill="none" />
+
+    <!-- Evaluation Matrix Node -->
+    <g transform="translate(14, 152)">
+      <rect width="184" height="102" rx="6" fill="#FFFFFF" stroke="#AE3824" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#AE3824" x="10" y="18">CHẤM ĐIỂM ĐA CHIỀU</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#16120E" x="10" y="36">Đánh giá mức độ khớp</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="52">• Điểm phù hợp (0–100)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="66">• Kỹ năng còn thiếu (gaps)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#5C534A" x="10" y="80">• Kiểm tra vi phạm tiêu chí</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#AE3824" x="10" y="94">Đối sánh từ khóa offline</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 3 -> 4 -->
+  <path d="M 720 253 L 750 253" stroke="#AE3824" stroke-width="1.4" marker-end="url(#arrow-accent)" fill="none" />
+
+  <!-- Stage 4: Classified Results Badges -->
+  <g transform="translate(754, 118)">
+    <rect width="166" height="270" rx="8" fill="#F3EDE2" stroke="#DDD5C7" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#5C534A" x="14" y="24">GIAI ĐOẠN 4 · PHÂN LOẠI</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#16120E" x="14" y="44">Xếp loại kết quả</text>
+
+    <!-- Badge 1: Primary -->
+    <g transform="translate(12, 58)">
+      <rect width="142" height="44" rx="5" fill="rgba(46, 110, 77, 0.08)" stroke="#2E6E4D" stroke-width="1.2" />
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#2E6E4D" x="10" y="20">Đúng ngành</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#5C534A" x="10" y="34">Khớp đúng định hướng</text>
+    </g>
+
+    <!-- Badge 2: Adjacent -->
+    <g transform="translate(12, 110)">
+      <rect width="142" height="44" rx="5" fill="#FFFFFF" stroke="#24527A" stroke-width="1.2" />
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#24527A" x="10" y="20">Ngành gần</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#5C534A" x="10" y="34">Chuyển dịch thế mạnh</text>
+    </g>
+
+    <!-- Badge 3: Stretch -->
+    <g transform="translate(12, 162)">
+      <rect width="142" height="44" rx="5" fill="#FFFFFF" stroke="#DDD5C7" stroke-width="1.2" />
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#16120E" x="10" y="20">Thử sức</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#5C534A" x="10" y="34">Chênh lệch cấp bậc</text>
+    </g>
+
+    <!-- Badge 4: Constraint Warning -->
+    <g transform="translate(12, 214)">
+      <rect width="142" height="44" rx="5" fill="rgba(174, 56, 36, 0.08)" stroke="#AE3824" stroke-width="1.2" />
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#AE3824" x="10" y="19">Cảnh báo tiêu chí</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#5C534A" x="10" y="33">Vi phạm hình thức/địa điểm</text>
+    </g>
+  </g>
+</svg>

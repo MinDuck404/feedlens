@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" width="960" height="440" style="background:#16120E;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#B5ABA0" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#D6553E" />
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#6A9BC3" />
+    </marker>
+  </defs>
+
+  <!-- Title & Eyebrow Header -->
+  <g transform="translate(40, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">职业转型与跨界路径引擎 · 语义匹配</text>
+    <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">简历智能求职匹配流程</text>
+    <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11.5" fill="#B5ABA0" y="48">从原始简历 PDF 到多维度职位评估，提供相近岗位转型路径</text>
+  </g>
+
+  <!-- Stage 1: Local Ingestion -->
+  <g transform="translate(40, 118)">
+    <rect width="180" height="270" rx="8" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="14" y="24">阶段 1 · 隐私保护</text>
+    <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="14" y="44">本地提取</text>
+
+    <!-- Upload Node -->
+    <g transform="translate(14, 58)">
+      <rect width="152" height="74" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#B5ABA0" x="10" y="18">输入材料</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="36">个人简历 PDF / 文本</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8.5" fill="#B5ABA0" x="10" y="52">PDF 格式（≤ 5 MB）</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="8.5" fill="#8F857A" x="10" y="66">或直接粘贴简历内容</text>
+    </g>
+
+    <path d="M 90 132 L 90 156" stroke="#B5ABA0" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Privacy Filter Node -->
+    <g transform="translate(14, 160)">
+      <rect width="152" height="94" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#5BAA7E" x="10" y="18">本地隐私脱敏</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11.5" font-weight="600" fill="#F5EFE6" x="10" y="36">pypdf 敏感信息清洗</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="52">• 自动过滤手机、邮箱与住址</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="66">• 完整保留专业技能与履历</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#D6553E" x="10" y="82">服务器绝不保存原始 PDF</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 1 -> 2 -->
+  <path d="M 220 253 L 250 253" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 2: Structured Profile Synthesis -->
+  <g transform="translate(254, 118)">
+    <rect width="220" height="270" rx="8" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#6A9BC3" x="14" y="24">阶段 2 · 结构重塑</text>
+    <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="14" y="44">求职档案生成</text>
+
+    <!-- AI Profile Synthesis Node -->
+    <g transform="translate(14, 58)">
+      <rect width="192" height="66" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#6A9BC3" x="10" y="18">大模型结构化提取</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="36">Markdown 档案</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="52">个人概述 · 核心技能 · 时间线</text>
+    </g>
+
+    <path d="M 110 124 L 110 148" stroke="#B5ABA0" stroke-width="1.2" marker-end="url(#arrow)" fill="none" />
+
+    <!-- Criteria & Adjacent Roles Node -->
+    <g transform="translate(14, 152)">
+      <rect width="192" height="102" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#D6553E" x="10" y="18">求职条件与相近岗位</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="36">目标岗位与硬性条件</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="52">• 主要岗位（最多 3 个）</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="66">• 相近转型岗位（3–5 个）</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="80">• 工作方式、薪资与职级</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#6A9BC3" x="10" y="94">支持用户逐项启用或停用</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 2 -> 3 -->
+  <path d="M 474 253 L 504 253" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+
+  <!-- Stage 3: Matching Engine -->
+  <g transform="translate(508, 118)">
+    <rect width="212" height="270" rx="8" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.4" />
+    <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="14" y="24">阶段 3 · 匹配打分</text>
+    <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="14" y="44">职位匹配引擎</text>
+
+    <!-- Raw Job Posts Input -->
+    <g transform="translate(14, 58)">
+      <rect width="184" height="66" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#B5ABA0" x="10" y="18">已采集招聘信息</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="36">原始招聘帖子</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="52">来自 Facebook、LinkedIn、X 等</text>
+    </g>
+
+    <path d="M 106 124 L 106 148" stroke="#D6553E" stroke-width="1.2" marker-end="url(#arrow-accent)" fill="none" />
+
+    <!-- Evaluation Matrix Node -->
+    <g transform="translate(14, 152)">
+      <rect width="184" height="102" rx="6" fill="#211B16" stroke="#D6553E" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" fill="#D6553E" x="10" y="18">多维度智能评估</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="36">岗位契合度打分</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="52">• 匹配度评分（0–100 分）</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="66">• 待补足技能分析 (gaps)</text>
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="9" fill="#B5ABA0" x="10" y="80">• 校验求职硬性条件</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#D6553E" x="10" y="94">支持离线关键词对齐匹配</text>
+    </g>
+  </g>
+
+  <!-- Arrow Stage 3 -> 4 -->
+  <path d="M 720 253 L 750 253" stroke="#D6553E" stroke-width="1.4" marker-end="url(#arrow-accent)" fill="none" />
+
+  <!-- Stage 4: Classified Results Badges -->
+  <g transform="translate(754, 118)">
+    <rect width="166" height="270" rx="8" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#B5ABA0" x="14" y="24">阶段 4 · 结果分类</text>
+    <text font-family="'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'Lora', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="14" y="44">匹配类型</text>
+
+    <!-- Badge 1: Primary -->
+    <g transform="translate(12, 58)">
+      <rect width="142" height="44" rx="5" fill="rgba(91, 170, 126, 0.12)" stroke="#5BAA7E" stroke-width="1.2" />
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11" font-weight="600" fill="#5BAA7E" x="10" y="20">专业匹配</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#B5ABA0" x="10" y="34">技能方向高度契合</text>
+    </g>
+
+    <!-- Badge 2: Adjacent -->
+    <g transform="translate(12, 110)">
+      <rect width="142" height="44" rx="5" fill="#211B16" stroke="#6A9BC3" stroke-width="1.2" />
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11" font-weight="600" fill="#6A9BC3" x="10" y="20">相近岗位</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#B5ABA0" x="10" y="34">可发挥优势的转型职位</text>
+    </g>
+
+    <!-- Badge 3: Stretch -->
+    <g transform="translate(12, 162)">
+      <rect width="142" height="44" rx="5" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11" font-weight="600" fill="#F5EFE6" x="10" y="20">挑战岗位</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#B5ABA0" x="10" y="34">存在职级或经验差距</text>
+    </g>
+
+    <!-- Badge 4: Constraint Warning -->
+    <g transform="translate(12, 214)">
+      <rect width="142" height="44" rx="5" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.2" />
+      <text font-family="'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Geist', sans-serif" font-size="11" font-weight="600" fill="#D6553E" x="10" y="19">条件不符</text>
+      <text font-family="ui-monospace, 'Geist Mono', 'PingFang SC', 'Microsoft YaHei', monospace" font-size="8" fill="#B5ABA0" x="10" y="33">工作方式或地点冲突</text>
+    </g>
+  </g>
+</svg>

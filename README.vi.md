@@ -67,8 +67,8 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 ## Cách hoạt động
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/how-it-works-dark.svg">
-  <img src="docs/diagrams/how-it-works.svg" alt="Chrome của bạn lướt bài, lưu bài thô vào SQLite, AI phân loại và tóm tắt, rồi hiện thành bản tin">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/vi/how-it-works-dark.svg">
+  <img src="docs/diagrams/vi/how-it-works.svg" alt="Chrome của bạn lướt bài, lưu bài thô vào SQLite, AI phân loại và tóm tắt, rồi hiện thành bản tin">
 </picture>
 
 - **Lướt:** bot mở Chrome thật với profile riêng của FeedLens và cuộn như người đọc. Chế độ *Nhanh* nghỉ khoảng 1 giây; *Cẩn thận* cuộn chậm hơn.
@@ -80,8 +80,8 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 ### Chấm việc theo CV
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cv-matching-dark.svg">
-  <img src="docs/diagrams/cv-matching.svg" alt="CV PDF được tách chữ trên máy, AI tạo hồ sơ Markdown, rồi dùng để chấm từng tin tuyển dụng">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/vi/cv-matching-dark.svg">
+  <img src="docs/diagrams/vi/cv-matching.svg" alt="CV PDF được tách chữ trên máy, AI tạo hồ sơ Markdown, rồi dùng để chấm từng tin tuyển dụng">
 </picture>
 
 - Chữ trong PDF được tách ngay trên máy (`pypdf`). AI chuyển thành hồ sơ Markdown và bỏ số điện thoại, email, địa chỉ. **File PDF không được lưu.**
@@ -211,8 +211,8 @@ Hiện không có bản online nào đang chạy; FeedLens được thiết kế
 Muốn dùng Railway thì `backend/railway.json`, `frontend/railway.json` và hai Dockerfile đã có sẵn.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cloud-architecture-dark.svg">
-  <img src="docs/diagrams/cloud-architecture.svg" alt="Agent trên máy người dùng nhận việc từ backend FastAPI qua token fla_, backend lưu vào Postgres, frontend trên GitHub Pages">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/vi/cloud-architecture-dark.svg">
+  <img src="docs/diagrams/vi/cloud-architecture.svg" alt="Agent trên máy người dùng nhận việc từ backend FastAPI qua token fla_, backend lưu vào Postgres, frontend trên GitHub Pages">
 </picture>
 
 Việc lướt **luôn chạy trên máy người dùng**, vì cần Chrome thật, phiên đăng nhập của họ và IP nhà (IP datacenter rất dễ bị checkpoint). Server không giữ cookie mạng xã hội nào, trừ khi bật chế độ Server (cookie) bên dưới.

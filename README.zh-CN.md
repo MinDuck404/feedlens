@@ -67,8 +67,8 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 ## 工作原理
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/how-it-works-dark.svg">
-  <img src="docs/diagrams/how-it-works.svg" alt="你的 Chrome 浏览帖子，原始帖子存入 SQLite，AI 分类并摘要，最后生成报纸">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/zh-CN/how-it-works-dark.svg">
+  <img src="docs/diagrams/zh-CN/how-it-works.svg" alt="你的 Chrome 浏览帖子，原始帖子存入 SQLite，AI 分类并摘要，最后生成报纸">
 </picture>
 
 - **浏览：** 用 FeedLens 专属配置打开真实的 Chrome 窗口，像人一样滚动。*快速*模式每次停约 1 秒；*谨慎*模式更慢。
@@ -80,8 +80,8 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 ### 按简历匹配工作
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cv-matching-dark.svg">
-  <img src="docs/diagrams/cv-matching.svg" alt="PDF 简历在本地提取文字，AI 生成 Markdown 档案，再用它为每条招聘打分">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/zh-CN/cv-matching-dark.svg">
+  <img src="docs/diagrams/zh-CN/cv-matching.svg" alt="PDF 简历在本地提取文字，AI 生成 Markdown 档案，再用它为每条招聘打分">
 </picture>
 
 - PDF 文字在本机提取（`pypdf`）。AI 将其转为 Markdown 档案，并去掉电话、邮箱和住址。**PDF 文件本身不会被保存。**
@@ -231,8 +231,8 @@ cd backend && uv pip install -e ".[postgres]"
 如需 Railway，`backend/railway.json`、`frontend/railway.json` 和两个 Dockerfile 都已就绪。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/cloud-architecture-dark.svg">
-  <img src="docs/diagrams/cloud-architecture.svg" alt="用户电脑上的 agent 通过 fla_ token 从 FastAPI 后端接收任务，后端数据存于 Postgres，前端托管在 GitHub Pages">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/zh-CN/cloud-architecture-dark.svg">
+  <img src="docs/diagrams/zh-CN/cloud-architecture.svg" alt="用户电脑上的 agent 通过 fla_ token 从 FastAPI 后端接收任务，后端数据存于 Postgres，前端托管在 GitHub Pages">
 </picture>
 
 浏览**始终在用户电脑上运行**，因为需要真实的 Chrome、用户的会话和家庭 IP（数据中心 IP 很容易被要求验证）。除非开启下面的服务器（cookie）模式，服务器不保存任何社交网站 cookie。

@@ -12,108 +12,103 @@
   </defs>
 
   <!-- Title & Eyebrow Header -->
-  <g transform="translate(48, 36)">
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" font-weight="600" letter-spacing="0.14em" fill="#D6553E">LOCAL-FIRST DATAFLOW · PRIVACY &amp; RESILIENCE</text>
-    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="24" font-weight="600" fill="#F5EFE6" y="28">How FeedLens Works</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="12" fill="#B5ABA0" y="48">Your own browser and network, raw SQLite caching, and decoupled AI synthesis</text>
+  <g transform="translate(40, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">LOCAL-FIRST DATAFLOW · PRIVACY & RESILIENCE</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">How FeedLens Works</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" fill="#B5ABA0" y="48">Chrome with your own session scrapes feeds, saves raw posts to SQLite, then analyzes with AI</text>
   </g>
 
-  <!-- Flow Steps Pipeline -->
   <!-- Step 1: User Chrome -->
-  <g transform="translate(48, 128)">
-    <rect width="156" height="108" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
-    <rect x="12" y="12" width="76" height="18" rx="4" fill="#2E261F" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#B5ABA0" x="18" y="24">STEP 1 · LOCAL</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">Your Chrome</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#B5ABA0" x="12" y="66">Dedicated user profile</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" fill="#8F857A" x="12" y="82">Your own home network</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#D6553E" x="12" y="96">No password leaves device</text>
+  <g transform="translate(40, 126)">
+    <rect width="152" height="110" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+    <rect x="12" y="12" width="128" height="18" rx="4" fill="#2E261F" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#B5ABA0" x="18" y="24">STEP 1 · BROWSER</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">Your Chrome</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Dedicated user profile</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Residential IP session</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#D6553E" x="12" y="97">No password leaves device</text>
   </g>
 
-  <!-- Arrow 1 -> 2 -->
-  <path d="M 204 182 L 236 182" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+  <path d="M 192 181 L 208 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
   <!-- Step 2: Scraper Engine -->
-  <g transform="translate(240, 128)">
-    <rect width="156" height="108" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
-    <rect x="12" y="12" width="84" height="18" rx="4" fill="#2E261F" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#B5ABA0" x="18" y="24">STEP 2 · SCRAPE</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">Scraper Engine</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#B5ABA0" x="12" y="66">Feed &amp; group extraction</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" fill="#8F857A" x="12" y="82">Human-like scroll cadence</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#B5ABA0" x="12" y="96">Facebook · LinkedIn · X · Reddit</text>
+  <g transform="translate(212, 126)">
+    <rect width="168" height="110" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+    <rect x="12" y="12" width="144" height="18" rx="4" fill="#2E261F" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#B5ABA0" x="18" y="24">STEP 2 · SCRAPE</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">Scraper Engine</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Feed & group extraction</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Human-like scroll cadence</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#B5ABA0" x="12" y="97">FB · LinkedIn · X · Reddit</text>
   </g>
 
-  <!-- Arrow 2 -> 3 -->
-  <path d="M 396 182 L 428 182" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+  <path d="M 380 181 L 396 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 3: Raw SQLite (Focal Store) -->
-  <g transform="translate(432, 128)">
-    <rect width="156" height="108" rx="8" fill="#211B16" stroke="#F5EFE6" stroke-width="1.6" />
-    <rect x="12" y="12" width="94" height="18" rx="4" fill="#2E261F" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#F5EFE6" x="18" y="24">STEP 3 · RAW STORE</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">SQLite Database</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="10" font-weight="500" fill="#6A9BC3" x="12" y="66">feedlens.db</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="82">Unprocessed posts saved</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#5BAA7E" x="12" y="96">Data safely decoupled</text>
+  <!-- Step 3: Raw SQLite -->
+  <g transform="translate(400, 126)">
+    <rect width="156" height="110" rx="8" fill="#211B16" stroke="#F5EFE6" stroke-width="1.5" />
+    <rect x="12" y="12" width="132" height="18" rx="4" fill="#2E261F" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#F5EFE6" x="18" y="24">STEP 3 · RAW STORE</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">SQLite Database</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9.5" font-weight="600" fill="#6A9BC3" x="12" y="66">feedlens.db (raw posts)</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="82">Raw data preserved safely</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#5BAA7E" x="12" y="97">Decoupled persistence</text>
   </g>
 
-  <!-- Arrow 3 -> 4 -->
-  <path d="M 588 182 L 620 182" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+  <path d="M 556 181 L 572 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 4: AI Analysis & CV Profile (Focal Action) -->
-  <g transform="translate(624, 128)">
-    <rect width="168" height="108" rx="8" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.6" />
-    <rect x="12" y="12" width="90" height="18" rx="4" fill="#D6553E" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#211B16" x="18" y="24">STEP 4 · AI &amp; CV</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">AI Synthesis &amp; Match</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#B5ABA0" x="12" y="66">Gemini · Claude · OpenAI</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="9" fill="#8F857A" x="12" y="82">Topic Digest · 10 Categories</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#D6553E" x="12" y="96">CV Job Match Scoring</text>
+  <!-- Step 4: AI & CV -->
+  <g transform="translate(576, 126)">
+    <rect width="176" height="110" rx="8" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.5" />
+    <rect x="12" y="12" width="152" height="18" rx="4" fill="#D6553E" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#211B16" x="18" y="24">STEP 4 · AI & CV</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="48">AI Synthesis & Match</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Gemini · Claude · OpenAI</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Topic digest · 10 categories</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#D6553E" x="12" y="97">CV job match scoring</text>
   </g>
 
-  <!-- Arrow 4 -> 5 -->
-  <path d="M 792 182 L 824 182" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+  <path d="M 752 181 L 768 181" stroke="#B5ABA0" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
 
-  <!-- Step 5: Web Digest -->
-  <g transform="translate(828, 128)">
-    <rect width="84" height="108" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
-    <rect x="8" y="12" width="68" height="18" rx="4" fill="#2E261F" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#B5ABA0" x="13" y="24">STEP 5</text>
-    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14" font-weight="600" fill="#F5EFE6" x="8" y="48">Your Digest</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" fill="#B5ABA0" x="8" y="66">Web Paper</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#8F857A" x="8" y="82">Newspaper layout</text>
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#B5ABA0" x="8" y="96">vi / en / zh</text>
+  <!-- Step 5: Web Digest (Generous 148px width) -->
+  <g transform="translate(772, 126)">
+    <rect width="148" height="110" rx="8" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+    <rect x="12" y="12" width="124" height="18" rx="4" fill="#2E261F" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#B5ABA0" x="18" y="24">STEP 5 · DIGEST</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14" font-weight="600" fill="#F5EFE6" x="12" y="48">Web Digest</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="12" y="66">Newspaper layout</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#8F857A" x="12" y="82">Newspaper layout</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#B5ABA0" x="12" y="97">vi / en / zh</text>
   </g>
 
-  <!-- Auxiliary CV Profile Box feeding into Step 4 -->
-  <g transform="translate(624, 28)">
-    <rect width="168" height="64" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#6A9BC3" x="12" y="20">AUXILIARY CONTEXT</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#F5EFE6" x="12" y="36">User CV Profile</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="52">Target roles · Criteria · Bridge roles</text>
+  <!-- Auxiliary CV Context Box -->
+  <g transform="translate(576, 28)">
+    <rect width="176" height="64" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#6A9BC3" x="12" y="20">AUXILIARY CONTEXT</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" font-weight="600" fill="#F5EFE6" x="12" y="36">User CV Profile</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="52">Target roles · Criteria · Bridge roles</text>
   </g>
-  <path d="M 708 92 L 708 124" stroke="#6A9BC3" stroke-width="1.3" stroke-dasharray="3,3" marker-end="url(#arrow-link)" fill="none" />
+  <path d="M 664 92 L 664 122" stroke="#6A9BC3" stroke-width="1.3" stroke-dasharray="3,3" marker-end="url(#arrow-link)" fill="none" />
 
-  <!-- RESILIENCE & ERROR BRANCH (CRITICAL ARCHITECTURAL GUARANTEE) -->
-  <!-- Downward branch from Step 4 -->
-  <path d="M 708 236 L 708 280" stroke="#D6553E" stroke-width="1.3" marker-end="url(#arrow-accent)" fill="none" />
-  
-  <g transform="translate(624, 284)">
-    <rect width="168" height="64" rx="6" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.2" />
-    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="12" y="20">FAILURE HANDLING</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#F5EFE6" x="12" y="36">AI Rate Limit / Timeout</text>
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9.5" fill="#B5ABA0" x="12" y="52">Zero data loss: raw posts kept</text>
+  <!-- Failure Box -->
+  <path d="M 664 236 L 664 278" stroke="#D6553E" stroke-width="1.3" marker-end="url(#arrow-accent)" fill="none" />
+  <g transform="translate(576, 282)">
+    <rect width="176" height="64" rx="6" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.06em" fill="#D6553E" x="12" y="20">FAILURE HANDLING</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" fill="#F5EFE6" x="12" y="36">AI Rate Limit / Timeout</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="52">Zero data loss: raw posts kept</text>
   </g>
 
-  <!-- Loop back from Error box to Step 3 SQLite -->
-  <path d="M 624 316 L 510 316 L 510 240" stroke="#5BAA7E" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
-  <rect x="424" y="306" width="176" height="20" rx="4" fill="#16120E" stroke="#5BAA7E" stroke-width="1" />
-  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" fill="#5BAA7E" x="432" y="320">↺ 1-Click Re-Analyze (No Re-Scrape)</text>
+  <!-- Loopback arrow from Failure to Step 3 SQLite -->
+  <path d="M 576 314 L 478 314 L 478 240" stroke="#5BAA7E" stroke-width="1.4" marker-end="url(#arrow)" fill="none" />
+  <g transform="translate(390, 303)">
+    <rect width="176" height="22" rx="4" fill="#16120E" stroke="#5BAA7E" stroke-width="1" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#5BAA7E" text-anchor="middle" x="88" y="15">↺ 1-Click Re-Analyze (No Re-Scrape)</text>
+  </g>
 
-  <!-- Bottom Legend / Notes -->
-  <g transform="translate(48, 388)">
+  <!-- Footnote -->
+  <g transform="translate(40, 396)">
     <circle cx="6" cy="6" r="4" fill="#D6553E" />
-    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10.5" fill="#B5ABA0" x="18" y="10">Decoupled design: Scraping happens on your IP; AI tokens and network failures never discard collected articles.</text>
+    <text font-family="'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0" x="18" y="10">Decoupled design: Scraping runs on your IP; AI tokens and network failures never discard collected articles.</text>
   </g>
 </svg>

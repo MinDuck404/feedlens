@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="960" height="480" style="background:#16120E;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#B5ABA0" />
+    </marker>
+    <marker id="arrow-link" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#6A9BC3" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 Z" fill="#D6553E" />
+    </marker>
+  </defs>
+
+  <!-- Title & Eyebrow Header -->
+  <g transform="translate(40, 36)">
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" font-weight="600" letter-spacing="0.12em" fill="#D6553E">KIẾN TRÚC TRIỂN KHAI · ĐA NGƯỜI DÙNG</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="23" font-weight="600" fill="#F5EFE6" y="28">Kiến trúc đám mây</text>
+    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11.5" fill="#B5ABA0" y="48">Mặc định backend không giữ cookie mạng xã hội: agent lướt tại máy và đẩy bài qua token fla_</text>
+  </g>
+
+  <!-- Container 1: Local Machine -->
+  <g transform="translate(40, 116)">
+    <rect width="264" height="312" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="16" y="24">VÙNG 1 · MÁY CỦA BẠN</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="15" font-weight="600" fill="#F5EFE6" x="16" y="44">Máy người dùng (IP dân cư)</text>
+
+    <!-- Node 1: feedlens agent -->
+    <g transform="translate(16, 60)">
+      <rect width="232" height="96" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#6A9BC3" x="12" y="20">DAEMON CHẠY NỀN</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">feedlens agent</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#D6553E" x="12" y="58">token fla_xxx (Bearer auth)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="74">Hỏi việc định kỳ mỗi 2 giây</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="88">Đẩy bài viết thô qua HTTPS</text>
+    </g>
+
+    <!-- CDP Connector -->
+    <path d="M 132 156 L 132 184" stroke="#B5ABA0" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrow)" fill="none" />
+    <rect x="72" y="164" width="120" height="16" rx="3" fill="#2A231C" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" fill="#8F857A" text-anchor="middle" x="132" y="176">Chrome DevTools (CDP)</text>
+
+    <!-- Node 2: Chrome Browser -->
+    <g transform="translate(16, 188)">
+      <rect width="232" height="96" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#B5ABA0" x="12" y="20">TỰ ĐỘNG HÓA CỤC BỘ</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="40">Chrome (Profile riêng)</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="58">Phiên đăng nhập thực của bạn</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="74">Lướt tự nhiên theo nhịp người</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#5BAA7E" x="12" y="88">Không bị chặn IP datacenter</text>
+    </g>
+  </g>
+
+  <!-- Connector: Agent <-> Backend -->
+  <path d="M 304 220 L 360 220" stroke="#D6553E" stroke-width="1.6" marker-end="url(#arrow-accent)" fill="none" />
+  <rect x="306" y="202" width="56" height="16" rx="3" fill="#16120E" stroke="#D6553E" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" font-weight="600" fill="#D6553E" text-anchor="middle" x="334" y="214">token fla_</text>
+
+  <!-- Container 2: Cloud Backend -->
+  <g transform="translate(364, 116)">
+    <rect width="300" height="312" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="16" y="22">VÙNG 2 · MÁY CHỦ CLOUD</text>
+    <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14.5" font-weight="600" fill="#F5EFE6" x="16" y="40">Backend FastAPI đám mây</text>
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#8F857A" x="16" y="54">(Render / Docker / Managed)</text>
+
+    <!-- Node 3: FastAPI Core -->
+    <g transform="translate(16, 62)">
+      <rect width="268" height="122" rx="6" fill="#211B16" stroke="#F5EFE6" stroke-width="1.4" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#D6553E" x="12" y="18">DỊCH VỤ CỐT LÕI</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="38">Ứng dụng FastAPI</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="56">• Xác thực & Hàng đợi công việc</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="72">• Quản lý lượt chạy và kết quả</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="88">• Mã hóa Fernet (FEEDLENS_SECRET)</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8.5" fill="#6A9BC3" x="12" y="106">Gọi AI bằng key của từng user</text>
+    </g>
+
+    <!-- Connector: FastAPI -> Postgres -->
+    <path d="M 150 184 L 150 214" stroke="#B5ABA0" stroke-width="1.3" marker-end="url(#arrow)" fill="none" />
+    <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7.5" fill="#8F857A" text-anchor="middle" x="150" y="202">SQLAlchemy / SSL</text>
+
+    <!-- Node 4: Postgres DB -->
+    <g transform="translate(16, 218)">
+      <rect width="268" height="74" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" fill="#B5ABA0" x="12" y="18">TẦNG LƯU TRỮ</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" fill="#F5EFE6" x="12" y="38">Cơ sở dữ liệu PostgreSQL</text>
+      <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="12" y="56">Tài khoản · Lượt lướt · Token băm</text>
+    </g>
+  </g>
+
+  <!-- Container 3: Frontend & External AI -->
+  <g transform="translate(714, 116)">
+    <!-- Frontend Box -->
+    <g>
+      <rect width="206" height="140" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#6A9BC3" x="16" y="22">VÙNG 3 · TRUY CẬP WEB</text>
+      <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14" font-weight="600" fill="#F5EFE6" x="16" y="40">GitHub Pages SPA</text>
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#8F857A" x="16" y="54">(CDN tĩnh toàn cầu)</text>
+
+      <g transform="translate(14, 60)">
+        <rect width="178" height="66" rx="6" fill="#211B16" stroke="#3D342B" stroke-width="1.2" />
+        <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="22">Frontend React + Vite</text>
+        <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="10" y="38">Giao diện phong cách báo in</text>
+        <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#8F857A" x="10" y="54">VITE_API_URL → Cloud FastAPI</text>
+      </g>
+    </g>
+
+    <!-- AI Providers Box -->
+    <g transform="translate(0, 168)">
+      <rect width="206" height="144" rx="10" fill="#2A231C" stroke="#3D342B" stroke-width="1.2" />
+      <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" font-weight="600" letter-spacing="0.08em" fill="#D6553E" x="16" y="24">VÙNG 4 · DỊCH VỤ AI</text>
+      <text font-family="'Lora', 'Georgia', 'Cambria', 'Times New Roman', serif" font-size="14.5" font-weight="600" fill="#F5EFE6" x="16" y="44">Nhà cung cấp AI</text>
+
+      <g transform="translate(14, 58)">
+        <rect width="178" height="72" rx="6" fill="rgba(214, 85, 62, 0.12)" stroke="#D6553E" stroke-width="1.2" />
+        <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#F5EFE6" x="10" y="24">Gemini · Claude · OpenAI</text>
+        <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" fill="#B5ABA0" x="10" y="40">Giải mã key trong bộ nhớ khi gọi</text>
+        <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="8" fill="#D6553E" x="10" y="56">Server không dùng quota chủ</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Connectors -->
+  <path d="M 714 190 L 668 190" stroke="#6A9BC3" stroke-width="1.4" marker-end="url(#arrow-link)" fill="none" />
+  <rect x="670" y="174" width="44" height="16" rx="3" fill="#16120E" stroke="#6A9BC3" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7" font-weight="600" fill="#6A9BC3" text-anchor="middle" x="692" y="186">REST</text>
+
+  <path d="M 664 250 L 688 250 L 688 350 L 714 350" stroke="#D6553E" stroke-width="1.4" marker-end="url(#arrow-accent)" fill="none" />
+  <rect x="668" y="292" width="40" height="16" rx="3" fill="#16120E" stroke="#D6553E" stroke-width="0.8" />
+  <text font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="7" font-weight="600" fill="#D6553E" text-anchor="middle" x="688" y="304">AI API</text>
+
+  <!-- Bottom Security Callout -->
+  <g transform="translate(40, 442)">
+    <text font-family="'Be Vietnam Pro', 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#B5ABA0">NGUYÊN TẮC BẢO MẬT: Cookie mạng xã hội ở lại trên máy bạn, trừ khi bạn bật chế độ Server (cookie).</text>
+  </g>
+</svg>
