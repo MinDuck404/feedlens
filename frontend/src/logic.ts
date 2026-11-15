@@ -26,3 +26,8 @@ export function serialWriter<T>(write: (value: T) => Promise<unknown>) {
 export function matchesJobType(type: string | null | undefined, filter: string): boolean {
   return filter === "all" || (type ?? "none") === filter;
 }
+
+export function canContinueAnalysis(run: { status: string; digest?: unknown; posts?: { analyzed?: boolean }[]; can_continue_analysis?: boolean }): boolean {
+  if (["pending", "queued", "scraping", "analyzing"].includes(run.status)) return false;
+  return run.can_continue_analysis ?? (!!run.posts?.length && (!run.digest || run.posts.some((post) => post.analyzed === false)));
+}

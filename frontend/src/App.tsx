@@ -6,6 +6,7 @@ import Settings from "./components/Settings";
 import RunView from "./components/RunView";
 import HistoryPage from "./components/HistoryPage";
 import Sidebar from "./components/Sidebar";
+import { ThemeSwitch } from "./components/PreferenceMenus";
 import { Button } from "./components/ui/Button";
 import { Skeleton, SkeletonCard } from "./components/ui/Skeleton";
 import { useI18n } from "./i18n";
@@ -234,6 +235,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
       />
 
       <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="sticky top-0 z-20 hidden h-12 items-center justify-end bg-bg/90 px-5 backdrop-blur-sm md:flex"><ThemeSwitch /></div>
         {(Object.keys(workspaceErrors).length > 0 || prefsError) && (
           <div className={`mx-auto space-y-2 px-5 pt-4 md:px-10 ${route.page === "home" ? "max-w-2xl" : route.page === "history" ? "max-w-4xl" : "max-w-5xl"}`}>
         {Object.entries(workspaceErrors).map(([source, message]) => (

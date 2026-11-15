@@ -183,6 +183,16 @@
   color-scheme: dark;
 }
 
+:root.theme-changing {
+  transition-property: var(--theme-transition-properties);
+  transition-duration: 240ms;
+  transition-timing-function: var(--ease-micro);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.theme-changing { transition: none; }
+}
+
 @theme inline {
   --color-bg: var(--paper);
   --color-surface: var(--sheet);

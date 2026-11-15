@@ -5,6 +5,7 @@ import { API_BASE, api } from "../api";
 import type { AIProviderInfo, Me, Meta } from "../types";
 import CookieSessions from "./CookieSessions";
 import JobProfileSettings from "./JobProfileSettings";
+import { ThemeMenu } from "./PreferenceMenus";
 import { useI18n } from "../i18n";
 import { Sheet, Button, SkeletonCard, SegmentedControl } from "./ui";
 
@@ -72,6 +73,7 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
         </div>
         <div hidden={tab !== "profile"} role="tabpanel" id={`${id}-panel-profile`} aria-labelledby={`${id}-tab-profile`} tabIndex={0}><JobProfileSettings providers={providers} /></div>
         <div hidden={tab !== "agent"} role="tabpanel" id={`${id}-panel-agent`} aria-labelledby={`${id}-tab-agent`} tabIndex={0}>
+          <div className="mb-5 flex items-center justify-between gap-3 border-b border-line pb-3"><span className="text-sm">{t("theme.label")}</span><ThemeMenu above={false} /></div>
           {meta.mode === "cloud" && me ? <AgentSection me={me} onChanged={onChanged} /> : <><h3 className="font-headline text-2xl">{t("set.tab.agent")}</h3><p className="mt-3 text-sm leading-relaxed text-ink-soft">{t("set.localAgent")}</p></>}
         </div>
         <div hidden={tab !== "cookies"} role="tabpanel" id={`${id}-panel-cookies`} aria-labelledby={`${id}-tab-cookies`} tabIndex={0}>

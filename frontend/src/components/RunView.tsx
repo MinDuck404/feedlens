@@ -7,7 +7,7 @@ import { routeHref, type RunTab } from "../router";
 import type { AIProviderInfo, Meta, Post, Run } from "../types";
 import { ModelPicker } from "./Composer";
 
-import { isRemoteText, matchesJobType, parseTimestamp } from "../logic";
+import { canContinueAnalysis, isRemoteText, matchesJobType, parseTimestamp } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
@@ -83,6 +83,8 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
   const title = q.source_type === "feed" ? t("run.feedOf", { platform: PLATFORM_LABEL[q.platform] })
     : q.sources.length > 1 ? t("run.andMore", { first: q.sources[0], n: q.sources.length - 1 }) : q.sources[0];
   const when = parseTimestamp(run.created_at);
+  const canContinue = canContinueAnalysis(run);
+  const failed = run.status === "error" || run.status === "analysis_failed";
 
   const remove = async () => {
     if (!confirm(t("run.confirmDelete"))) return;
@@ -115,13 +117,13 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
       </header>
       <hr className="rule-double mt-4" />
 
-      {run.status === "error" || run.status === "analysis_failed" ? (
+      {failed || canContinue ? (
         <>
-        <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
+        {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
-          {run.status === "analysis_failed" && <RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} />}
-        </div>
+        </div>}
+        {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {!!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
         </>
       ) : run.status !== "done" || !run.digest ? (
@@ -136,8 +138,8 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
 function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) {
   const { t } = useI18n();
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
-  const [provider, setProvider] = useState(run.request.ai_provider);
-  const [model, setModel] = useState(run.request.ai_model);
+  const [provider, setProvider] = useState(run.request.ai_provider || "auto");
+  const [model, setModel] = useState(run.request.ai_model || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
@@ -158,7 +160,7 @@ function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) 
       </Select></label>
       {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <Button busy={busy} onClick={submit}>{t("run.retryAnalysis")}</Button>
+      <Button busy={busy} onClick={submit}>{t("run.continueAnalysis")}</Button>
     </fieldset>
   </div>;
 }
@@ -288,7 +290,7 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         </div>
       </div>
       {d.action_items.length > 0 && (
-        <aside className="h-fit border-y border-line-strong bg-sunken p-4 lg:sticky lg:top-6">
+        <aside className="h-fit border border-[var(--field-line)] bg-sunken p-4 lg:sticky lg:top-6">
           <h3 className="font-headline text-xl font-semibold">{t("run.nextSteps")}</h3>
           <ul className="mt-3 space-y-2.5">
             {d.action_items.map((a, i) => (

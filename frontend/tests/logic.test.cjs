@@ -300,7 +300,7 @@ test("theme preference applies explicit overrides and restores system styling be
   const html = fs.readFileSync(require.resolve("../index.html"), "utf8");
   const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)[1];
   const classes = new Set();
-  const root = { dataset: {}, classList: { add: (value) => classes.add(value), toggle: (value, on) => on ? classes.add(value) : classes.delete(value) } };
+  const root = { dataset: {}, classList: { add: (value) => classes.add(value), remove: (value) => classes.delete(value), toggle: (value, on) => on ? classes.add(value) : classes.delete(value) } };
   vm.runInNewContext(bootstrap, { localStorage: { getItem: () => "dark" }, document: { documentElement: root } });
   assert.equal(root.dataset.theme, "dark");
   assert.ok(classes.has("dark"));
@@ -315,4 +315,18 @@ test("theme preference applies explicit overrides and restores system styling be
     assert.equal(root.dataset.theme, undefined); assert.equal(classes.size, 0);
     assert.equal(memory.get("feedlens.theme"), "system");
   } finally { global.document = original; }
+});
+
+test("continue analysis depends on saved content, not the failure status name", () => {
+  const { canContinueAnalysis } = require("../src/logic.ts");
+  for (const status of ["error", "analysis_failed", "done"]) {
+    assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: true }], digest: null }), true);
+    assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: false }], digest: {} }), true);
+    assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: true }], digest: {} }), false);
+    assert.equal(canContinueAnalysis({ status, posts: [] }), false);
+  }
+  assert.equal(canContinueAnalysis({ status: "error", posts: [{ summary: "legacy" }] }), true);
+  for (const status of ["pending", "queued", "scraping", "analyzing"]) {
+    assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: false }], can_continue_analysis: true }), false);
+  }
 });

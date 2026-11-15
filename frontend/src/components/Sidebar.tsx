@@ -12,7 +12,7 @@ import { useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { useI18n, type Key } from "../i18n";
-import { LanguageMenu, ThemeMenu } from "./PreferenceMenus";
+import { LanguageMenu, ThemeSwitch } from "./PreferenceMenus";
 import type { PlatformState, Run } from "../types";
 import { Button, IconButton } from "./ui/Button";
 import { Sheet } from "./ui/Dialog";
@@ -83,7 +83,7 @@ export default function Sidebar(props: Props) {
         </a>
 
         <div className="flex items-center gap-1">
-          <ThemeMenu above={false} />
+          <ThemeSwitch />
           <IconButton
             icon={<Plus className="size-4" />}
             label={t("act.newRun")}
@@ -344,7 +344,6 @@ function SidebarBody({
         </span>
 
         <LanguageMenu />
-        <ThemeMenu />
 
         {/* Settings Button */}
         <IconButton

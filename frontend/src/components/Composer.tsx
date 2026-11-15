@@ -200,7 +200,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       )}
       {loadError && <p role="alert" className="mb-3 text-sm text-danger">{loadError} <button type="button" onClick={loadProviders}>{t("act.retry")}</button></p>}
       {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
-      <Button type="submit" busy={sending} size="lg" className="w-full">
+      <Button type="submit" busy={sending} size="md" className="h-11! min-h-11! w-full text-sm!">
         {sending ? t("cmp.starting") : t("cmp.start")}
       </Button>
     </>
@@ -218,7 +218,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
     >
       {cloud && meta.server_scrape && (
             <Group label={t("cmp.runner")}>
-              <SegmentedControl label={t("cmp.runner")} value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
+              <SegmentedControl compact label={t("cmp.runner")} value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
                 options={[{ value: "agent", label: t("cmp.runnerAgent") }, { value: "server", label: t("cmp.runnerServer") }]} />
               <p className="mt-2 text-sm text-ink-soft">
                 {f.runner === "agent"
@@ -229,7 +229,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           )}
 
           <Group label={t("cmp.platform")}>
-            <SegmentedControl label={t("cmp.platform")} value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
+            <SegmentedControl compact label={t("cmp.platform")} value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
             {!cloud && platformState && !platformState.has_profile && (
               <p className="mt-2 text-sm text-ink-soft">
                 {t("cmp.notLoggedIn", { name: platformState.name })}
@@ -238,7 +238,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           </Group>
 
           <Group label={t("cmp.where")}>
-            <SegmentedControl label={t("cmp.where")} value={f.source_type} onChange={(v) => set("source_type", v as SourceType)}
+            <SegmentedControl compact label={t("cmp.where")} value={f.source_type} onChange={(v) => set("source_type", v as SourceType)}
               options={[{ value: "feed", label: t("cmp.feed") }, { value: "group", label: t("cmp.groups") }, { value: "search", label: t("cmp.search") }]} />
 
             {f.source_type === "group" && hint && (
@@ -322,7 +322,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             <div className="mt-2 flex flex-wrap gap-2">
               {[20, 40, 80, 120].filter((n) => n <= Math.min(200, meta.max_posts)).map((n) => (
                 <button key={n} type="button" onClick={() => set("count", n)} aria-pressed={f.count === n}
-                  className="interactive-tap min-h-10 min-w-12 rounded-full px-3 py-1 font-mono text-sm text-ink-soft hover:bg-sunken hover:text-ink aria-pressed:bg-primary aria-pressed:text-primary-ink">
+                  className="interactive-tap relative isolate min-h-11 min-w-11 rounded-full px-2 py-1 font-mono text-xs text-ink-soft hover:text-ink aria-pressed:text-primary-ink before:absolute before:inset-x-1 before:inset-y-1.5 before:-z-10 before:rounded-full hover:before:bg-sunken aria-pressed:before:bg-primary">
                   {formatNumber(n, lang)}
                 </button>
               ))}
@@ -336,7 +336,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           </Group>
 
           <Group label={t("cmp.speed")}>
-            <SegmentedControl label={t("cmp.speed")} value={f.speed} onChange={(v) => set("speed", v as RunRequest["speed"])}
+            <SegmentedControl compact label={t("cmp.speed")} value={f.speed} onChange={(v) => set("speed", v as RunRequest["speed"])}
               options={[{ value: "fast", label: t("cmp.fast") }, { value: "careful", label: t("cmp.careful") }]} />
             <p className="mt-2 text-sm text-ink-soft">
               {f.speed === "fast" ? t("cmp.fastHint") : t("cmp.carefulHint")}

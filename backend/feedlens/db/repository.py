@@ -212,7 +212,7 @@ class Database:
         from sqlalchemy import update
         with self.Session.begin() as s:
             result = s.execute(update(RunRow).where(RunRow.id == run_id,
-                RunRow.status.in_(("analysis_failed", "error"))).values(
+                RunRow.status.notin_(("pending", "queued", "scraping", "analyzing"))).values(
                     status="analyzing", request=req.model_dump(), error=None, digest=None))
             return result.rowcount == 1
 
@@ -238,6 +238,18 @@ class Database:
         with self.Session() as s:
             row = s.get(RunRow, run_id)
             return [RawPost(**p) for p in (row.raw_posts or [])] if row else []
+
+    def get_analysis_posts(self, run_id: int) -> list[RawPost]:
+        # Older runs may have analyzed rows but no raw_posts snapshot; their original text is still usable.
+        return self.get_raw_posts(run_id) or [RawPost.model_validate(p.model_dump()) for p in self.get_posts(run_id)]
+
+    def can_continue_analysis(self, run_id: int) -> bool:
+        run = self.get_run(run_id)
+        if not run or run["status"] in {"pending", "queued", "scraping", "analyzing"}:
+            return False
+        raw = self.get_analysis_posts(run_id)
+        completed = {p.fingerprint for p in self.get_posts(run_id)}
+        return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))
 
     def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         """Checkpoint completed batches without replacing IDs used by applied-job markers."""

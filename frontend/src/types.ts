@@ -117,6 +117,7 @@ export interface Progress {
 }
 
 export interface Run {
+  can_continue_analysis?: boolean;
   id: number;
   created_at: string;
   request: RunRequest;

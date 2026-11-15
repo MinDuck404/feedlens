@@ -470,6 +470,7 @@ def runs(user: User = Depends(current_user)):
 def run_detail(run_id: int, user: User = Depends(current_user)):
     r = _own_run(run_id, user)
     return {**r, "progress": progress_message(PROGRESS.get(run_id)),
+            "can_continue_analysis": db().can_continue_analysis(run_id),
             "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None, "posts": [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]}
 
 
@@ -481,13 +482,14 @@ class AnalysisBody(BaseModel):
 @private.post("/runs/{run_id}/analysis")
 def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current_user)):
     r = _own_run(run_id, user)
-    raw = db().get_raw_posts(run_id)
-    if not raw or r["status"] not in {"analysis_failed", "error"}:
+    raw = db().get_analysis_posts(run_id)
+    if not db().can_continue_analysis(run_id):
         raise HTTPException(409, "Lượt này không có bài chờ phân tích lại.")
     req = RunRequest(**{**r["request"], **body.model_dump()})
     _check_ai(req, user.id)
     if not db().claim_analysis(run_id, req):
         raise HTTPException(409, "Lượt này đang được phân tích.")
+    db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
     start_analysis(db(), run_id, req, raw, user.id)
     return {"ok": True}
 

@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { LANGS, useI18n } from "../i18n";
-import { getThemePreference, setThemePreference, type ThemePreference } from "../theme";
+import { getThemePreference, isDarkTheme, setThemePreference, type ThemePreference } from "../theme";
 
 function ChoiceMenu({ label, icon, caption, value, options, onChange, above = true }: {
   label: string; icon: ReactNode; caption?: string; value: string;
@@ -64,4 +64,26 @@ export function ThemeMenu({ above = true }: { above?: boolean }) {
   return <ChoiceMenu label={t("theme.label")} icon={<Icon aria-hidden="true" className="size-4" />} value={theme} above={above}
     options={(["light", "dark", "system"] as const).map((value) => ({ value, label: t(`theme.${value}`) }))}
     onChange={(value) => setThemePreference(value as ThemePreference)} />;
+}
+
+export function ThemeSwitch() {
+  const { t } = useI18n();
+  const [dark, setDark] = useState(isDarkTheme);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setDark(isDarkTheme());
+    window.addEventListener("feedlens:theme", update); media.addEventListener("change", update);
+    return () => { window.removeEventListener("feedlens:theme", update); media.removeEventListener("change", update); };
+  }, []);
+  return <button type="button" role="switch" aria-checked={dark} aria-label={t("theme.dark")} title={t("theme.toggle")}
+    onClick={() => setThemePreference(dark ? "light" : "dark")}
+    className="inline-flex h-11 w-[72px] shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2">
+    <span aria-hidden="true" className="relative block h-8 w-16 rounded-full border border-[var(--field-line)] bg-[var(--field-bg)]">
+      <Sun className="absolute top-2 left-2 size-3.5 text-ink-faint" /><Moon className="absolute top-2 right-2 size-3.5 text-ink-faint" />
+      <span data-theme-knob className={`absolute top-[3px] left-[3px] grid size-6 place-items-center rounded-full bg-primary text-primary-ink shadow-sm transition-transform duration-[var(--duration-normal)] ease-[var(--ease-spring)] motion-reduce:transition-none ${dark ? "translate-x-8" : "translate-x-0"}`}>
+        <Sun className={`absolute size-3.5 transition-[transform,opacity] duration-[var(--duration-normal)] motion-reduce:transition-none ${dark ? "rotate-90 opacity-0" : "rotate-0 opacity-100"}`} />
+        <Moon className={`absolute size-3.5 transition-[transform,opacity] duration-[var(--duration-normal)] motion-reduce:transition-none ${dark ? "rotate-0 opacity-100" : "-rotate-90 opacity-0"}`} />
+      </span>
+    </span>
+  </button>;
 }
