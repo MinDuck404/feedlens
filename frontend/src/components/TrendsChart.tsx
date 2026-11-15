@@ -1,4 +1,4 @@
-import { useId, useState, type PointerEvent, type MouseEvent, type KeyboardEvent } from "react";
+import { useId, useState, type PointerEvent, type KeyboardEvent } from "react";
 import type { SearchFilters, TrendsResponse } from "../types";
 import { useI18n, formatNumber } from "../i18n";
 import { routeHref } from "../router";
@@ -23,22 +23,17 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
   const { timeline, series } = data;
   const latestIndex = timeline.length ? timeline.length - 1 : null;
 
-  // Date navigation and pinning state
+  // Date navigation: hovered date previews temporarily; leaving chart retains last viewed date; starts at latest date
   const [viewedIndex, setViewedIndex] = useState<number | null>(() => latestIndex);
-  const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const safeViewed = viewedIndex !== null && timeline.length ? Math.max(0, Math.min(timeline.length - 1, viewedIndex)) : latestIndex;
-  const safePinned = pinnedIndex !== null && timeline.length ? Math.max(0, Math.min(timeline.length - 1, pinnedIndex)) : null;
   const safeHover = hoverIndex !== null && timeline.length ? Math.max(0, Math.min(timeline.length - 1, hoverIndex)) : null;
+  const current = safeHover ?? safeViewed;
 
-  // Effective current index: hover takes precedence for temporary preview, then pinned, then last viewed
-  const current = safeHover ?? safePinned ?? safeViewed;
-
-  // Series highlight state
-  const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
+  // Series highlight on hover/focus: default has no highlight (all lines equal opacity 0.75)
   const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
-  const activeSeries = hoveredSeries ?? selectedSeries;
+  const activeSeries = hoveredSeries;
 
   const max = Math.max(4, Math.ceil(Math.max(0, ...series.flatMap((item) => item.counts)) / 4) * 4);
   const width = 730, height = 280;
@@ -51,7 +46,7 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
     return snapTrendIndex((event.clientX - rect.left) / rect.width * 800 - 46, timeline.length, width);
   };
 
-  // Build target filters for "Tìm bài trong ngày/tuần này" link
+  // Date range for search links
   const currentDateStr = current !== null ? timeline[current] : undefined;
   let end = data.range.end_date;
   if (currentDateStr) {
@@ -60,15 +55,31 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
     end = [day.toISOString().slice(0, 10), end].sort()[0];
   }
   const dateFrom = currentDateStr ? [currentDateStr, data.range.start_date].sort().at(-1)! : data.range.start_date;
+
+  // Explore date link finds all posts for that day/week
   const exploreFilters: SearchFilters = {
-    ...(selectedSeries ? (data.range.group === "topic" ? { topic_ids: [Number(selectedSeries)] } : { categories: [selectedSeries] }) : {}),
     date_from: dateFrom,
     date_to: end,
   };
   const exploreDateHref = routeHref({ page: "ask", filters: exploreFilters });
 
-  const pinnedLabel = t("trends.pinned");
-  const unpinLabel = t("trends.unpin");
+  const seriesAriaLabel = ({ name, count }: { name: string; count: number }) => {
+    const formattedCount = formatNumber(count, lang);
+    const dateStr = current !== null ? date(timeline[current]) : "";
+    if (lang === "vi") {
+      return dateStr
+        ? `Xem ${formattedCount} bài ${name} ngày ${dateStr}`
+        : `Xem ${formattedCount} bài ${name}`;
+    }
+    if (lang === "zh") {
+      return dateStr
+        ? `查看 ${dateStr} ${name} 的 ${formattedCount} 篇`
+        : `查看 ${name} 的 ${formattedCount} 篇`;
+    }
+    return dateStr
+      ? `View ${formattedCount} ${name} posts on ${dateStr}`
+      : `View ${formattedCount} ${name} posts`;
+  };
 
   if (viewMode === "grid") return <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${className}`}>
     {series.map((item) => {
@@ -86,58 +97,50 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
     })}
   </div>;
 
-  const step = Math.max(1, Math.ceil((timeline.length - 1) / 5));
-  const ticks = [...new Set([0, ...timeline.map((_, i) => i).filter((i) => i % step === 0), timeline.length - 1])].filter((i) => i >= 0);
-
   return <div className={`space-y-4 ${className}`}>
-    <div className="paper-card min-w-0 overflow-hidden p-3 sm:p-5">
-      <p id={`${clipId}-hint`} className="mb-3 text-xs text-ink-soft">{t("trends.stableHint")}</p>
+    <div className="paper-card p-4 sm:p-5">
       <svg
-        viewBox="0 0 800 340"
-        className="h-auto w-full overflow-hidden outline-none"
+        viewBox="-4 -4 808 338"
+        className="w-full overflow-visible select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
         tabIndex={0}
-        role="img"
-        aria-label={t("trends.title")}
-        aria-describedby={`${clipId}-hint`}
+        role="region"
+        aria-label={t("trends.chartHint")}
         onKeyDown={(event: KeyboardEvent<SVGSVGElement>) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            if (current !== null) {
-              setPinnedIndex(current);
-              setViewedIndex(current);
-              setHoverIndex(null);
-            }
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            setPinnedIndex(null);
-            setViewedIndex(latestIndex);
-            setHoverIndex(null);
-          } else if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-            event.preventDefault();
-            const target = event.key === "Home"
-              ? 0
-              : event.key === "End"
-              ? (timeline.length - 1)
-              : Math.max(0, Math.min(timeline.length - 1, (current ?? 0) + (event.key === "ArrowRight" ? 1 : -1)));
-            setViewedIndex(target);
-            if (pinnedIndex !== null) {
-              setPinnedIndex(target);
-            }
-          }
+          if (!timeline.length) return;
+          const base = safeViewed ?? 0;
+          let target = base;
+          if (event.key === "ArrowLeft") target = Math.max(0, base - 1);
+          else if (event.key === "ArrowRight") target = Math.min(timeline.length - 1, base + 1);
+          else if (event.key === "Home") target = 0;
+          else if (event.key === "End") target = timeline.length - 1;
+          else return;
+          event.preventDefault();
+          setViewedIndex(target);
         }}
       >
         <defs><clipPath id={clipId}><rect x="46" y="24" width={width} height={height} /></clipPath></defs>
-        {[0, 1, 2, 3, 4].map((tick) => <g key={tick}><line x1="46" x2="776" y1={24 + height - tick * height / 4} y2={24 + height - tick * height / 4} stroke="var(--line-strong)" strokeDasharray={tick ? "3,3" : undefined} /><text x="36" y={28 + height - tick * height / 4} textAnchor="end" className="fill-ink-soft font-mono text-[11px]">{formatNumber(max * tick / 4, lang)}</text></g>)}
-        {ticks.map((tick) => <text key={tick} x={46 + (timeline.length <= 1 ? width / 2 : tick / (timeline.length - 1) * width)} y="328" textAnchor="middle" className="fill-ink-soft text-[11px]">{date(timeline[tick])}</text>)}
-        <g clipPath={`url(#${clipId})`} data-trend-plot>
+        <g stroke="var(--line)" strokeDasharray="2,3" opacity="0.8">
+          {[0, 1, 2, 3, 4].map((step) => {
+            const y = 24 + step * (height / 4);
+            const value = Math.round(max * (1 - step / 4));
+            return <g key={step}><line x1="46" x2="776" y1={y} y2={y} /><text x="40" y={y + 4} textAnchor="end" fontSize="11" fill="var(--ink-soft)" stroke="none">{formatNumber(value, lang)}</text></g>;
+          })}
+        </g>
+        <g fill="var(--ink-soft)" fontSize="11" textAnchor="middle">
+          {timeline.map((point, index) => {
+            if (timeline.length > 10 && index % Math.ceil(timeline.length / 8) !== 0 && index !== timeline.length - 1) return null;
+            const x = 46 + (timeline.length <= 1 ? width / 2 : index / (timeline.length - 1) * width);
+            return <text key={point} x={x} y="324">{date(point)}</text>;
+          })}
+        </g>
+        <g clipPath={`url(#${clipId})`}>
           {series.map((item) => {
-            const points = trendPoints(item.counts.slice(0, timeline.length), width, height, max);
+            const points = trendPoints(item.counts, width, height, max);
             const line = trendPath(points);
             const color = trendColor(item.color);
             const isHighlighted = activeSeries === item.id;
-            // When no series is active, all lines share the exact same opacity (0.75) and stroke (1.4)
-            const lineOpacity = activeSeries ? (isHighlighted ? 1 : 0.25) : 0.75;
-            const strokeWidth = isHighlighted ? 2.4 : 1.4;
+            const lineOpacity = activeSeries === null ? 0.75 : isHighlighted ? 1 : 0.25;
+            const strokeWidth = isHighlighted ? 2.5 : 1.4;
 
             return <g key={item.id} data-series-id={item.id} transform="translate(46 24)" opacity={lineOpacity}>
               {isHighlighted && points.length > 0 && <path d={`${line} L ${points.at(-1)!.x} ${height} L ${points[0].x} ${height} Z`} fill={color} fillOpacity="0.14" />}
@@ -183,78 +186,54 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
               setViewedIndex(idx);
             }
           }}
-          onClick={(event: MouseEvent<SVGRectElement>) => {
-            const rect = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
-            const selected = snapTrendIndex((event.clientX - rect.left) / rect.width * 800 - 46, timeline.length, width);
-            if (selected !== null) {
-              setPinnedIndex(selected);
-              setViewedIndex(selected);
-              setHoverIndex(null);
-            }
-          }}
         />
       </svg>
-      <div data-trend-details role="status" aria-live="polite" className="mt-3 h-64 overflow-y-auto border-t border-line pt-3 text-sm">
-        {safePinned !== null ? (
-          <div className="flex flex-wrap items-center gap-1.5 font-medium">
-            <span className="font-semibold text-ink">
-              {pinnedLabel} {date(timeline[safePinned])}
-            </span>
-            <span className="text-line">·</span>
-            <button
-              type="button"
-              onClick={() => {
-                setPinnedIndex(null);
-                setViewedIndex(latestIndex);
-              }}
-              className="text-link underline hover:text-link-hover text-xs font-normal"
-            >
-              {unpinLabel}
-            </button>
-            {safeHover !== null && safeHover !== safePinned && (
-              <span className="text-xs text-ink-soft ml-1">
-                ({date(timeline[safeHover])})
-              </span>
-            )}
-          </div>
-        ) : (
-          <p className="font-medium">
-            {current !== null ? (
-              current === latestIndex && viewedIndex === latestIndex ? (
-                `${t("trends.latestDate")} · ${date(timeline[current])}`
-              ) : (
-                date(timeline[current])
-              )
+      <div data-trend-details role="status" aria-live="polite" className="mt-3 border-t border-line pt-3 text-sm">
+        <p className="font-medium">
+          {current !== null ? (
+            current === latestIndex && viewedIndex === latestIndex ? (
+              `${t("trends.latestDate")} · ${date(timeline[current])}`
             ) : (
-              t("trends.periodTotals")
-            )}
-          </p>
-        )}
+              date(timeline[current])
+            )
+          ) : (
+            t("trends.periodTotals")
+          )}
+        </p>
 
         <ul className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">
           {series.map((item) => {
-            const isSelected = selectedSeries === item.id;
+            const count = current === null ? item.total : item.counts[current] ?? 0;
+            const isHovered = hoveredSeries === item.id;
+            const seriesFilters: SearchFilters = {
+              ...(data.range.group === "topic" ? { topic_ids: [Number(item.id)] } : { categories: [item.id] }),
+              date_from: dateFrom,
+              date_to: end,
+            };
+            const seriesHref = routeHref({ page: "ask", filters: seriesFilters });
+            const ariaLabel = seriesAriaLabel({ name: item.name, count });
+
             return (
               <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSeries((prev) => prev === item.id ? null : item.id)}
+                <a
+                  href={seriesHref}
+                  aria-label={ariaLabel}
                   onPointerEnter={() => setHoveredSeries(item.id)}
                   onPointerLeave={() => setHoveredSeries(null)}
                   onFocus={() => setHoveredSeries(item.id)}
                   onBlur={() => setHoveredSeries(null)}
-                  className={`flex w-full min-h-10 min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors ${
-                    isSelected
+                  className={`flex w-full min-h-10 min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    isHovered
                       ? "bg-sunken font-semibold ring-1 ring-accent text-ink"
-                      : "hover:bg-sunken focus-visible:bg-sunken text-ink"
+                      : "hover:bg-sunken text-ink"
                   }`}
                 >
                   <span className="size-2.5 shrink-0 rounded-full" style={{ background: trendColor(item.color) }} />
                   <span className="min-w-0 flex-1 truncate" title={item.name}>{item.name}</span>
                   <span className="shrink-0 font-mono text-ink">
-                    {formatNumber(current === null ? item.total : item.counts[current] ?? 0, lang)}
+                    {formatNumber(count, lang)}
                   </span>
-                </button>
+                </a>
               </li>
             );
           })}
@@ -264,38 +243,13 @@ export function TrendsChart({ data, viewMode, className = "" }: Props) {
           <div className="mt-2">
             <a
               href={exploreDateHref}
-              className="inline-flex min-h-11 items-center text-link underline hover:text-link-hover text-sm"
+              className="inline-flex min-h-11 items-center text-link underline hover:text-link-hover text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
             >
               {t("trends.exploreDate")}
             </a>
           </div>
         )}
       </div>
-    </div>
-    <div role="group" aria-label={t("trends.focalSeries")} className="flex max-w-full gap-2 overflow-x-auto pb-1 pr-5 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:flex-wrap sm:pr-0 sm:[mask-image:none]">
-      {series.map((item) => {
-        const isSelected = selectedSeries === item.id;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setSelectedSeries((prev) => prev === item.id ? null : item.id)}
-            onPointerEnter={() => setHoveredSeries(item.id)}
-            onPointerLeave={() => setHoveredSeries(null)}
-            onFocus={() => setHoveredSeries(item.id)}
-            onBlur={() => setHoveredSeries(null)}
-            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3 text-sm transition-colors ${
-              isSelected
-                ? "border-accent bg-sunken font-semibold text-ink ring-1 ring-accent"
-                : "border-line hover:bg-sunken text-ink"
-            }`}
-          >
-            <span className="size-2.5 rounded-full" style={{ background: trendColor(item.color) }} />
-            <span>{item.name}</span>
-            <span className="font-mono text-xs text-ink-soft">{formatNumber(item.total, lang)}</span>
-          </button>
-        );
-      })}
     </div>
   </div>;
 }
