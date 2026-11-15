@@ -30,6 +30,9 @@ Job groups, community groups, and news feeds post hundreds of items a day, and m
 |---|---|
 | **4 platforms** | Facebook, LinkedIn, X (Twitter), Reddit: feeds, groups, or search results |
 | **Newspaper-style digest** | Posts are grouped by type (jobs, tech, news, marketplace…), each with its own summary, plus an overall front page |
+| **Your topics** | Define up to 12 custom topics; AI assigns a topic only when the post is genuinely relevant; a dedicated "Your topics" section sits atop the digest (even for topics with 0 posts); re-apply topics to past runs at any time |
+| **Ask & search** | Full-text search across saved posts with structured filters (category, topic, date, jobs: remote/salary/location/score, GitHub links); Ask AI answers with verified citations [#id] pointing to real posts, or states when no matches are found |
+| **Trends** | Post volume by category or topic over 7/30/90 days, viewed daily or weekly, compared to the prior period; click any point to open Ask & search for those posts |
 | **Job matching from your CV** | Upload a PDF once; AI scores every job 0–100 on role, level, work mode (remote/hybrid/onsite), location, and salary. It also surfaces related roles (e.g. junior dev → IT helpdesk) and lists the skills you are missing |
 | **Nothing lost when AI fails** | Scraped posts are saved before analysis; fix your key and press "Re-analyze" without scraping again |
 | **Bring your own AI** | Claude, ChatGPT, Gemini, or an offline keyword classifier when you have no key |
@@ -58,7 +61,8 @@ You need [Python 3.10+](https://www.python.org/downloads/) (tick *Add to PATH*),
 3. Click **Sign in** next to Facebook (on mobile, open the ☰ menu). A Chrome window opens; sign in as usual, including two-step verification. It closes itself when done.
 4. **Settings** (gear) → **API keys**: add a Gemini, ChatGPT, or Claude key. Without a key the app falls back to keyword matching.
 5. Looking for work? **Job profile** tab: upload your CV, review the summary, pick your criteria and the roles you are open to.
-6. Click **New run**, choose your feed or groups, then **Start**.
+6. (Optional) **Topics** tab: create up to 12 personal tracking topics with custom keywords and colors.
+7. Click **New run**, choose your feed or groups, then **Start**.
 
 Close the terminal window (or press Ctrl+C) to stop the app.
 
@@ -88,6 +92,14 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 - You set the criteria (remote/hybrid/onsite, locations, minimum salary, level) and switch on each related role you want to try.
 - Every job gets a **Primary role / Related role / Stretch role** label, a reason, missing skills, and a warning when it breaks your criteria. The server caps scores: one broken criterion caps at 65, two at 30; related roles cap at 80, or 40 if you have not opted in.
 - The profile is sent once per batch of 20 posts, not once per post.
+
+### Asking AI about your archive
+
+- **Understands the question as a filter:** AI translates your natural language question into structured filters (date range, platform, category, topics, job constraints).
+- **Searches locally first:** The backend queries your local database (using SQLite full-text search FTS5) to find at most 40 candidate posts.
+- **Grounded synthesis with citations:** If matching posts exist, AI writes a concise answer citing sources with `[#id]` pointing only to verified post IDs. Any fabricated IDs are automatically stripped.
+- **Zero matches early exit:** When no posts match the query, the system immediately returns a "no posts found" message without making an unnecessary second AI call.
+- **Lean payload:** Only the question and truncated excerpts of matching posts are sent to the AI; your whole database is never transferred.
 
 ## Choosing an AI
 
@@ -131,6 +143,9 @@ The PDF is not. Only the Markdown profile you approved, with contact details rem
 
 **What if the AI fails halfway?**
 Your scraped posts are kept. Fix the key or switch models in Settings, open the run, and press **Re-analyze**.
+
+**Does Ask AI send my entire database to the AI?**
+No. It only sends your question along with short excerpts of up to 40 posts matching your local SQLite FTS5 search and filters. If zero posts match, no request is sent to the AI.
 
 ## For developers
 
@@ -191,8 +206,12 @@ backend/            Python, FastAPI: API, scraper (Playwright), AI layer, DB
     pipeline.py     scrape → classify → summarize, in the background, with progress
     job_profile.py  CV → Markdown profile, criteria, related roles (adjacent_roles.json)
     profile_api.py  /api/profile: save, read, delete the profile; CV analysis
+    topics_api.py   /api/topics: CRUD custom topics, re-tag past runs
+    trends_api.py   /api/trends: aggregate post volume by category/topic
+    search_api.py   /api/search: FTS5 search & Ask AI with verified citations
   tests/
 frontend/           React + Vite + TypeScript + Tailwind
+  src/components/     AskPage.tsx · TrendsPage.tsx · RunView · Settings · TopicSettings
   src/components/ui/  shared Dialog/Sheet, Button, Skeleton, EmptyState
   src/i18n.tsx        vi/en/zh dictionaries
   tests/              logic tests (node --test)
@@ -295,8 +314,8 @@ The server opens a headless Chromium with the login cookies you saved.
 
 - [ ] Scheduled morning runs + Telegram/email alerts for jobs scoring ≥ 80
 - [x] Upload a CV (PDF) for more accurate job matching
-- [ ] Ask questions over collected data ("any remote React jobs over 30M VND this week?")
-- [ ] Topic trend charts over time
+- [x] Ask questions over collected data ("any remote React jobs over 30M VND this week?")
+- [x] Topic trend charts over time
 - [ ] Ollama (fully local AI), Threads, TopCV/ITviec
 - [ ] Desktop package (Tauri) so no terminal is needed
 

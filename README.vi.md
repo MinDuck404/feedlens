@@ -30,6 +30,9 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 |---|---|
 | **4 nền tảng** | Facebook, LinkedIn, X (Twitter), Reddit: bảng tin, group, hoặc kết quả tìm kiếm |
 | **Tóm tắt kiểu báo** | Bài được chia theo loại (việc làm, công nghệ, tin tức, mua bán…), mỗi loại có đoạn tóm tắt riêng và một bản tóm tắt chung |
+| **Chủ đề của bạn** | Tự định nghĩa tối đa 12 chủ đề theo dõi riêng; AI chỉ gắn khi bài thật sự nói về chủ đề đó; mục "Chủ đề của bạn" nằm đầu bản tin (kể cả chủ đề 0 bài); gắn lại chủ đề cho các lượt cũ bất cứ lúc nào |
+| **Hỏi & tìm** | Tìm toàn văn trên kho bài đã lưu kèm bộ lọc có cấu trúc (loại bài, chủ đề, ngày, việc làm: remote/lương/địa điểm/điểm, link GitHub); Hỏi AI trả lời kèm trích dẫn đã xác thực [#id] trỏ đúng bài thật, hoặc báo rõ khi không tìm thấy bài phù hợp |
+| **Xu hướng** | Thống kê lượng bài theo danh mục hoặc chủ đề trong 7/30/90 ngày theo ngày hoặc tuần, so sánh với kỳ trước; bấm vào điểm dữ liệu để mở trang Hỏi & tìm xem các bài đó |
 | **Lọc việc làm theo CV** | Tải CV PDF một lần; AI chấm từng tin 0–100 theo vai trò, cấp độ, hình thức (remote/hybrid/onsite), địa điểm, lương. Gợi ý cả việc ngành gần (vd junior dev → IT helpdesk) kèm kỹ năng còn thiếu |
 | **Không mất bài khi AI lỗi** | Bài đã lướt được lưu trước khi AI đọc; sửa key xong bấm "Phân tích lại", không cần lướt lại |
 | **Chọn AI** | Claude, ChatGPT, Gemini, hoặc bộ lọc từ khóa offline khi không có key |
@@ -58,7 +61,8 @@ Cần cài sẵn [Python 3.10+](https://www.python.org/downloads/) (nhớ tick *
 3. Bấm **Đăng nhập** cạnh Facebook (trên điện thoại: mở menu ☰). Một cửa sổ Chrome hiện ra; đăng nhập như bình thường, kể cả xác minh 2 bước. Xong thì cửa sổ tự đóng.
 4. **Cài đặt** (bánh răng) → tab **API key**: thêm key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
 5. Tìm việc? Tab **Hồ sơ tìm việc**: tải CV PDF, kiểm tra bản tóm tắt, chọn tiêu chí và vai trò muốn chuyển sang.
-6. Bấm **Lướt mới**, chọn bảng tin hoặc các nhóm, rồi **Bắt đầu lướt**.
+6. (Tùy chọn) Tab **Chủ đề**: tạo tối đa 12 chủ đề theo dõi riêng với từ khóa và màu sắc tự chọn.
+7. Bấm **Lướt mới**, chọn bảng tin hoặc các nhóm, rồi **Bắt đầu lướt**.
 
 Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 
@@ -88,6 +92,14 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 - Bạn tự đặt tiêu chí (remote/hybrid/onsite, địa điểm, lương tối thiểu, cấp độ) và bật từng vai trò lân cận muốn thử.
 - Mỗi tin có nhãn **Đúng ngành / Ngành gần / Thử sức**, lý do, kỹ năng còn thiếu và cảnh báo khi trái tiêu chí. Server tự giới hạn điểm: trái 1 tiêu chí tối đa 65, trái 2 tiêu chí tối đa 30; việc ngành gần tối đa 80, và tối đa 40 nếu bạn chưa cho phép.
 - Hồ sơ chỉ gửi kèm một lần cho mỗi lô 20 bài.
+
+### Hỏi AI trên kho tin đã lưu
+
+- **Hiểu câu hỏi dưới dạng bộ lọc:** AI phân tích câu hỏi tự nhiên thành các bộ lọc có cấu trúc (khoảng ngày, nền tảng, danh mục, chủ đề, điều kiện việc làm).
+- **Tìm kiếm cục bộ trước:** Backend truy vấn cơ sở dữ liệu SQLite trên máy (dùng tìm kiếm toàn văn FTS5) để chọn tối đa 40 bài viết phù hợp nhất.
+- **Tổng hợp kèm trích dẫn xác thực:** Nếu có bài phù hợp, AI tổng hợp câu trả lời ngắn gọn và trích dẫn nguồn `[#id]` trỏ đúng ID bài thật. Mọi ID do AI bịa ra đều bị loại bỏ tự động.
+- **Thoát sớm khi không có bài:** Khi không tìm thấy bài nào khớp điều kiện, hệ thống báo ngay mà không tốn thêm lượt gọi AI thứ hai.
+- **Dữ liệu gửi đi tối giản:** Chỉ câu hỏi và trích đoạn ngắn của các bài khớp mới được gửi lên AI; toàn bộ cơ sở dữ liệu không bao giờ bị tải lên.
 
 ## Chọn AI
 
@@ -171,8 +183,12 @@ backend/            Python, FastAPI: API, bot lướt (Playwright), lớp AI, DB
     pipeline.py     lướt → phân loại → tóm tắt, chạy nền, báo tiến độ
     job_profile.py  CV → hồ sơ Markdown, tiêu chí, vai trò lân cận (adjacent_roles.json)
     profile_api.py  /api/profile: lưu, đọc, xóa hồ sơ; phân tích CV
+    topics_api.py   /api/topics: CRUD chủ đề riêng, gắn lại chủ đề cho lượt cũ
+    trends_api.py   /api/trends: gom số liệu bài viết theo danh mục/chủ đề
+    search_api.py   /api/search: tìm FTS5 & Hỏi AI có trích dẫn xác thực
   tests/
 frontend/           React + Vite + TypeScript + Tailwind
+  src/components/     AskPage.tsx · TrendsPage.tsx · RunView · Settings · TopicSettings
   src/components/ui/  Dialog/Sheet, Button, Skeleton, EmptyState dùng chung
   src/i18n.tsx        từ điển vi/en/zh
   tests/              test logic (node --test)
@@ -291,12 +307,15 @@ Không lưu file PDF. Chỉ lưu bản hồ sơ Markdown bạn đã duyệt, sau
 **AI báo lỗi giữa chừng thì sao?**
 Bài đã lướt vẫn còn. Sửa key hoặc đổi model trong Cài đặt, rồi mở lượt đó và bấm **Phân tích lại**.
 
+**Hỏi AI có gửi toàn bộ dữ liệu của tôi cho AI không?**
+Không. App chỉ gửi câu hỏi kèm trích đoạn ngắn của tối đa 40 bài viết khớp với bộ lọc và tìm kiếm FTS5 cục bộ (SQLite). Nếu không có bài nào khớp, app không gọi AI.
+
 ## Lộ trình
 
 - [ ] Lịch chạy tự động mỗi sáng + báo Telegram/email khi có job điểm ≥ 80
 - [x] Upload CV (PDF) để chấm độ phù hợp chính xác hơn
-- [ ] Hỏi đáp trên dữ liệu đã thu ("tuần này có job React remote nào lương > 30 triệu?")
-- [ ] Biểu đồ xu hướng chủ đề theo thời gian
+- [x] Hỏi đáp trên dữ liệu đã thu ("tuần này có job React remote nào lương > 30 triệu?")
+- [x] Biểu đồ xu hướng chủ đề theo thời gian
 - [ ] Thêm Ollama (chạy AI hoàn toàn trên máy), Threads, TopCV/ITviec
 - [ ] Đóng gói desktop (Tauri) để dùng không cần terminal
 
