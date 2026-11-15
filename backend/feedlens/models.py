@@ -57,6 +57,30 @@ class AnalyzedPost(RawPost):
     category: str = "other"
     summary: str = ""
     job: Optional[JobInfo] = None
+    topic_ids: list[int] = Field(default_factory=list)
+    topic_reason: str = ""
+
+
+TOPIC_COLORS = ("red", "navy", "amber", "teal", "purple", "rose", "slate", "brown")
+MAX_TOPICS = 12
+
+
+class Topic(BaseModel):
+    id: Optional[int] = None
+    name: str = Field(..., min_length=1, max_length=80)
+    description: str = Field("", max_length=400)
+    include_keywords: list[str] = Field(default_factory=list, max_length=20)
+    exclude_keywords: list[str] = Field(default_factory=list, max_length=20)
+    enabled: bool = True
+    color: str = "red"
+
+
+class TopicDigest(BaseModel):
+    topic_id: int
+    name: str
+    count: int
+    summary: str = ""
+    post_ids: list[int] = Field(default_factory=list)
 
 
 class CategoryDigest(BaseModel):
@@ -70,6 +94,7 @@ class Digest(BaseModel):
     overall: str
     categories: list[CategoryDigest]
     action_items: list[str] = Field(default_factory=list)
+    topics: list[TopicDigest] = Field(default_factory=list)  # "Chủ đề của bạn", kể cả chủ đề 0 bài
 
 
 class RunRequest(BaseModel):

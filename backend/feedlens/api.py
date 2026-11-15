@@ -589,6 +589,8 @@ app.include_router(public)
 app.include_router(private)
 from .profile_api import profile_router
 app.include_router(profile_router(db, lambda: settings.is_cloud))
+from .topics_api import topics_router
+app.include_router(topics_router(db))
 
 # ================================================================== frontend build (chế độ local, tùy chọn)
 DIST = BACKEND_DIR.parent / "frontend" / "dist"

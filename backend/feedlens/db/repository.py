@@ -11,8 +11,8 @@ from sqlalchemy import create_engine, delete, event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from ..models import AnalyzedPost, Digest, JobInfo, RawPost, RunRequest
-from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, UserRow
+from ..models import AnalyzedPost, Digest, JobInfo, RawPost, RunRequest, Topic
+from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, TopicRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
 
@@ -42,6 +42,7 @@ class Database:
         wanted = {
             "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type},
             "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
+            "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''"},
         }
         insp = inspect(self.engine)
         for table, cols in wanted.items():
@@ -265,6 +266,7 @@ class Database:
                     setattr(row, key, getattr(p, key))
                 row.category, row.summary = p.category, p.summary
                 row.job = p.job.model_dump() if p.job else None
+                row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
 
     def known_fingerprints(self, platform: str, user_id: int | None = None) -> set[str]:
         q = select(PostRow.fingerprint).where(PostRow.platform == platform)
@@ -280,6 +282,7 @@ class Database:
                 run_id=run_id, platform=p.platform, source=p.source, author=p.author, text=p.text,
                 url=p.url, posted_at=p.posted_at, fingerprint=p.fingerprint, category=p.category,
                 summary=p.summary, job=p.job.model_dump() if p.job else None,
+                topic_ids=list(p.topic_ids), topic_reason=p.topic_reason,
             ) for p in posts)
 
     def get_posts(self, run_id: int, include_raw: bool = False) -> list[AnalyzedPost]:
@@ -289,6 +292,7 @@ class Database:
                 id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text, url=r.url,
                 posted_at=r.posted_at, category=r.category, summary=r.summary,
                 job=JobInfo(**r.job) if r.job else None,
+                topic_ids=list(r.topic_ids or []), topic_reason=r.topic_reason or "",
             ) for r in rows]
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
@@ -315,6 +319,65 @@ class Database:
     def delete_job_profile(self, user_id: int) -> None:
         with self.Session.begin() as s:
             s.execute(delete(JobProfileRow).where(JobProfileRow.user_id == user_id))
+
+    # ---------------------------------------------------------------- topics
+    def list_topics(self, user_id: int, enabled_only: bool = False) -> list[Topic]:
+        q = select(TopicRow).where(TopicRow.user_id == user_id).order_by(TopicRow.id)
+        if enabled_only:
+            q = q.where(TopicRow.enabled.is_(True))
+        with self.Session() as s:
+            return [_topic(r) for r in s.scalars(q)]
+
+    def create_topic(self, user_id: int, t: Topic) -> Topic:
+        with self.Session.begin() as s:
+            row = TopicRow(user_id=user_id, **t.model_dump(exclude={"id"}))
+            s.add(row)
+            s.flush()
+            return _topic(row)
+
+    def update_topic(self, user_id: int, topic_id: int, t: Topic) -> Topic | None:
+        with self.Session.begin() as s:
+            row = s.get(TopicRow, topic_id)
+            if not row or row.user_id != user_id:
+                return None
+            for k, v in t.model_dump(exclude={"id"}).items():
+                setattr(row, k, v)
+            return _topic(row)
+
+    def delete_topic(self, user_id: int, topic_id: int) -> bool:
+        with self.Session.begin() as s:
+            row = s.get(TopicRow, topic_id)
+            if not row or row.user_id != user_id:
+                return False
+            s.delete(row)
+            # Gỡ nhãn chủ đề đã xóa khỏi bài của user
+            for p in s.scalars(select(PostRow).join(RunRow).where(RunRow.user_id == user_id)):
+                if p.topic_ids and topic_id in p.topic_ids:
+                    p.topic_ids = [i for i in p.topic_ids if i != topic_id]
+            return True
+
+    def user_posts(self, user_id: int, limit: int = 2000) -> list[AnalyzedPost]:
+        """Bài đã phân tích của user, mới nhất trước (dùng để gắn chủ đề lại)."""
+        q = (select(PostRow).join(RunRow).where(RunRow.user_id == user_id)
+             .order_by(PostRow.id.desc()).limit(limit))
+        with self.Session() as s:
+            return [AnalyzedPost(id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text,
+                                 url=r.url, posted_at=r.posted_at, category=r.category, summary=r.summary,
+                                 topic_ids=list(r.topic_ids or []), topic_reason=r.topic_reason or "")
+                    for r in s.scalars(q)]
+
+    def set_post_topics(self, user_id: int, updates: dict[int, tuple[list[int], str]]) -> None:
+        if not updates:
+            return
+        with self.Session.begin() as s:
+            q = select(PostRow).join(RunRow).where(RunRow.user_id == user_id, PostRow.id.in_(list(updates)))
+            for p in s.scalars(q):
+                p.topic_ids, p.topic_reason = updates[p.id]
+
+
+def _topic(r: TopicRow) -> Topic:
+    return Topic(id=r.id, name=r.name, description=r.description or "", include_keywords=list(r.include_keywords or []),
+                 exclude_keywords=list(r.exclude_keywords or []), enabled=bool(r.enabled), color=r.color or "red")
 
 
 def _run_dict(r: RunRow) -> dict:

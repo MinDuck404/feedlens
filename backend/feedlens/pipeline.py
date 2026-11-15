@@ -104,9 +104,10 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if hasattr(analyzer, "language"):
         analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
     prog.update(phase="analyzing", done=0, target=len(raw), message=f"{analyzer.label} đang đọc {len(raw)} bài…")
+    owner = (db.get_run(run_id) or {}).get("user_id")
     if req.job_mode:
-        owner = (db.get_run(run_id) or {}).get("user_id")
         analyzer.job_profile = load_profile(db, owner)
+    analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
     completed = db.get_posts(run_id)
     known = {p.fingerprint for p in completed}
     pending = [p for p in raw if p.fingerprint not in known]

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -91,8 +91,25 @@ class PostRow(Base):
     category: Mapped[str] = mapped_column(String(30), default="other", index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     job: Mapped[Optional[dict]] = mapped_column(JSON)
+    topic_ids: Mapped[Optional[list]] = mapped_column(JSON)  # id các chủ đề của user mà bài khớp
+    topic_reason: Mapped[str] = mapped_column(Text, default="")
 
     run: Mapped[RunRow] = relationship(back_populates="posts")
+
+
+class TopicRow(Base):
+    """Chủ đề do user tự định nghĩa; AI gắn nhãn bài khớp khi phân tích."""
+    __tablename__ = "topics"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(Text, default="")
+    include_keywords: Mapped[list] = mapped_column(JSON, default=list)
+    exclude_keywords: Mapped[list] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    color: Mapped[str] = mapped_column(String(20), default="red")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class JobProfileRow(Base):
