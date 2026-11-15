@@ -109,6 +109,7 @@ def test_apply_retags_old_posts_and_test_endpoint(cloud):
     run_id = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run_id, [AnalyzedPost(platform="facebook", source="g", text="Repo hay github.com/x/y", summary="repo"),
                            AnalyzedPost(platform="facebook", source="g", text="Bán xe máy", summary="xe")])
+    db.update_run(run_id, digest={"overall": "o", "categories": [], "action_items": []})  # bản tin cũ, chưa có topics
     t = client.post("/api/topics", headers=h, json={"name": "GitHub", "include_keywords": ["github.com"]}).json()
     # Chạy đồng bộ để test ổn định (API thật chạy nền)
     topics_api.RETAG_JOBS[user.id] = {"state": "running", "done": 0, "total": 0, "error": ""}
@@ -116,8 +117,12 @@ def test_apply_retags_old_posts_and_test_endpoint(cloud):
     assert topics_api.RETAG_JOBS[user.id]["state"] == "done"
     tagged = {p.summary: p.topic_ids for p in db.get_posts(run_id)}
     assert tagged == {"repo": [t["id"]], "xe": []}
+    repo_id = next(p.id for p in db.get_posts(run_id) if p.summary == "repo")
+    topics_digest = db.get_run(run_id)["digest"]["topics"]
+    assert [(d["topic_id"], d["count"], d["post_ids"]) for d in topics_digest] == [(t["id"], 1, [repo_id])]
     r = client.post("/api/topics/test", headers=h, json={"text": "xem github.com/abc"})
     assert r.status_code == 200 and r.json()["matches"][0]["topic_id"] == t["id"]
     # Xóa chủ đề thì gỡ nhãn khỏi bài
     assert client.delete(f"/api/topics/{t['id']}", headers=h).status_code == 200
     assert all(p.topic_ids == [] for p in db.get_posts(run_id))
+    assert db.get_run(run_id)["digest"]["topics"] == []

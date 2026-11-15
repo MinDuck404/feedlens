@@ -41,6 +41,20 @@ def _analyzer(db, user_id: int):
     return analyzer
 
 
+def refresh_topic_digests(db, user_id: int, analyzer, topics) -> None:
+    """Tính lại mục "Chủ đề của bạn" cho các lượt đã có bản tin, sau khi nhãn chủ đề thay đổi."""
+    analyzer.topics = topics
+    for run in db.list_runs(user_id, limit=500):
+        if not run.get("digest"):
+            continue
+        digest = dict(run["digest"])
+        try:
+            digest["topics"] = [t.model_dump() for t in analyzer.topic_digest(db.get_posts(run["id"]))]
+        except Exception:  # noqa: BLE001 — một lượt lỗi không chặn các lượt khác
+            continue
+        db.update_run(run["id"], digest=digest)
+
+
 def run_retag(db, user_id: int) -> None:
     job = RETAG_JOBS[user_id]
     try:
@@ -49,11 +63,13 @@ def run_retag(db, user_id: int) -> None:
         job.update(total=len(posts), done=0)
         if not topics:
             db.set_post_topics(user_id, {p.id: ([], "") for p in posts if p.topic_ids})
+            refresh_topic_digests(db, user_id, _analyzer(db, user_id), [])
             job.update(state="done", done=len(posts))
             return
         analyzer = _analyzer(db, user_id)
         updates = analyzer.tag_topics(posts, topics, lambda n, _m: job.update(done=n))
         db.set_post_topics(user_id, updates)
+        refresh_topic_digests(db, user_id, analyzer, topics)
         job.update(state="done", done=len(posts))
     except Exception as exc:  # noqa: BLE001 — trạng thái lỗi hiện trên web
         job.update(state="error", error=str(exc)[:300])

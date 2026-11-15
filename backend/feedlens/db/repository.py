@@ -350,10 +350,13 @@ class Database:
             if not row or row.user_id != user_id:
                 return False
             s.delete(row)
-            # Gỡ nhãn chủ đề đã xóa khỏi bài của user
+            # Gỡ nhãn chủ đề đã xóa khỏi bài và khỏi bản tin của user
             for p in s.scalars(select(PostRow).join(RunRow).where(RunRow.user_id == user_id)):
                 if p.topic_ids and topic_id in p.topic_ids:
                     p.topic_ids = [i for i in p.topic_ids if i != topic_id]
+            for r in s.scalars(select(RunRow).where(RunRow.user_id == user_id)):
+                if r.digest and any(t.get("topic_id") == topic_id for t in r.digest.get("topics", [])):
+                    r.digest = {**r.digest, "topics": [t for t in r.digest["topics"] if t.get("topic_id") != topic_id]}
             return True
 
     def user_posts(self, user_id: int, limit: int = 2000) -> list[AnalyzedPost]:
