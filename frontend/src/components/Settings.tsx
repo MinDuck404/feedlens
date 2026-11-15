@@ -6,7 +6,6 @@ import type { AIProviderInfo, Me, Meta } from "../types";
 import CookieSessions from "./CookieSessions";
 import TopicSettings from "./TopicSettings";
 import JobProfileSettings from "./JobProfileSettings";
-import { ThemeMenu } from "./PreferenceMenus";
 import { useI18n } from "../i18n";
 import { Sheet, Button, SkeletonCard, SegmentedControl } from "./ui";
 
@@ -18,14 +17,21 @@ interface Props {
   onChanged: () => void;
 }
 
+function settingsTab(value: string | null | undefined, cloud: boolean): string {
+  if (["agent", "cookies"].includes(value ?? "")) return cloud ? "scrape" : "keys";
+  return ["keys", "profile", "topics", ...(cloud ? ["scrape"] : [])].includes(value ?? "") ? value! : "keys";
+}
+
 export default function Settings({ meta, me, onClose, onChanged, initialTab }: Props) {
   const [open, setOpen] = useState(true);
   const id = useId();
   const body = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState(() => {
-    if (initialTab) return initialTab;
-    try { const saved = localStorage.getItem("feedlens.settingsTab"); return ["keys", "profile", "topics", "agent", "cookies"].includes(saved ?? "") ? saved! : "keys"; } catch { return "keys"; }
+  const cloud = meta.mode === "cloud";
+  const [selectedTab, setTab] = useState(() => {
+    if (initialTab !== undefined) return settingsTab(initialTab, cloud);
+    try { return settingsTab(localStorage.getItem("feedlens.settingsTab"), cloud); } catch { return "keys"; }
   });
+  const tab = settingsTab(selectedTab, cloud);
   useEffect(() => { try { localStorage.setItem("feedlens.settingsTab", tab); } catch { /* Keep the current tab in memory. */ } }, [tab]);
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -33,7 +39,7 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
   const { t } = useI18n();
   const reload = () => api.providers().then((p) => { setProviders(p); setLoadError(""); }).finally(() => setLoading(false));
 
-  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, { value: "agent", label: t("set.tab.agent") }, { value: "cookies", label: t("set.tab.cookies") }];
+  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, ...(cloud ? [{ value: "scrape", label: t("set.tab.scrape") }] : [])];
   const changeTab = (value: string) => {
     setTab(value); if (body.current) body.current.scrollTop = 0;
     try { localStorage.setItem("feedlens.settingsTab", value); } catch { /* Keep the current tab in memory. */ }
@@ -77,13 +83,10 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
         </div>
         <div hidden={tab !== "profile"} role="tabpanel" id={`${id}-panel-profile`} aria-labelledby={`${id}-tab-profile`} tabIndex={0}><JobProfileSettings providers={providers} /></div>
         <div hidden={tab !== "topics"} role="tabpanel" id={`${id}-panel-topics`} aria-labelledby={`${id}-tab-topics`} tabIndex={0}><TopicSettings /></div>
-        <div hidden={tab !== "agent"} role="tabpanel" id={`${id}-panel-agent`} aria-labelledby={`${id}-tab-agent`} tabIndex={0}>
-          <div className="mb-5 flex items-center justify-between gap-3 border-b border-line pb-3"><span className="text-sm">{t("theme.label")}</span><ThemeMenu above={false} /></div>
-          {meta.mode === "cloud" && me ? <AgentSection me={me} onChanged={onChanged} /> : <><h3 className="font-headline text-2xl">{t("set.tab.agent")}</h3><p className="mt-3 text-sm leading-relaxed text-ink-soft">{t("set.localAgent")}</p></>}
-        </div>
-        <div hidden={tab !== "cookies"} role="tabpanel" id={`${id}-panel-cookies`} aria-labelledby={`${id}-tab-cookies`} tabIndex={0}>
-          {meta.server_scrape ? <CookieSessions /> : <p className="text-sm leading-relaxed text-ink-soft">{t("set.cookiesUnavailable")}</p>}
-        </div>
+        {cloud && <div hidden={tab !== "scrape"} role="tabpanel" id={`${id}-panel-scrape`} aria-labelledby={`${id}-tab-scrape`} tabIndex={0}>
+          {me ? <AgentSection me={me} onChanged={onChanged} /> : <div role="status" aria-label={t("act.loading")}><SkeletonCard /></div>}
+          {meta.server_scrape && <div className="mt-6"><CookieSessions /></div>}
+        </div>}
       </div>
     </Sheet>
   );
@@ -212,7 +215,7 @@ function AgentSection({ me, onChanged }: { me: Me; onChanged: () => void }) {
   };
 
   return (
-    <section className="border-t border-line pt-6">
+    <section>
       <h3 className="font-headline text-2xl font-semibold">{t("set.agent")}</h3>
       <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.agentHint")}</p>
       <p className="mt-4 flex items-start gap-2 text-sm [overflow-wrap:anywhere]">

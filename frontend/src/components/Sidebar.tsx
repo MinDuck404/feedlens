@@ -154,7 +154,7 @@ export default function Sidebar(props: Props) {
 
       {/* Desktop Sidebar (>= 768px): cố định thanh bên trái */}
       <aside className="hidden h-full w-72 shrink-0 flex-col border-r border-line bg-bg/50 md:flex">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3">
           <a
             href="#/"
             onClick={(e) => {
@@ -215,7 +215,7 @@ function SidebarBody({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Navigation Pills */}
-      <nav className="flex flex-col gap-1 px-4 pb-4" aria-label={t("nav.label")}>
+      <nav className="flex flex-col gap-0 px-4 pb-2" aria-label={t("nav.label")}>
         <a
           href="#/"
           aria-current={page === "home" ? "page" : undefined}
@@ -268,8 +268,8 @@ function SidebarBody({
           </span>
         </button>
       ) : (
-        <section className="px-4 pb-4">
-          <h2 className="mb-2 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
+        <section className="px-4 pb-2">
+          <h2 className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             {t("sb.accounts")}
           </h2>
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface/50 px-3">
@@ -286,7 +286,7 @@ function SidebarBody({
       )}
 
       {/* Recent Runs List - Tương phản cao hơn, hover rõ nét, chỉ báo item đang chọn */}
-      <section className="flex min-h-0 flex-1 flex-col border-t border-line px-3 pt-4">
+      <section className="flex min-h-0 flex-1 flex-col border-t border-line px-3 pt-3">
         <h2 className="mb-2 flex items-center justify-between px-2 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
           <span className="flex items-center gap-1.5">
             <span>{t("sb.prevRunsTitle")}</span>
@@ -307,7 +307,7 @@ function SidebarBody({
             {t("sb.noRuns")}
           </p>
         ) : (
-          <ul className="-mx-1 flex-1 space-y-1 overflow-y-auto px-1 pb-4">
+          <ul className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1 pb-4">
             {runs.map((r) => {
               const q = r.request;
               const src =
@@ -319,7 +319,7 @@ function SidebarBody({
                   <button
                     onClick={() => onSelect(r.id)}
                     aria-current={isSelected}
-                    className={`group relative w-full rounded-xl border px-3 py-2.5 text-left transition-all interactive-tap ${
+                    className={`group relative w-full rounded-xl border px-3 py-1.5 text-left transition-all interactive-tap ${
                       isSelected
                         ? "border-line bg-surface font-semibold text-ink shadow-xs"
                         : "border-transparent text-ink hover:bg-surface/90 hover:text-ink"
@@ -354,7 +354,7 @@ function SidebarBody({
       </section>
 
       {/* Bottom Bar: Account & Settings */}
-      <div className="flex items-center gap-2 border-t border-line px-4 py-3 text-sm bg-bg/60">
+      <div className="flex items-center gap-2 border-t border-line px-4 py-2 text-sm bg-bg/60">
         <span
           className="min-w-0 flex-1 truncate text-xs font-medium text-ink-soft"
           title={email ?? t("sb.thisMachine")}
@@ -388,7 +388,7 @@ function SidebarBody({
   );
 }
 
-/** Hàng tài khoản nền tảng với bố cục 2 hàng: Tên và Trạng thái không bao giờ bị cắt xén */
+/** Compact account row; invalid sessions remain visible below the actions. */
 function PlatformRow({
   p,
   onChanged,
@@ -437,62 +437,27 @@ function PlatformRow({
     ? "bg-ink-soft"
     : "bg-line";
 
+  const invalid = p.has_profile && p.logged_in === false && !waiting && !checking;
+  const loginLabel = `${t(p.has_profile ? "plat.relogin" : "plat.login")}: ${platformName}`;
+  const checkLabel = `${t("plat.check")}: ${platformName}`;
+  const removeLabel = `${t("plat.remove")}: ${platformName}`;
   return (
-    <li className="py-2.5">
-      {/* Hàng 1: Dot + Tên nền tảng (không bị truncate/che khuất) + Tối đa IconButton nhỏ (refresh, remove) */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`size-2 shrink-0 rounded-full ${dot}`} />
-          <span className="text-sm font-semibold text-ink">{platformName}</span>
+    <li>
+      <div className="flex min-h-9 items-center justify-between gap-2" title={`${platformName}: ${status}`}>
+        <div className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${invalid ? "bg-danger" : dot}`} />
+          <span className="text-sm font-medium text-ink">{platformName}</span>
+          <span className="sr-only">{status}</span>
         </div>
-
         <div className="flex shrink-0 items-center gap-0.5">
-          {busy || checking ? (
-            <Loader2 className="size-4 animate-spin text-ink-soft" />
-          ) : (
-            <>
-              {p.has_profile && (
-                <IconButton
-                  icon={<RefreshCw className="size-3.5" />}
-                  label={t("plat.check")}
-                  variant="ghost"
-                  size="sm"
-                  className="size-7 p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  onClick={() => act("check")}
-                />
-              )}
-
-              {p.has_profile && p.logged_in !== null && (
-                <IconButton
-                  icon={<XIcon className="size-3.5" />}
-                  label={t("plat.remove")}
-                  variant="ghost"
-                  size="sm"
-                  className="size-7 p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  onClick={() => act("logout")}
-                />
-              )}
-            </>
-          )}
+          {busy || checking ? <span role="status" aria-label={status} title={status} className="grid size-8 place-items-center"><Loader2 aria-hidden="true" className="size-3.5 animate-spin text-ink-soft" /></span> : <>
+            {p.has_profile && <IconButton icon={<RefreshCw className="size-3.5" />} label={checkLabel} title={checkLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("check")} />}
+            {p.has_profile && p.logged_in !== null && <IconButton icon={<XIcon className="size-3.5" />} label={removeLabel} title={removeLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("logout")} />}
+            {(!p.has_profile || p.logged_in === false) && !waiting && <IconButton icon={<LogIn className="size-3.5" />} label={loginLabel} title={`${loginLabel} · ${t("plat.openLogin", { name: platformName })}`} variant="ghost" size="sm" className="size-8 p-0 text-link" onClick={() => act("login")} />}
+          </>}
         </div>
       </div>
-
-      {/* Hàng 2: Trạng thái kết nối + Nút có chữ (Đăng nhập lại / Đăng nhập) chuyển xuống đây */}
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 pl-4">
-        <span className="font-sans text-xs text-ink-soft">{status}</span>
-
-        {(!p.has_profile || p.logged_in === false) && !waiting && !busy && !checking && (
-          <button
-            type="button"
-            onClick={() => act("login")}
-            title={t("plat.openLogin", { name: platformName })}
-            className="flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-medium text-ink transition-colors hover:border-ink hover:text-link interactive-tap shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <LogIn className="size-3 text-accent" />
-            <span>{p.has_profile ? t("plat.relogin") : t("plat.login")}</span>
-          </button>
-        )}
-      </div>
+      {invalid && <p className="pb-2 pl-4 text-xs leading-relaxed text-danger">{t("plat.sessionInvalid")}</p>}
     </li>
   );
 }

@@ -24,6 +24,12 @@ export function SegmentedControl({ value, onChange, options, label, mode = "radi
       if (button) {
         const height = compact ? Math.min(36, button.offsetHeight - 4) : button.offsetHeight;
         setIndicator({ x: button.offsetLeft + (compact ? 2 : 0), y: button.offsetTop + (button.offsetHeight - height) / 2, width: button.offsetWidth - (compact ? 4 : 0), height });
+        if (mode === "tabs" && root.parentElement) {
+          const viewport = root.parentElement;
+          const left = Math.max(0, button.offsetLeft - 4), right = button.offsetLeft + button.offsetWidth + 4;
+          if (left < viewport.scrollLeft) viewport.scrollLeft = left;
+          else if (right > viewport.scrollLeft + viewport.clientWidth) viewport.scrollLeft = right - viewport.clientWidth;
+        }
       }
     };
     measure();
@@ -31,7 +37,7 @@ export function SegmentedControl({ value, onChange, options, label, mode = "radi
     observer.observe(root);
     document.fonts.ready.then(measure);
     return () => observer.disconnect();
-  }, [value, labels, compact]);
+  }, [value, labels, compact, mode]);
   return <div className={mode === "tabs" ? "max-w-full overflow-x-auto pb-1" : "min-w-0"}>
     <div ref={group} role={mode === "tabs" ? "tablist" : "radiogroup"} aria-label={label}
       className={`relative border border-[var(--field-line)] bg-[var(--field-bg)] ${compact ? "gap-0.5 rounded-xl p-0.5" : "gap-1 rounded-2xl p-1"} ${mode === "tabs" ? "flex w-max min-w-full" : `grid ${options.length > 3 ? "grid-cols-2 sm:grid-cols-4" : options.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}`}>
@@ -54,7 +60,7 @@ export function SegmentedControl({ value, onChange, options, label, mode = "radi
           event.preventDefault(); onChange(options[next].value);
           group.current?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
         }}
-        className={`relative z-10 min-h-11 min-w-0 rounded-xl text-center text-xs leading-snug transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${compact ? "px-1.5 py-1 sm:min-h-10" : "px-2 py-2 sm:text-sm"} ${mode === "tabs" ? "flex-1 whitespace-nowrap px-3" : ""} ${value === option.value ? "font-semibold text-primary-ink" : "text-ink-soft hover:text-ink"}`}>
+        className={`relative z-10 min-h-11 min-w-0 rounded-xl text-center text-xs leading-snug transition-colors duration-[var(--duration-fast)] motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${compact ? "px-1.5 py-1 sm:min-h-10" : "px-2 py-2 sm:text-sm"} ${mode === "tabs" ? "grow shrink-0 whitespace-nowrap px-3" : ""} ${value === option.value ? "font-semibold text-primary-ink" : "text-ink-soft hover:text-ink"}`}>
         {option.label}
       </button>)}
     </div>

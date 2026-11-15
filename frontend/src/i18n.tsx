@@ -12,6 +12,8 @@ const LOCALE: Record<Lang, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN" };
 const STORE = "feedlens.lang";
 
 const vi = {
+  "set.tab.scrape": "Cách lướt",
+  "plat.sessionInvalid": "Phiên không còn hợp lệ. Hãy đăng nhập lại.",
   "ask.title": "Hỏi & tìm",
   "ask.subtitle": "Tra cứu bài đã lưu, hoặc hỏi AI với dẫn chứng từ kho tin của bạn.",
   "ask.quick": "Tìm nhanh",
@@ -554,6 +556,8 @@ const vi = {
 export type Key = keyof typeof vi;
 
 const en: Record<Key, string> = {
+  "set.tab.scrape": "Scraping",
+  "plat.sessionInvalid": "Session is no longer valid. Sign in again.",
   "ask.title": "Ask & search",
   "ask.subtitle": "Search your saved posts, or ask AI for answers grounded in your reading.",
   "ask.quick": "Quick search",
@@ -1081,6 +1085,8 @@ const en: Record<Key, string> = {
 };
 
 const zh: Record<Key, string> = {
+  "set.tab.scrape": "抓取方式",
+  "plat.sessionInvalid": "会话已失效，请重新登录。",
   "ask.title": "提问与搜索",
   "ask.subtitle": "搜索已保存的帖子，或让 AI 根据你的资料回答问题。",
   "ask.quick": "快速搜索",
