@@ -356,7 +356,7 @@ def test_graphql_listener_enriches_dom_and_is_removed_after_collection(monkeypat
         goto=lambda *a,**k:callbacks['response'](SimpleNamespace(url='https://www.facebook.com/api/graphql/',status=200,text=lambda:json.dumps(payload))),
         evaluate=lambda *a:[],mouse=SimpleNamespace(wheel=lambda *a:None))
     monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
-    monkeypatch.setattr(scrapers,'_facebook_items',lambda page:[ad.copy(),organic.copy()])
+    monkeypatch.setattr(scrapers,'_facebook_items',lambda page,*args:[ad.copy(),organic.copy()])
     scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
     posts=scraper.collect(page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
     assert len(posts)==1 and posts[0].url=='https://www.facebook.com/123/posts/101/'
@@ -464,3 +464,119 @@ def test_ad_headers_do_not_consume_the_runs_missing_link_samples(monkeypatch):
     organic=dict(item('Organic post without a link'),_missing_header='<div>organic</div>')
     _,scraper,_=fake_collect(monkeypatch,[[ad,organic]],target=1)
     assert scraper.missing_headers==['<div>organic</div>']
+
+
+@pytest.mark.parametrize('url', ['https://www.facebook.com/watch/?v=12345','https://www.facebook.com/page/videos/12345/','https://www.facebook.com/reel/12345/'])
+def test_graphql_keeps_explicit_video_links(url):
+    story={'__typename':'Story','message':{'text':'A sufficiently long page video caption.'},'url':url}
+    assert scrapers.facebook_stories(story)[0]['url']==url
+
+
+def test_page_graphql_metadata_supplies_permalink_for_content_story():
+    story={'__typename':'Story','comet_sections':{
+        'content':{'story':{'message':{'text':'A page news caption with a preview description.'}}},
+        'metadata':[{'story':{'url':'https://www.facebook.com/page/posts/pfbidPAGE/','actors':[{'id':'123','name':'Page'}]}}]}}
+    record=scrapers.facebook_stories(story)[0]
+    assert record['url']=='https://www.facebook.com/page/posts/pfbidPAGE/'
+    assert record['author']=='Page'
+
+
+def test_short_page_caption_matches_expanded_preview_only_with_unique_author():
+    import json
+    cache={}
+    def story(author,id):return {'__typename':'Story','message':{'text':'Tạm biệt acc clone'},'actors':[{'name':author}], 'url':f'https://www.facebook.com/page/posts/{id}/'}
+    scrapers.cache_facebook_stories(json.dumps(story('Schannel',123)),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nFacebook thông báo xóa trang cá nhân phụ trong tháng tới.')
+    assert scrapers.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
+    post.author='Different page'
+    assert scrapers.match_facebook_story(post,cache) is None
+
+
+def test_page_video_attachment_uses_explicit_link_never_media_id():
+    story={'__typename':'Story','message':{},'comet_sections':{'content':{'story':{
+        'message':{'text':'Page video with an embedded player and full caption.'},
+        'attachments':[{'styles':{'attachment':{'media':{'__typename':'Video','id':'999',
+            'url':'https://www.facebook.com/watch/?v=12345'}}}}]}}}}
+    assert scrapers.facebook_stories(story)[0]['url']=='https://www.facebook.com/watch/?v=12345'
+    story['comet_sections']['content']['story']['attachments'][0]['styles']['attachment']['media'].pop('url')
+    assert scrapers.facebook_stories(story)[0]['url']==''
+
+
+def test_stable_feed_marker_survives_removed_sibling(facebook_page):
+    facebook_page.set_content('''<div role="feed">
+      <div><h4>First page</h4><a aria-labelledby="time1" href="?__cft__=x"
+        onmouseover="document.getElementById('dummy')?.remove();this.href='/first/posts/pfbidFIRST/'">x</a>
+        <span id="time1">1 giờ trước</span><div data-ad-preview="message">First page post with enough unique text.</div></div>
+      <div id="dummy" role="article"></div>
+      <div><h4>Second page</h4><a aria-labelledby="time2" href="?__cft__=x"
+        onmouseover="this.href='/second/posts/pfbidSECOND/'">x</a>
+        <span id="time2">2 giờ trước</span><div data-ad-preview="message">Second page post with enough unique text.</div></div>
+    </div>''')
+    items=scrapers._facebook_items(facebook_page)
+    assert [x['url'] for x in items]==['https://www.facebook.com/first/posts/pfbidFIRST/','https://www.facebook.com/second/posts/pfbidSECOND/']
+    assert facebook_page.locator('[data-feedlens-node]').count()==0
+
+
+def test_snapshot_captured_before_hover_virtualizes_next_post(facebook_page):
+    facebook_page.set_content('''<div role="feed">
+      <div><h4>First page</h4><a aria-labelledby="t1" href="?__cft__=x"
+        onmouseover="document.getElementById('second').innerHTML='<div></div>';this.href='/first/posts/pfbidFIRST/'">x</a>
+        <span id="t1">1 giờ trước</span><div data-ad-preview="message">First page post with enough unique text.</div></div>
+      <div id="second"><h4>Second page</h4><a aria-labelledby="t2" href="?__cft__=x">x</a>
+        <span id="t2">2 giờ trước</span><div data-ad-preview="message">Second page post with enough unique text.</div></div>
+    </div>''')
+    items=scrapers._facebook_items(facebook_page)
+    assert items[1]['url']==''
+    assert 'Second page' in items[1]['_missing_header']
+    assert 'Second page post with enough' in items[1]['_missing_header']
+    assert 'post_not_visible' in items[1]['_missing_header']
+
+
+def test_known_network_permalink_spares_hover_budget(facebook_page):
+    import json
+    text='Page post whose network permalink is already known.'
+    facebook_page.set_content('<div role="article"><h4>Page</h4><a aria-labelledby="date" href="?__cft__=x" onmouseover="window.hovered=true">x</a><span id="date">2 giờ trước</span><div data-ad-preview="message">'+text+'</div></div>')
+    cache={};scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':text},'url':'https://www.facebook.com/page/posts/pfbidKNOWN/'}),cache)
+    facebook_page.mouse.move(1,1);facebook_page.evaluate('window.hovered=false')
+    items=scrapers._facebook_items(facebook_page,cache)
+    assert items[0]['url']=='https://www.facebook.com/page/posts/pfbidKNOWN/'
+    assert facebook_page.evaluate('window.hovered===true') is False
+
+
+def test_short_caption_with_multiple_story_urls_remains_unresolved():
+    import json
+    cache={}
+    for id in [1,2]:
+        scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':'Tạm biệt acc clone'},
+            'actors':[{'name':'Schannel'}],'url':f'https://www.facebook.com/page/posts/{id}/'}),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger link preview that is visible only in the DOM.')
+    assert scrapers.match_facebook_story(post,cache) is None
+
+
+def test_virtualized_page_is_restored_before_timestamp_hover(facebook_page):
+    facebook_page.mouse.move(1,1)
+    facebook_page.set_content('''<div role="feed">
+      <div><h4>First page</h4><a aria-labelledby="t1" href="?__cft__=x"
+        onmouseover="window.unmounted=true;document.getElementById('second').innerHTML='<div></div>';this.href='/first/posts/pfbidFIRST/'">x</a>
+        <span id="t1">1 giờ trước</span><div data-ad-preview="message">First page post with enough unique text.</div></div>
+      <div id="second" style="margin-top:2000px;height:300px"><h4>Second page</h4><a aria-labelledby="t2" href="?__cft__=x"
+        onmouseover="this.href='/second/posts/pfbidSECOND/'">x</a>
+        <span id="t2">2 giờ trước</span><div data-ad-preview="message">Second page post with enough unique text.</div></div>
+    </div><script>
+      window.markup=document.getElementById('second').innerHTML;
+      window.addEventListener('scroll',()=>{const n=document.getElementById('second');const r=n.getBoundingClientRect();
+        if(window.unmounted && r.top<innerHeight && r.bottom>0){window.unmounted=false;setTimeout(()=>{n.innerHTML=window.markup;window.restored=true;},180);}});
+    </script>''')
+    items=scrapers._facebook_items(facebook_page)
+    assert facebook_page.evaluate('window.restored===true')
+    assert items[1]['url']=='https://www.facebook.com/second/posts/pfbidSECOND/'
+    assert facebook_page.evaluate('scrollY')==0
+
+
+def test_duplicate_short_captions_in_one_payload_are_not_a_unique_match():
+    import json
+    stories=[{'__typename':'Story','message':{'text':'Tạm biệt acc clone'},'actors':[{'name':'Schannel'}],
+              'url':f'https://www.facebook.com/page/posts/{id}/'} for id in [1,2]]
+    cache={};scrapers.cache_facebook_stories(json.dumps({'data':stories}),cache)
+    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger preview description.')
+    assert scrapers.match_facebook_story(post,cache) is None

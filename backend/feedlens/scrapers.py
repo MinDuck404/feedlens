@@ -17,6 +17,7 @@ import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from html import escape
 from typing import Callable
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
 
@@ -78,6 +79,17 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
             best_rank = rank
     return best_url
 
+def is_facebook_content_url(href: str) -> bool:
+    chosen = select_facebook_link([(href, False)])
+    if not chosen:
+        return False
+    url = urlsplit(chosen)
+    return bool(re.search(r"/(?:posts|permalink|reels?|videos?)/[^/]+|^/share/[^/]+", url.path)
+                or dict(parse_qsl(url.query)).get("story_fbid")
+                or (url.path.rstrip("/") == "/watch" and dict(parse_qsl(url.query)).get("v"))
+                or url.hostname == "fb.watch")
+
+
 def facebook_dom_permalink(links: list[tuple[str, bool]], author_url: str = "") -> str:
     chosen = select_facebook_link(links)
     if POST_LINK_RE.search(chosen):
@@ -138,29 +150,44 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
         section = comet.get("content")
         content = section.get("story") if isinstance(section, dict) else {}
         content = content if isinstance(content, dict) else {}
-        message = node.get("message") or content.get("message") or {}
+        views = [node, content]
+        for section in comet.values():
+            for part in section if isinstance(section, list) else [section]:
+                related = part.get("story") if isinstance(part, dict) else None
+                if isinstance(related, dict) and related not in views:
+                    views.append(related)
+        message = next((view["message"] for view in views if isinstance(view.get("message"), dict) and view["message"].get("text")), {})
         text = message.get("text", "") if isinstance(message, dict) else ""
         if not isinstance(text, str) or len(text.strip()) < 15:
             continue
-        actors = node.get("actors") or content.get("actors") or []
+        actors = next((view["actors"] for view in views if isinstance(view.get("actors"), list) and view["actors"]), [])
         actor = actors[0] if isinstance(actors, list) and actors and isinstance(actors[0], dict) else {}
         actor_id = str(actor.get("id") or "")
-        post_id = str(node.get("post_id") or content.get("post_id") or "")
+        post_id = str(next((view["post_id"] for view in views if view.get("post_id")), ""))
         if not post_id:
-            feedback = node.get("feedback") or content.get("feedback") or {}
+            feedback = next((view["feedback"] for view in views if isinstance(view.get("feedback"), dict)), {})
             try:
                 decoded = base64.b64decode(str(feedback.get("id", "")) + "===").decode("utf-8")
                 match = re.fullmatch(r"feedback:(\d+)", decoded)
                 if match: post_id = match[1]
             except (ValueError, UnicodeError, AttributeError):
                 pass
-        urls = [(v, False) for n in (node, content) for k in ("url", "wwwURL", "permalink_url")
+        urls = [(v, False) for n in views for k in ("url", "wwwURL", "permalink_url")
                 if isinstance(v := n.get(k), str)]
-        url = select_facebook_link(urls)
-        if not POST_LINK_RE.search(url):
+        for view in views:
+            for wrapper in view.get("attachments", []) if isinstance(view.get("attachments"), list) else []:
+                if not isinstance(wrapper, dict):
+                    continue
+                styles = wrapper.get("styles")
+                attachment = styles.get("attachment") if isinstance(styles, dict) else wrapper
+                media = attachment.get("media") if isinstance(attachment, dict) else None
+                if isinstance(media, dict) and media.get("__typename") in {"Video", "Reel", "XFBVideo"}:
+                    urls.extend((media[key], False) for key in ("url", "wwwURL", "permalink_url") if isinstance(media.get(key), str))
+        url = select_facebook_link([(href, timestamp) for href, timestamp in urls if is_facebook_content_url(href)])
+        if not is_facebook_content_url(url):
             url = ""
             if re.fullmatch(r"(?:\d+|pfbid[A-Za-z0-9]+)", post_id):
-                target = node.get("to") or content.get("to") or {}
+                target = next((view["to"] for view in views if isinstance(view.get("to"), dict)), {})
                 group_id = str(target.get("id") or "") if isinstance(target, dict) and target.get("__typename") == "Group" else ""
                 group = re.search(r"/groups/([\w.-]+)", group_url)
                 if re.fullmatch(r"\d+", group_id) or group:
@@ -168,12 +195,12 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
                     url = f"https://www.facebook.com/groups/{slug}/posts/{post_id}/"
                 elif re.fullmatch(r"\d+", actor_id):
                     url = f"https://www.facebook.com/{actor_id}/posts/{post_id}/"
-        sponsored = any(n.get("sponsored_data") or n.get("is_sponsored") or n.get("ad_id") for n in (node, content))
+        sponsored = any(n.get("sponsored_data") or n.get("is_sponsored") or n.get("ad_id") for n in views)
         if isinstance(comet, dict):
             for section in comet.values():
                 story = section.get("story", {}) if isinstance(section, dict) else {}
                 if isinstance(story, dict): sponsored |= bool(story.get("sponsored_data") or story.get("is_sponsored") or story.get("ad_id"))
-        created = node.get("creation_time") or content.get("creation_time")
+        created = next((view["creation_time"] for view in views if view.get("creation_time")), None)
         try:
             posted_at = datetime.fromtimestamp(int(created), timezone.utc).isoformat() if created else ""
         except (ValueError, TypeError, OverflowError, OSError):
@@ -183,8 +210,12 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
                       sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)))
         fp = RawPost(platform="facebook", source="", **record).fingerprint
         previous = found.get(fp)
+        if previous and previous["url"] and record["url"] and previous["url"].rstrip("/") != record["url"].rstrip("/"):
+            previous["_conflict"] = True
         if not previous or (record["url"] and not previous["url"]) or record["sponsored"]:
-            if previous: record["sponsored"] |= previous["sponsored"]
+            if previous:
+                record["sponsored"] |= previous["sponsored"]
+                record["_conflict"] = bool(record.get("_conflict") or previous.get("_conflict"))
             found[fp] = record
     return list(found.values())
 
@@ -200,7 +231,10 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
         for record in records:
             fp = RawPost(platform="facebook", source="", **record).fingerprint
             previous = cache.get(fp)
-            if previous: record["sponsored"] |= previous["sponsored"]
+            if previous:
+                record["sponsored"] |= previous["sponsored"]
+                record["_conflict"] = bool(record.get("_conflict") or previous.get("_conflict") or
+                    (previous["url"] and record["url"] and previous["url"].rstrip("/") != record["url"].rstrip("/")))
             if not previous or record["url"] or record["sponsored"]:
                 record["_text_key"] = re.sub(r"\s+", " ", record["text"].lower()).strip()[:500]
                 cache[fp] = record
@@ -209,13 +243,18 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
 
 def match_facebook_story(post: RawPost, cache: dict) -> dict | None:
     if post.fingerprint in cache:
-        return cache[post.fingerprint]
+        exact = cache[post.fingerprint]
+        return ({**exact, "url": ""} if exact["sponsored"] else None) if exact.get("_conflict") else exact
     prefix = re.sub(r"\s+", " ", post.text.lower()).strip()
     prefix = re.sub(r"(?:…|\.\.\.)?\s*(?:see more|xem thêm|查看更多)$", "", prefix).strip()[:500]
-    if len(prefix) < 80:
-        return None
-    # Expanded network text can exceed the DOM excerpt. Ambiguous matches remain unresolved.
-    matches = [story for story in cache.values() if story["_text_key"].startswith(prefix)]
+    # A Page's short caption can be followed by a longer DOM link preview.
+    # That reverse match additionally requires the exact author, and stays ambiguous if duplicated.
+    author = clean_facebook_author(post.author).casefold()
+    matches = [story for story in cache.values() if not story.get("_conflict") and (
+               (len(prefix) >= 80 and story["_text_key"].startswith(prefix)) or
+               (len(story["_text_key"]) >= 15 and author and
+                author == clean_facebook_author(story["author"]).casefold() and
+                prefix.startswith(story["_text_key"] + " ")))]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -235,14 +274,16 @@ FB_NODE_SELECTOR = 'div[role="feed"] > div, [role="article"], [aria-posinset]'
 FB_LINK_SELECTOR = 'a, [role="link"]'
 
 FB_JS = r"""
-() => {
+(root) => {
   const out = [];
-  const nodes = document.querySelectorAll('__NODES__');
+  if (!root) document.querySelectorAll('[data-feedlens-node]').forEach(n => n.removeAttribute('data-feedlens-node'));
+  const nodes = root ? [root] : document.querySelectorAll('__NODES__');
   for (const [nodeIndex, n] of [...nodes].entries()) {
     // Feed wrappers and nested shared articles must not produce duplicate posts.
     const article = '[role="article"], [aria-posinset]';
-    if (!n.matches(article) && n.querySelector(article)) continue;
-    if (n.parentElement?.closest(article)) continue;
+    if (!root && !n.matches(article) && n.querySelector(article)) continue;
+    if (!root && n.parentElement?.closest(article)) continue;
+    if (!root) n.setAttribute('data-feedlens-node', String(nodeIndex));
     const msg = n.querySelector('[data-ad-preview="message"], [data-ad-comet-preview="message"]');
     let text = msg ? msg.innerText : '';
     if (!text) {
@@ -278,7 +319,7 @@ FB_JS = r"""
       adWords.test((el.getAttribute('aria-label') || el.innerText || '').trim()))
       || anchors.some(a => /\/ads\/about|[?&]ad_id=/.test(a.getAttribute('href') || ''));
     out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
-      _node_index: nodeIndex, _hover: hover, _author_url: authorUrl, posted_at: '', sponsored });
+      _node_index: nodeIndex, _node_marker: n.getAttribute('data-feedlens-node'), _hover: hover, _author_url: authorUrl, posted_at: '', sponsored });
   }
   return out;
 }
@@ -341,62 +382,106 @@ FB_HEADER_SNAPSHOT_JS = r"""
 """
 
 
-def _facebook_items(page: Page) -> list[dict]:
+def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
     items = page.evaluate(FB_JS)
-    # Hovering scrolls each anchor into view; without restoring, the feed never advances.
+    if stories:
+        for item in items:
+            network = match_facebook_story(RawPost(platform="facebook", source="", **item), stories)
+            if network:
+                item["_network_url"] = network["url"]
+                item["sponsored"] |= network["sponsored"]
     scroll_y = page.evaluate("() => window.scrollY")
     try:
         return _resolve_facebook_items(page, items)
     finally:
+        page.evaluate("() => document.querySelectorAll('[data-feedlens-node]').forEach(n => n.removeAttribute('data-feedlens-node'))")
         page.evaluate("y => window.scrollTo(0, y)", scroll_y)
 
 
 def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
-    # Bound extra work on long feeds; never click or open the post.
     hover_budget = 6
-    snapshots = 10
     deadline = time.monotonic() + 4
+    jobs = []
+    candidates = []
+    candidate_ids = []
     for item in items:
         item["author"] = clean_facebook_author(item.get("author", ""))
         node_index = item.pop("_node_index", None)
+        marker = item.pop("_node_marker", None)
         hover = item.pop("_hover", [])
         links = item.pop("links", [])
         item["sponsored"] = bool(item.get("sponsored") or any(facebook_ad_link(href) for href, _ in links))
-        item["url"] = facebook_dom_permalink(links, item.pop("_author_url", ""))
+        network_url = item.pop("_network_url", "")
+        author_url = item.pop("_author_url", "")
+        item["url"] = network_url or facebook_dom_permalink(links, author_url)
         if node_index is None:
             continue
-        node = page.locator(FB_NODE_SELECTOR).nth(node_index)
-        for index in hover if not POST_LINK_RE.search(item["url"]) else []:
-            if hover_budget <= 0 or time.monotonic() >= deadline:
-                break
-            anchor = node.locator(FB_LINK_SELECTOR).nth(index)
-            try:
-                href = anchor.get_attribute("href", timeout=700) or ""
-                # The outer post's known timestamp takes precedence over shared posts.
-                if re.search(r"/(?:posts|permalink)/|story_fbid=|^https?://[^/]+/share/|^/share/", href):
-                    break
-                hover_budget -= 1
-                anchor.hover(timeout=700)
-                page.wait_for_timeout(150)
-                links = node.evaluate(
-                    "(n, args) => n.innerText.includes(args.text) ? "
-                    "[...n.querySelectorAll('a, [role=link]')].flatMap((a, i) => "
-                    "['href', 'data-href', 'data-url', 'ajaxify'].map(k => a.getAttribute(k))"
-                    ".filter(Boolean).map(h => [h, i === args.index])) : []",
-                    {"index": index, "text": item["text"]})
-                # The feed can recycle this DOM node while hovering.
-                item["sponsored"] |= any(facebook_ad_link(href) for href, _ in links)
-                if any(timestamp and select_facebook_link([(href, True)]) for href, timestamp in links):
-                    item["url"] = select_facebook_link([(item["url"], False), *links])
-                    break
-            except PlaywrightTimeoutError:
-                continue  # Virtualized/hidden timestamp: retain the best static link.
-        if snapshots and not item["sponsored"] and not POST_LINK_RE.search(item["url"]):
-            snapshots -= 1
-            try:
-                item["_missing_header"] = node.evaluate(FB_HEADER_SNAPSHOT_JS, timeout=700)
-            except Exception:  # noqa: BLE001 — diagnostics must never break a run
-                pass
+        selector = f'[data-feedlens-node="{marker}"]' if str(marker).isdigit() else None
+        node = page.locator(selector) if selector else page.locator(FB_NODE_SELECTOR).nth(node_index)
+        jobs.append((item, node, hover, selector))
+        if len(candidates) < 10 and not item["sponsored"] and not is_facebook_content_url(item["url"]):
+            candidate_ids.append(id(item))
+            candidates.append(dict(selector=selector, index=node_index, text=item["text"]))
+    # Capture every candidate before any hover scrolls and virtualizes its siblings.
+    snapshots = {}
+    if candidates:
+        try:
+            captured = page.evaluate("(items) => { const snapshot = (" + FB_HEADER_SNAPSHOT_JS + "); "
+                "return items.map(item => { const n = item.selector ? document.querySelector(item.selector) : "
+                "document.querySelectorAll('" + FB_NODE_SELECTOR + "')[item.index]; "
+                "if (!n || !n.innerText.includes(item.text)) return null; return snapshot(n); }); }", candidates)
+            snapshots = dict(zip(candidate_ids, captured))
+        except Exception:  # noqa: BLE001 — diagnostics must never interrupt collection
+            pass
+    for item, node, hover, selector in jobs:
+        status = "no_timestamp"
+        attempted = 0
+        if not item["sponsored"] and not is_facebook_content_url(item["url"]):
+            if hover and hover_budget > 0 and time.monotonic() < deadline:
+                try:
+                    node.scroll_into_view_if_needed(timeout=700)
+                    if selector:
+                        page.wait_for_function("args => document.querySelector(args.selector)?.innerText.includes(args.text)",
+                            arg={"selector": selector, "text": item["text"]}, timeout=700)
+                    else:
+                        page.wait_for_timeout(100)
+                    refreshed = node.evaluate(FB_JS, timeout=700)
+                    if refreshed and refreshed[0]["text"] == item["text"]:
+                        hover = refreshed[0]["_hover"]
+                        item["sponsored"] |= refreshed[0]["sponsored"]
+                        item["url"] = facebook_dom_permalink(refreshed[0]["links"], refreshed[0]["_author_url"])
+                    else:
+                        hover = []; status = "post_not_visible"
+                except PlaywrightTimeoutError:
+                    hover = []; status = "post_not_visible"
+            for index in hover if not is_facebook_content_url(item["url"]) and not item["sponsored"] else []:
+                if hover_budget <= 0 or time.monotonic() >= deadline:
+                    status = "budget_exhausted"; break
+                anchor = node.locator(FB_LINK_SELECTOR).nth(index)
+                try:
+                    hover_budget -= 1; attempted += 1
+                    anchor.hover(timeout=700)
+                    page.wait_for_timeout(150)
+                    links = node.evaluate(
+                        "(n, args) => n.innerText.includes(args.text) ? "
+                        "[...n.querySelectorAll('a, [role=link]')].flatMap((a, i) => "
+                        "['href', 'data-href', 'data-url', 'ajaxify'].map(k => a.getAttribute(k))"
+                        ".filter(Boolean).map(h => [h, i === args.index])) : []",
+                        {"index": index, "text": item["text"]})
+                    item["sponsored"] |= any(facebook_ad_link(href) for href, _ in links)
+                    if any(timestamp and select_facebook_link([(href, True)]) for href, timestamp in links):
+                        item["url"] = select_facebook_link([(item["url"], False), *links])
+                        status = "resolved"; break
+                    status = "hover_no_url"
+                except PlaywrightTimeoutError:
+                    status = "hover_timeout"
+        if not item["sponsored"] and not is_facebook_content_url(item["url"]) and id(item) in candidate_ids:
+            snapshot = snapshots.pop(id(item), None)
+            if snapshot is None:
+                snapshot = '<section data-feedlens-snapshot="3" data-feedlens-capture="not_visible"></section>'
+            trace = escape(json.dumps(dict(status=status, attempts=attempted)), quote=True)
+            item["_missing_header"] = ('<section data-feedlens-snapshot="3" data-feedlens-author="' + escape(item["author"], quote=True)
+                + '" data-feedlens-hover="' + trace + '"><p>' + escape(item["text"][:30]) + '</p>' + snapshot + '</section>')
     return items
 
 
@@ -519,7 +604,7 @@ class Scraper:
                     page.evaluate(self.expand_js)
                     _human_pause(*pace["expand"])
                 before = len(encountered)
-                items = _facebook_items(page) if self.platform == "facebook" else page.evaluate(self.extract_js)
+                items = (_facebook_items(page, stories) if stories else _facebook_items(page)) if self.platform == "facebook" else page.evaluate(self.extract_js)
                 for item in items:
                     header = item.pop("_missing_header", "")
                     p = RawPost(platform=self.platform, source=label, **item)
