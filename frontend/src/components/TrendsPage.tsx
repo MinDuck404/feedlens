@@ -9,6 +9,96 @@ import { EmptyState } from "./ui/EmptyState";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { Skeleton } from "./ui/Skeleton";
 
+export const TRENDS_FILTERS_KEY = "feedlens.trendsFilters";
+
+export type TrendGroup = "category" | "topic";
+export type TrendBucket = "day" | "week";
+export type TrendDays = 7 | 30 | 90;
+export type TrendViewMode = "overview" | "grid";
+
+export interface TrendsFiltersState {
+  group: TrendGroup;
+  bucket: TrendBucket;
+  days: TrendDays;
+  viewMode: TrendViewMode;
+}
+
+export const VALID_GROUPS: readonly TrendGroup[] = ["category", "topic"] as const;
+export const VALID_BUCKETS: readonly TrendBucket[] = ["day", "week"] as const;
+export const VALID_DAYS: readonly TrendDays[] = [7, 30, 90] as const;
+export const VALID_VIEW_MODES: readonly TrendViewMode[] = ["overview", "grid"] as const;
+
+export function parseTrendsFilters(
+  rawQuery?: string | URLSearchParams | null,
+  rawStored?: string | null,
+  isMobile = false
+): TrendsFiltersState {
+  const defaults: TrendsFiltersState = {
+    group: "category",
+    bucket: "day",
+    days: 30,
+    viewMode: isMobile ? "grid" : "overview",
+  };
+
+  let stored: Record<string, unknown> = {};
+  if (rawStored) {
+    try {
+      const parsed = JSON.parse(rawStored);
+      if (parsed && typeof parsed === "object") stored = parsed as Record<string, unknown>;
+    } catch {
+      // Ignored
+    }
+  }
+
+  let params: URLSearchParams | null = null;
+  if (rawQuery instanceof URLSearchParams) {
+    params = rawQuery;
+  } else if (typeof rawQuery === "string") {
+    const qIdx = rawQuery.indexOf("?");
+    const qStr = qIdx >= 0 ? rawQuery.slice(qIdx + 1) : rawQuery;
+    params = new URLSearchParams(qStr);
+  }
+
+  // Priority order: URL > localStorage > defaults
+  let group: TrendGroup = defaults.group;
+  const sGroup = stored.group;
+  if (sGroup === "category" || sGroup === "topic") group = sGroup;
+  const qGroup = params?.get("group");
+  if (qGroup === "category" || qGroup === "topic") group = qGroup;
+
+  let bucket: TrendBucket = defaults.bucket;
+  const sBucket = stored.bucket;
+  if (sBucket === "day" || sBucket === "week") bucket = sBucket;
+  const qBucket = params?.get("bucket");
+  if (qBucket === "day" || qBucket === "week") bucket = qBucket;
+
+  let days: TrendDays = defaults.days;
+  const sDays = Number(stored.days ?? stored.range);
+  if (sDays === 7 || sDays === 30 || sDays === 90) days = sDays as TrendDays;
+  const qRange = params?.get("range") ?? params?.get("days");
+  if (qRange) {
+    const num = Number(qRange);
+    if (num === 7 || num === 30 || num === 90) days = num as TrendDays;
+  }
+
+  let viewMode: TrendViewMode = defaults.viewMode;
+  const sView = stored.viewMode ?? stored.view;
+  if (sView === "overview" || sView === "grid") viewMode = sView as TrendViewMode;
+  const qView = params?.get("view") ?? params?.get("viewMode");
+  if (qView === "overview" || qView === "grid") viewMode = qView as TrendViewMode;
+
+  return { group, bucket, days, viewMode };
+}
+
+export function serializeTrendsFilters(filters: TrendsFiltersState): string {
+  const params = new URLSearchParams();
+  params.set("group", filters.group);
+  params.set("bucket", filters.bucket);
+  params.set("range", String(filters.days));
+  params.set("view", filters.viewMode);
+  return params.toString();
+}
+
 interface Props {
   onNewRun: () => void;
 }
@@ -16,10 +106,67 @@ interface Props {
 export default function TrendsPage({ onNewRun }: Props) {
   const { t, cat, lang } = useI18n();
 
-  const [group, setGroup] = useState<"category" | "topic">("category");
-  const [bucket, setBucket] = useState<"day" | "week">("day");
-  const [days, setDays] = useState<number>(30);
-  const [viewMode, setViewMode] = useState<"overview" | "grid">(() => window.matchMedia?.("(max-width: 639px)").matches ? "grid" : "overview");
+  const isMobile = typeof window !== "undefined" && typeof window.matchMedia === "function" && !!window.matchMedia("(max-width: 639px)").matches;
+  const readInitial = () => {
+    let stored: string | null = null;
+    if (typeof localStorage !== "undefined") {
+      try {
+        stored = localStorage.getItem(TRENDS_FILTERS_KEY);
+      } catch {
+        // Ignored
+      }
+    }
+    const hash = typeof window !== "undefined" && window.location ? window.location.hash : "";
+    return parseTrendsFilters(hash, stored, isMobile);
+  };
+
+  const initial = useMemo(readInitial, []);
+  const [group, setGroup] = useState<TrendGroup>(initial.group);
+  const [bucket, setBucket] = useState<TrendBucket>(initial.bucket);
+  const [days, setDays] = useState<TrendDays>(initial.days);
+  const [viewMode, setViewMode] = useState<TrendViewMode>(initial.viewMode);
+
+  // Sync state to localStorage and URL query params
+  useEffect(() => {
+    const currentFilters: TrendsFiltersState = { group, bucket, days, viewMode };
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem(TRENDS_FILTERS_KEY, JSON.stringify(currentFilters));
+      } catch {
+        // Ignored
+      }
+    }
+    const query = serializeTrendsFilters(currentFilters);
+    const targetHash = `#/trends?${query}`;
+    if (typeof window !== "undefined" && window.location && window.location.hash !== targetHash && window.location.hash.startsWith("#/trends")) {
+      if (typeof history !== "undefined" && history.replaceState) {
+        history.replaceState(null, "", targetHash);
+      }
+    }
+  }, [group, bucket, days, viewMode]);
+
+  // Synchronize on browser history navigation (back/forward)
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const onHashChange = () => {
+      if (!window.location?.hash?.startsWith("#/trends")) return;
+      let stored: string | null = null;
+      if (typeof localStorage !== "undefined") {
+        try {
+          stored = localStorage.getItem(TRENDS_FILTERS_KEY);
+        } catch {
+          // Ignored
+        }
+      }
+      const next = parseTrendsFilters(window.location.hash, stored, !!window.matchMedia?.("(max-width: 639px)").matches);
+      setGroup((prev) => prev !== next.group ? next.group : prev);
+      setBucket((prev) => prev !== next.bucket ? next.bucket : prev);
+      setDays((prev) => prev !== next.days ? next.days : prev);
+      setViewMode((prev) => prev !== next.viewMode ? next.viewMode : prev);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   const [rawData, setData] = useState<TrendsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +191,7 @@ export default function TrendsPage({ onNewRun }: Props) {
       ...rawData.summary,
       top_gainer: rawData.summary.top_gainer ? { ...rawData.summary.top_gainer, name: rawData.range.group === "category" ? cat(rawData.summary.top_gainer.id) : rawData.summary.top_gainer.name } : null,
       new_emerging: rawData.summary.new_emerging ? { ...rawData.summary.new_emerging, name: rawData.range.group === "category" ? cat(rawData.summary.new_emerging.id) : rawData.summary.new_emerging.name } : null,
-    },
+    }
   } : null, [rawData, cat]);
 
   return (
@@ -103,7 +250,7 @@ export default function TrendsPage({ onNewRun }: Props) {
           <SegmentedControl
             label={t("trends.range")}
             value={String(days)}
-            onChange={(v) => setDays(Number(v))}
+            onChange={(v) => setDays(Number(v) as TrendDays)}
             options={[
               { value: "7", label: t("trends.days7") },
               { value: "30", label: t("trends.days30") },
@@ -136,25 +283,25 @@ export default function TrendsPage({ onNewRun }: Props) {
         >
           <div className="flex items-center gap-2">
             <AlertCircle className="size-4 shrink-0" />
-            <span className="font-medium">{error}</span>
+            <span>{error}</span>
           </div>
-          <Button size="sm" variant="outline" onClick={loadTrends}>
+          <Button size="sm" variant="secondary" onClick={loadTrends}>
             {t("act.retry")}
           </Button>
         </div>
       )}
 
       {/* Loading Skeleton */}
-      {loading ? (
+      {loading && !rawData ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Skeleton height="86px" rounded="xl" />
-            <Skeleton height="86px" rounded="xl" />
-            <Skeleton height="86px" rounded="xl" />
+            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-24 w-full rounded-2xl" />
+            <Skeleton className="h-24 w-full rounded-2xl" />
           </div>
-          <Skeleton height="360px" rounded="2xl" />
+          <Skeleton className="h-[360px] w-full rounded-2xl" />
         </div>
-      ) : data && !error && (data.summary.total_posts === 0 || !data.series.some((item) => item.total > 0)) ? (
+      ) : data && (!data.series.length || !data.series.some((item) => item.total > 0)) ? (
         /* Empty State */
         <EmptyState
           icon={<TrendingUp className="size-6 text-accent" />}

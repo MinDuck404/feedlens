@@ -183,14 +183,16 @@
   color-scheme: dark;
 }
 
-:root.theme-changing {
+:root.theme-changing,
+:root[data-theme-transitioning] {
   transition-property: var(--theme-transition-properties);
-  transition-duration: 380ms;
-  transition-timing-function: var(--ease-micro);
+  transition-duration: 1.2s;
+  transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root.theme-changing { transition: none; }
+  :root.theme-changing,
+  :root[data-theme-transitioning] { transition: none; }
 }
 
 @theme inline {

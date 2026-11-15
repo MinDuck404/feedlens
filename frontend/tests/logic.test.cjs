@@ -451,3 +451,51 @@ test("run post filters ignore invalid categories, topics and non-post routes", (
     assert.deepEqual(runPostFiltersFromHash(hash), { category: null, topicId: null });
   }
 });
+
+test("trends filters parse, validate, and serialize with priority URL > storage > defaults", () => {
+  const { parseTrendsFilters, serializeTrendsFilters, DEFAULT_TRENDS_FILTERS } = require("../src/components/TrendsPage.tsx");
+
+  // 1. Defaults when empty
+  const def = parseTrendsFilters("", null, false);
+  assert.deepEqual(def, { group: "category", bucket: "day", days: 30, viewMode: "overview" });
+  assert.equal(parseTrendsFilters(null, null, true).viewMode, "grid");
+
+  // 2. LocalStorage persistence format
+  const storedJson = JSON.stringify({ group: "topic", bucket: "week", days: 90, viewMode: "grid" });
+  assert.deepEqual(parseTrendsFilters("", storedJson, false), { group: "topic", bucket: "week", days: 90, viewMode: "grid" });
+
+  // 3. Fallback on invalid or malformed stored values
+  assert.deepEqual(
+    parseTrendsFilters("", "{ invalid-json }", false),
+    { group: "category", bucket: "day", days: 30, viewMode: "overview" }
+  );
+  assert.deepEqual(
+    parseTrendsFilters("", JSON.stringify({ group: "bad_group", bucket: "yearly", days: 999, viewMode: "cards" }), false),
+    { group: "category", bucket: "day", days: 30, viewMode: "overview" }
+  );
+
+  // 4. URL query overrides stored values
+  const urlWithOverrides = "#/trends?group=category&bucket=day&range=7&view=overview";
+  assert.deepEqual(
+    parseTrendsFilters(urlWithOverrides, storedJson, false),
+    { group: "category", bucket: "day", days: 7, viewMode: "overview" }
+  );
+
+  // 5. URL query partial override (group overridden, other from storage)
+  assert.deepEqual(
+    parseTrendsFilters("#/trends?group=category", storedJson, false),
+    { group: "category", bucket: "week", days: 90, viewMode: "grid" }
+  );
+
+  // 6. Support synonyms: range / days, view / viewMode
+  assert.deepEqual(
+    parseTrendsFilters("#/trends?days=7&viewMode=grid", null, false),
+    { group: "category", bucket: "day", days: 7, viewMode: "grid" }
+  );
+
+  // 7. Serialization to query string
+  assert.equal(
+    serializeTrendsFilters({ group: "topic", bucket: "week", days: 90, viewMode: "grid" }),
+    "group=topic&bucket=week&range=90&view=grid"
+  );
+});
