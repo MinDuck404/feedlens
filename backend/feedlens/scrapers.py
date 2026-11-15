@@ -14,6 +14,7 @@ import json
 import random
 import re
 import time
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
@@ -27,6 +28,13 @@ ProgressFn = Callable[[int, str], None]
 
 
 AD_QUERY_KEYS = {"ad_id", "adgroup_id", "adset_id", "campaign_id", "fb_ad_id", "adgroupid"}
+
+
+def clean_facebook_author(author: str) -> str:
+    name = re.sub(r"\s+", " ", unicodedata.normalize("NFC", author)).strip()
+    name = re.sub(r"Tài khoản đã xác minh|Verified account|已验证账户", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"[·•]\s*(?:Theo dõi|Follow|关注)\s*$", "", name, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", name).strip(" ·•")
 
 
 def facebook_ad_link(href: str) -> bool:
@@ -170,7 +178,7 @@ def facebook_stories(payload: object, group_url: str = "") -> list[dict]:
             posted_at = datetime.fromtimestamp(int(created), timezone.utc).isoformat() if created else ""
         except (ValueError, TypeError, OverflowError, OSError):
             posted_at = ""
-        record = dict(text=text[:20000], author=str(actor.get("name") or ""), url=url,
+        record = dict(text=text[:20000], author=clean_facebook_author(str(actor.get("name") or "")), url=url,
                       posted_at=posted_at,
                       sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)))
         fp = RawPost(platform="facebook", source="", **record).fingerprint
@@ -248,8 +256,9 @@ FB_JS = r"""
       if (a.closest('h2, h3, h4, strong')) return false;
       if (a.querySelector('time, abbr, [data-utime]') || a.hasAttribute('data-utime') ||
           /timestamp/i.test(a.getAttribute('data-testid') || '')) return true;
-      const label = (a.innerText || a.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
-      return /^(?:\d+\s*(?:s|m|h|d|w|y|sec|min|hr|hrs|hours?|days?|weeks?|minutes?|秒|分钟|小时|天|周|年|giây|phút|giờ|ngày|tuần|năm)(?:\s*(?:ago|前))?|just now|yesterday|vừa xong|hôm qua|刚刚|昨天)$/i.test(label) ||
+      const referenced = (a.getAttribute('aria-labelledby') || '').split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ').trim();
+      const label = (referenced || a.innerText || a.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+      return /^(?:\d+\s*(?:s|m|h|d|w|y|sec|min|hr|hrs|hours?|days?|weeks?|minutes?|秒|分钟|小时|天|周|年|giây|phút|giờ|ngày|tuần|năm)(?:\s*(?:ago|前|trước))?|just now|yesterday|vừa xong|hôm qua|刚刚|昨天)$/i.test(label) ||
         /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|tháng)\b|\d{1,4}[\/-]\d{1,2}[\/-]\d{1,4}|\d+月\d+日/i.test(a.getAttribute('aria-label') || '');
     };
     const authorUrl = authorEl?.closest('a')?.getAttribute('href') || authorEl?.querySelector('a')?.getAttribute('href') || '';
@@ -259,7 +268,7 @@ FB_JS = r"""
     // Real feed (2026-11): the timestamp is <a aria-labelledby=… href="?__cft__…"> until hovered.
     const placeholder = h => !h || h === '#' || h.startsWith('?');
     const lazy = a => !a.closest('h2, h3, h4, strong') && placeholder(a.getAttribute('href'))
-      && !a.querySelector('img, svg image') && (a.innerText || '').trim().length <= 40;
+      && !a.querySelector('img, svg image') && (a.hasAttribute('aria-labelledby') || (a.innerText || '').trim().length <= 40);
     const hover = [...new Set([
       ...anchors.flatMap((a, i) => a.hasAttribute('aria-labelledby') && lazy(a) ? [i] : []),
       ...anchors.flatMap((a, i) => timestamp(a) ? [i] : []),
@@ -281,18 +290,53 @@ POST_LINK_RE = re.compile(r"/(?:posts|permalink)/|story_fbid=|^https?://[^/]+/sh
 # Shrunk outerHTML of a post whose permalink was not found: structure only, short text, no tokens.
 FB_HEADER_SNAPSHOT_JS = r"""
 (n) => {
-  const c = n.cloneNode(true);
-  c.querySelectorAll('img, svg, video, picture, style, script').forEach(e => e.remove());
-  const keep = new Set(['href', 'role', 'aria-label', 'aria-labelledby', 'aria-hidden', 'data-ad-preview',
-                        'data-ad-comet-preview', 'data-testid', 'data-utime', 'dir', 'id']);
-  for (const el of [c, ...c.querySelectorAll('*')]) {
-    for (const at of [...el.attributes]) if (!keep.has(at.name)) el.removeAttribute(at.name);
-    const href = el.getAttribute('href');
-    if (href) el.setAttribute('href', href.replace(/([?&])(?:__cft__|__tn__|fbclid|eav|paipv|_rdr)[^&]*/g, '$1'));
+  const keep = new Set(['href', 'data-href', 'data-url', 'ajaxify', 'role', 'aria-label', 'aria-labelledby',
+    'aria-hidden', 'data-ad-preview', 'data-ad-comet-preview', 'data-testid', 'data-utime', 'dir', 'id',
+    'data-post-id', 'data-story-id', 'data-video-id']);
+  const clean = root => {
+    root.querySelectorAll('img, svg, video, picture, style, script, input').forEach(e => e.remove());
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      for (const at of [...el.attributes]) {
+        if (!keep.has(at.name)) { el.removeAttribute(at.name); continue; }
+        if (['href','data-href','data-url','ajaxify'].includes(at.name)) {
+          try {
+            const u = new URL(at.value, 'https://www.facebook.com/');
+            if (!['https:', 'http:'].includes(u.protocol)) { el.removeAttribute(at.name); continue; }
+            for (const k of [...u.searchParams.keys()]) if (/token|cookie|auth|session|secret|credential|dtsg|^__|^(?:fbclid|eav|paipv|_rdr|lsd|jazoest|h|u)$/i.test(k)) u.searchParams.delete(k);
+            u.hash = ''; el.setAttribute(at.name, u.href);
+          } catch { el.removeAttribute(at.name); }
+        } else if (at.value.length > 200) el.setAttribute(at.name, at.value.slice(0, 200));
+      }
+    }
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.nodeValue.length > 30) t.nodeValue = t.nodeValue.slice(0, 30) + '…';
+    return root;
+  };
+  const result = document.createElement('section');
+  result.setAttribute('data-feedlens-snapshot', '2');
+  const links = document.createElement('nav'); links.setAttribute('data-feedlens-links', '');
+  // Preserve late permalinks before pruning noisy/obfuscated context; never slice raw HTML.
+  const anchors = [...n.querySelectorAll('a, [role="link"]')];
+  anchors.sort((a,b) => Number(/pfbid|story_fbid|fbid|\/posts\/|\/permalink\//i.test(b.getAttribute('href') || '')) - Number(/pfbid|story_fbid|fbid|\/posts\/|\/permalink\//i.test(a.getAttribute('href') || '')));
+  for (const a of anchors.slice(0, 100)) {
+    const c = a.cloneNode(false); c.textContent = (a.innerText || a.textContent || '').slice(0, 30);
+    clean(c);
+    if (links.outerHTML.length + c.outerHTML.length > 24000) continue;
+    links.append(c);
+    for (const id of (a.getAttribute('aria-labelledby') || '').split(/\s+/)) {
+      const ref = document.getElementById(id);
+      if (ref && links.outerHTML.length < 23000) {
+        const label = document.createElement('span'); label.id = id; label.textContent = ref.textContent.slice(0, 30); links.append(clean(label));
+      }
+    }
   }
-  const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
-  for (let t = walk.nextNode(); t; t = walk.nextNode()) if (t.nodeValue.length > 30) t.nodeValue = t.nodeValue.slice(0, 30) + '…';
-  return c.outerHTML.slice(0, 12000);
+  result.append(links);
+  const context = clean(n.cloneNode(true));
+  context.querySelectorAll('blockquote').forEach(e => { if (e.textContent.trim() === 'Facebook') e.remove(); });
+  [...context.querySelectorAll('*')].slice(300).forEach(e => e.remove());
+  while (context.outerHTML.length > 12000 && context.lastElementChild) context.lastElementChild.remove();
+  result.append(context);
+  return result.outerHTML;
 }
 """
 
@@ -310,9 +354,10 @@ def _facebook_items(page: Page) -> list[dict]:
 def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
     # Bound extra work on long feeds; never click or open the post.
     hover_budget = 6
-    snapshots = 3
+    snapshots = 10
     deadline = time.monotonic() + 4
     for item in items:
+        item["author"] = clean_facebook_author(item.get("author", ""))
         node_index = item.pop("_node_index", None)
         hover = item.pop("_hover", [])
         links = item.pop("links", [])
@@ -346,7 +391,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
                     break
             except PlaywrightTimeoutError:
                 continue  # Virtualized/hidden timestamp: retain the best static link.
-        if snapshots and not POST_LINK_RE.search(item["url"]):
+        if snapshots and not item["sponsored"] and not POST_LINK_RE.search(item["url"]):
             snapshots -= 1
             try:
                 item["_missing_header"] = node.evaluate(FB_HEADER_SNAPSHOT_JS, timeout=700)
@@ -492,7 +537,7 @@ class Scraper:
                     if fp in encountered:
                         continue
                     encountered.add(fp)
-                    if header and len(self.missing_headers) < 10:
+                    if header and not p.sponsored and not facebook_ad_link(p.url) and len(self.missing_headers) < 10:
                         self.missing_headers.append(header)
                     if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
                         self.last_report["skipped_ads"] += 1

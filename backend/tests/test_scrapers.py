@@ -205,16 +205,14 @@ def test_chronological_group_catches_up_after_eight_distinct_old_posts(monkeypat
     assert scraper.last_report['stop_reason']=='caught_up'
 
 
-def test_facebook_sponsored_post_is_flagged_and_snapshotted_without_tokens(facebook_page):
+def test_facebook_sponsored_post_is_flagged_without_wasting_snapshot_quota(facebook_page):
     facebook_page.set_content('''<div role="feed"><div role="article"><h3><a href="/elevenlabs">ElevenLabs</a></h3>
       <a href="#"><span>Được tài trợ</span></a>
       <div data-ad-preview="message">Now available in Claude, ChatGPT, Cursor and more tools today.</div>
       <a href="/elevenlabs?__cft__[0]=SECRETTOKEN&amp;__tn__=R"><img src="x.png"></a></div></div>''')
     item = scrapers._facebook_items(facebook_page)[0]
     assert item["sponsored"] is True
-    snapshot = item["_missing_header"]
-    assert "SECRETTOKEN" not in snapshot and "<img" not in snapshot
-    assert "Now available in Claude, ChatG…" in snapshot  # text nodes are cut to 30 chars
+    assert "_missing_header" not in item  # Ads do not consume the diagnostic sample quota.
 
 
 def test_facebook_regular_post_with_permalink_has_no_snapshot(facebook_page):
@@ -415,3 +413,54 @@ def test_initial_json_enriches_a_visible_post_without_extra_requests(facebook_pa
 def test_malformed_author_url_does_not_break_photo_fallback():
     url='https://www.facebook.com/photo/?fbid=999&set=pcb.12345'
     assert scrapers.facebook_dom_permalink([(url,False)],'https://[invalid')==url
+
+
+@pytest.mark.parametrize('raw,expected', [
+ ('Hiệp Đông Anh - Tin nhanh hóng hớt\xa0Tài khoản đã xác minh\xa0 · Theo dõi','Hiệp Đông Anh - Tin nhanh hóng hớt'),
+ ('Example\xa0Verified account · Follow','Example'),
+ ('张三 已验证账户 · 关注','张三'),
+ ('ÆRJUN ÆRJUN và SUMANTA DAS','ÆRJUN ÆRJUN và SUMANTA DAS'),
+ ('Follow Your Dreams','Follow Your Dreams'),
+ ('A\n và B\xa0 · Theo dõi','A và B'),
+])
+def test_facebook_author_removes_ui_badges_but_preserves_collaborators(raw,expected):
+    assert scrapers.clean_facebook_author(raw)==expected
+
+
+def test_snapshot_keeps_late_permalink_and_referenced_ids_without_tokens(facebook_page):
+    facebook_page.set_content('<div role="article"><h4><a href="/page">Suggested page</a> · Theo dõi</h4>'
+      '<a href="?__cft__[0]=SECRET" aria-labelledby="time-ref">x</a><span id="time-ref">1 ngày trước</span>'
+      '<div data-ad-preview="message">A sufficiently long article body for snapshot testing.</div>'
+      + ('<div><span>Facebook</span></div>'*500)
+      + '<a id="late-link" href="/page/posts/pfbidLATE/?access_token=SECRET&amp;cookie=PRIVATE&amp;story_fbid=pfbidLATE">Open post</a></div>')
+    snapshot=facebook_page.locator('[role=article]').evaluate(scrapers.FB_HEADER_SNAPSHOT_JS)
+    assert 'pfbidLATE' in snapshot and 'late-link' in snapshot and 'time-ref' in snapshot
+    assert 'SECRET' not in snapshot and 'PRIVATE' not in snapshot
+    assert snapshot.endswith('</section>')
+
+
+def test_suggested_page_header_keeps_coauthor_name_and_unknown_link_empty(facebook_page):
+    facebook_page.set_content('<div role="article"><h4><a href="/page-a">A và B</a>'
+      '<span>Tài khoản đã xác minh</span> · Theo dõi</h4>'
+      '<a role="link" aria-labelledby="time">x</a><span id="time">1 ngày trước</span>'
+      '<div data-ad-preview="message">A visible post without a trustworthy story identifier.</div></div>')
+    item=scrapers._facebook_items(facebook_page)[0]
+    assert item['author']=='A và B' and item['url']==''
+    assert 'time' in item['_missing_header']
+
+
+def test_run8_long_obfuscated_timestamp_uses_referenced_date_and_hover(facebook_page):
+    facebook_page.set_content('<div role="feed"><div><h4><a href="/profile.php?id=123">Suggested page</a> · Theo dõi</h4>'
+      '<a role="link" aria-labelledby="date-ref" href="?__cft__[0]=TRACK" onmouseover="this.href=\'/page/posts/pfbidREAL/\'">'
+      +('<span>x</span>'*120)+'</a><span id="date-ref">1 ngày trước</span>'
+      '<div data-ad-preview="message">A page video post with a long obfuscated timestamp.</div></div></div>')
+    item=scrapers._facebook_items(facebook_page)[0]
+    assert item['author']=='Suggested page'
+    assert item['url']=='https://www.facebook.com/page/posts/pfbidREAL/'
+
+
+def test_ad_headers_do_not_consume_the_runs_missing_link_samples(monkeypatch):
+    ad=dict(item('Advertisement with no URL'),sponsored=True,_missing_header='<div>advertisement</div>')
+    organic=dict(item('Organic post without a link'),_missing_header='<div>organic</div>')
+    _,scraper,_=fake_collect(monkeypatch,[[ad,organic]],target=1)
+    assert scraper.missing_headers==['<div>organic</div>']
