@@ -1,10 +1,10 @@
 import { Briefcase, Check, RefreshCw, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { groupName } from "../logic";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, useI18n, type Key } from "../i18n";
-import { Sheet, Button, IconButton, Skeleton } from "./ui";
+import { Sheet, Button, IconButton, Skeleton, Select, SegmentedControl } from "./ui";
 import type {
   AIProviderInfo, JobProfile, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
 } from "../types";
@@ -114,8 +114,10 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       setProviders(list);
       const ok = (k?: string) => !!k && list.some((p) => p.key === k && p.configured);
       const first = list.find((p) => p.configured && p.key !== "offline")?.key ?? "offline";
-      setF((s) => ({ ...s, ai_provider: ok(saved.ai_provider) ? saved.ai_provider! : first,
-                     ai_model: ok(saved.ai_provider) ? saved.ai_model ?? "" : "" }));
+      const preferred = list.find((p) => p.configured && p.is_default)?.key;
+      const selected = preferred ?? (ok(saved.ai_provider) ? saved.ai_provider! : first);
+      setF((s) => ({ ...s, ai_provider: selected,
+                     ai_model: selected === saved.ai_provider ? saved.ai_model ?? "" : "" }));
     }).catch((e) => { setProviders([]); setLoadError(e.message); });
   };
   useEffect(() => { loadProviders(); api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)); }, []);
@@ -216,7 +218,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
     >
       {cloud && meta.server_scrape && (
             <Group label={t("cmp.runner")}>
-              <Segmented value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
+              <SegmentedControl label={t("cmp.runner")} value={f.runner} onChange={(v) => set("runner", v as RunRequest["runner"])}
                 options={[{ value: "agent", label: t("cmp.runnerAgent") }, { value: "server", label: t("cmp.runnerServer") }]} />
               <p className="mt-2 text-sm text-ink-soft">
                 {f.runner === "agent"
@@ -227,7 +229,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           )}
 
           <Group label={t("cmp.platform")}>
-            <Segmented value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
+            <SegmentedControl label={t("cmp.platform")} value={f.platform} onChange={(v) => set("platform", v as Platform)} options={platformOptions} />
             {!cloud && platformState && !platformState.has_profile && (
               <p className="mt-2 text-sm text-ink-soft">
                 {t("cmp.notLoggedIn", { name: platformState.name })}
@@ -236,7 +238,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           </Group>
 
           <Group label={t("cmp.where")}>
-            <Segmented value={f.source_type} onChange={(v) => set("source_type", v as SourceType)}
+            <SegmentedControl label={t("cmp.where")} value={f.source_type} onChange={(v) => set("source_type", v as SourceType)}
               options={[{ value: "feed", label: t("cmp.feed") }, { value: "group", label: t("cmp.groups") }, { value: "search", label: t("cmp.search") }]} />
 
             {f.source_type === "group" && hint && (
@@ -334,7 +336,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           </Group>
 
           <Group label={t("cmp.speed")}>
-            <Segmented value={f.speed} onChange={(v) => set("speed", v as RunRequest["speed"])}
+            <SegmentedControl label={t("cmp.speed")} value={f.speed} onChange={(v) => set("speed", v as RunRequest["speed"])}
               options={[{ value: "fast", label: t("cmp.fast") }, { value: "careful", label: t("cmp.careful") }]} />
             <p className="mt-2 text-sm text-ink-soft">
               {f.speed === "fast" ? t("cmp.fastHint") : t("cmp.carefulHint")}
@@ -346,10 +348,10 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <div role="status" aria-label={t("act.loading")}><div aria-hidden="true"><Skeleton height={40} /></div></div>
             ) : (
               <>
-                <select className="field min-h-11" aria-label={t("cmp.ai")} value={f.ai_provider}
+                <Select aria-label={t("cmp.ai")} value={f.ai_provider}
                   onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); }}>
                   {usable.map((p) => <option key={p.key} value={p.key}>{p.key === "offline" ? t("cmp.offline") : p.name}</option>)}
-                </select>
+                </Select>
                 {f.ai_provider !== "offline" && (
                   <ModelPicker key={f.ai_provider} provider={f.ai_provider} value={f.ai_model} onChange={(m) => set("ai_model", m)} />
                 )}
@@ -431,7 +433,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   );
 }
 
-function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
+export function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
   const [models, setModels] = useState<string[]>([]);
   const [def, setDef] = useState("");
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -450,14 +452,14 @@ function ModelPicker({ provider, value, onChange }: { provider: string; value: s
 
   return (
     <div className="mt-2 flex gap-2">
-      <select className="field min-w-0 flex-1" value={value} onChange={(e) => onChange(e.target.value)}
+      <Select value={value} onChange={(e) => onChange(e.target.value)}
         disabled={state !== "ok"} aria-label={t("cmp.modelAria")}>
         <option value="">
           {state === "loading" ? t("cmp.modelsLoading") : state === "error" ? error : t("cmp.modelDefault", { m: def })}
         </option>
         {value && !models.includes(value) && <option value={value}>{value}</option>}
         {models.map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
+      </Select>
       <IconButton onClick={() => load(true)} aria-label={t("cmp.reloadModels")} variant="outline" busy={state === "loading"} className="size-11 shrink-0">
         <RefreshCw className="size-4" />
       </IconButton>
@@ -471,26 +473,6 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
       <legend className="mb-3 text-sm font-semibold tracking-tight">{label}</legend>
       {children}
     </fieldset>
-  );
-}
-
-function Segmented({ value, onChange, options }: {
-  value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
-}) {
-  const name = useId();
-  const { lang } = useI18n();
-  return (
-    <div className={`grid gap-1 rounded-2xl border border-line bg-sunken p-1 ${options.length > 3 ? "grid-cols-2 sm:grid-cols-4" : options.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-      {options.map((o) => (
-        <label key={o.value} className="relative min-w-0 cursor-pointer">
-          <input type="radio" name={name} value={o.value} checked={value === o.value}
-            onChange={() => onChange(o.value)} className="peer sr-only" />
-          <span className={`interactive-tap flex min-h-11 items-center justify-center rounded-xl px-1.5 py-2 text-center ${lang === "zh" ? "text-xs sm:text-sm" : "text-sm"} text-ink-soft peer-checked:bg-surface peer-checked:font-semibold peer-checked:text-ink peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-accent sm:px-2`}>
-            {o.label}
-          </span>
-        </label>
-      ))}
-    </div>
   );
 }
 

@@ -43,9 +43,11 @@ def user_keys(db, user_id: int) -> dict[str, tuple[str, str]]:
     return out
 
 
-def resolve_provider_key(requested: str | None, keys: dict[str, tuple[str, str]]) -> str:
+def resolve_provider_key(requested: str | None, keys: dict[str, tuple[str, str]], preferred: str | None = None) -> str:
     """'auto'/None -> provider mặc định, hoặc provider đầu tiên có key, hoặc 'offline'."""
     key = requested or "auto"
+    if key == "auto" and preferred in keys:
+        key = preferred
     if key == "auto" and settings.default_ai in keys:
         key = settings.default_ai
     if key == "auto":
@@ -57,19 +59,28 @@ def resolve_provider_key(requested: str | None, keys: dict[str, tuple[str, str]]
     return key
 
 
+def preferred_provider(db, user_id: int | None, requested: str | None) -> str:
+    if requested and requested != "auto":
+        return requested
+    preferred = db.get_default_ai(user_id) if user_id is not None else None
+    return resolve_provider_key("auto", user_keys(db, user_id) if user_id is not None else {}, preferred)
+
+
 def get_provider(key: str, model: str | None = None, api_key: str | None = None) -> AIProvider:
     return PROVIDERS[key](model or None, api_key)
 
 
 def provider_status(db, user_id: int) -> list[dict]:
     keys = user_keys(db, user_id)
+    default = resolve_provider_key("auto", keys, db.get_default_ai(user_id))
     hints = {r.provider: r.hint for r in db.list_keys(user_id)}
     out = []
     for k, cls in PROVIDERS.items():
         i = cls.info
         out.append({"key": k, "name": i.name, "configured": k in keys,
                     "source": keys[k][1] if k in keys else None, "hint": hints.get(k, ""),
-                    "default_model": os.getenv(i.model_env) or i.default_model, "key_url": i.key_url})
+                    "default_model": os.getenv(i.model_env) or i.default_model, "key_url": i.key_url,
+                    "is_default": k == default})
     out.append({"key": "offline", "name": "Offline (từ khóa)", "configured": True, "source": None,
                 "hint": "", "default_model": "", "key_url": ""})
     return out

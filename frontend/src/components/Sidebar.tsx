@@ -1,5 +1,4 @@
 import {
-  Globe,
   Loader2,
   LogIn,
   Menu,
@@ -12,7 +11,8 @@ import {
 import { useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
-import { LANGS, useI18n, type Key, type Lang } from "../i18n";
+import { useI18n, type Key } from "../i18n";
+import { LanguageMenu, ThemeMenu } from "./PreferenceMenus";
 import type { PlatformState, Run } from "../types";
 import { Button, IconButton } from "./ui/Button";
 import { Sheet } from "./ui/Dialog";
@@ -31,6 +31,7 @@ export const STATUS_CLS: Record<string, string> = {
   analyzing: "text-link",
   done: "text-ok",
   error: "text-danger",
+  analysis_failed: "text-danger",
 };
 
 interface Props {
@@ -82,6 +83,7 @@ export default function Sidebar(props: Props) {
         </a>
 
         <div className="flex items-center gap-1">
+          <ThemeMenu above={false} />
           <IconButton
             icon={<Plus className="size-4" />}
             label={t("act.newRun")}
@@ -198,7 +200,7 @@ function SidebarBody({
   onPlatformChanged,
   onLogout,
 }: Props) {
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
 
   const navCls =
     "rounded-full px-3.5 py-1.5 text-sm font-medium transition-all interactive-tap text-ink-soft hover:text-ink hover:bg-sunken/60 aria-[current=page]:bg-primary aria-[current=page]:text-primary-ink aria-[current=page]:shadow-xs";
@@ -341,31 +343,8 @@ function SidebarBody({
           {email ?? t("sb.thisMachine")}
         </span>
 
-        {/* Language Picker với Focus Ring hoàn chỉnh (code-audit #15) */}
-        <label
-          className="relative grid size-8 place-items-center rounded-lg text-ink-soft transition-colors hover:bg-sunken hover:text-ink focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 outline-none cursor-pointer"
-          title={t("lang.label")}
-        >
-          <Globe className="size-4" />
-          <select
-            value={lang}
-            onChange={(e) => setLang(e.target.value as Lang)}
-            aria-label={t("lang.label")}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span
-          aria-hidden
-          className="-ml-1 font-mono text-[11px] font-semibold text-ink-soft uppercase"
-        >
-          {lang}
-        </span>
+        <LanguageMenu />
+        <ThemeMenu />
 
         {/* Settings Button */}
         <IconButton
@@ -421,7 +400,8 @@ function PlatformRow({
   };
 
   const waiting = p.login_state === "waiting";
-  const status = waiting
+  const checking = !!p.checking;
+  const status = checking ? t("plat.checking") : waiting
     ? t("plat.waiting")
     : p.logged_in === true
     ? t("plat.loggedIn")
@@ -449,7 +429,7 @@ function PlatformRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {busy ? (
+          {busy || checking ? (
             <Loader2 className="size-4 animate-spin text-ink-soft" />
           ) : (
             <>
@@ -483,7 +463,7 @@ function PlatformRow({
       <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 pl-4">
         <span className="font-sans text-xs text-ink-soft">{status}</span>
 
-        {(!p.has_profile || p.logged_in === false) && !waiting && !busy && (
+        {(!p.has_profile || p.logged_in === false) && !waiting && !busy && !checking && (
           <button
             type="button"
             onClick={() => act("login")}

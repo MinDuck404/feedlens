@@ -117,9 +117,9 @@ export function Dialog({
       }
 
       if (e.key === "Tab" && containerRef.current) {
-        const focusable = containerRef.current.querySelectorAll<HTMLElement>(
+        const focusable = [...containerRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
+        )].filter((element) => element.getClientRects().length > 0 && !element.closest("[hidden]"));
         if (focusable.length === 0) return;
 
         const first = focusable[0];
@@ -148,12 +148,12 @@ export function Dialog({
     if (isRendered && !isClosing && containerRef.current) {
       // Tìm phần tử có autoFocus hoặc phần tử focusable đầu tiên
       const auto = containerRef.current.querySelector<HTMLElement>("[autofocus]");
-      if (auto) {
+      if (auto && auto.getClientRects().length) {
         auto.focus();
       } else {
-        const first = containerRef.current.querySelector<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
+        const first = [...containerRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )].find((element) => element.getClientRects().length > 0 && !element.closest("[hidden]"));
         if (first) first.focus();
       }
     }

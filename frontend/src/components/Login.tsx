@@ -1,8 +1,9 @@
-import { Globe, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useId, useState } from "react";
 import { api, auth, ApiError } from "../api";
-import { LANGS, serverMessage, useI18n, type Lang } from "../i18n";
+import { serverMessage, useI18n } from "../i18n";
 import { Button } from "./ui/Button";
+import { LanguageMenu, ThemeMenu } from "./PreferenceMenus";
 
 interface Props {
   configError: string | null;
@@ -23,7 +24,7 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
   const [error, setError] = useState<LoginError | null>(null);
   const [busy, setBusy] = useState(false);
   const registering = mode === "register";
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
 
   const loginTabId = useId();
   const registerTabId = useId();
@@ -69,25 +70,8 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
     <main className="relative flex min-h-full flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
       {/* Top Language Picker */}
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2">
-        <label
-          className="relative flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-3 py-1.5 text-xs font-medium text-ink-soft shadow-xs transition-colors hover:bg-surface hover:text-ink focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-2 cursor-pointer"
-          title={t("lang.label")}
-        >
-          <Globe className="size-3.5" />
-          <span className="font-mono uppercase">{lang}</span>
-          <select
-            value={lang}
-            onChange={(e) => setLang(e.target.value as Lang)}
-            aria-label={t("lang.label")}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            {LANGS.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <LanguageMenu above={false} />
+        <ThemeMenu above={false} />
       </div>
 
       <div className="mx-auto w-full max-w-md">

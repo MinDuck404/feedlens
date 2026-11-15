@@ -4,11 +4,12 @@ import { ApiError, api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { Meta, Post, Run } from "../types";
+import type { AIProviderInfo, Meta, Post, Run } from "../types";
+import { ModelPicker } from "./Composer";
 
 import { isRemoteText, matchesJobType, parseTimestamp } from "../logic";
 
-import { Button, IconButton, Skeleton, SkeletonCard, EmptyState } from "./ui";
+import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
 const CATEGORY_INK: Record<string, string> = Object.fromEntries(
   ["job", "news", "tech", "marketplace", "question", "event", "promotion", "personal", "entertainment", "other"].map((c) => [c, `var(--cat-${c})`]),
@@ -23,9 +24,10 @@ interface Props {
   tab: Tab;               // tab nằm trong URL (#/runs/12/jobs) nên tải lại trang vẫn giữ
   onTab: (t: Tab) => void;
   onDeleted: () => void;
+  onAnalysisStarted?: () => void;
 }
 
-export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
+export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysisStarted }: Props) {
   const [run, setRun] = useState<Run | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -33,7 +35,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
   const setTab = onTab;
-  const { t, locale } = useI18n();
+  const { t, locale, cat } = useI18n();
 
   useEffect(() => {
     let alive = true;
@@ -48,7 +50,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
         setRun(r);
         setLoadError(false);
         failures = 0;
-        if (!["done", "error"].includes(r.status)) timer = window.setTimeout(load, 1500);
+        if (!["done", "error", "analysis_failed"].includes(r.status)) timer = window.setTimeout(load, 1500);
       } catch (e) {
         if (!alive) return;
         if (e instanceof ApiError && e.status === 404) { setMissing(true); return; }
@@ -101,7 +103,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
           {run.ai_label && t("run.readBy", { ai: run.ai_label })}
         </p>
         <div className="mt-2 flex items-center justify-center gap-1 text-ink-soft">
-          {run.status === "done" && (["md", "csv", "json"] as const).map((f) => (
+          {!!run.posts?.length && (["md", "csv", "json"] as const).map((f) => (
             <Button key={f} variant="ghost" size="sm" onClick={() => api.download(run.id, f).catch((e) => alert(e.message))} className="font-mono text-xs hover:bg-sunken hover:text-ink hover:underline underline-offset-4">
               .{f}
             </Button>
@@ -113,11 +115,15 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
       </header>
       <hr className="rule-double mt-4" />
 
-      {run.status === "error" ? (
+      {run.status === "error" || run.status === "analysis_failed" ? (
+        <>
         <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
-          <p className="font-semibold text-danger">{t("run.stopped")}</p>
+          <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
+          {run.status === "analysis_failed" && <RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} />}
         </div>
+        {!!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
+        </>
       ) : run.status !== "done" || !run.digest ? (
         <InProgress run={run} />
       ) : (
@@ -125,6 +131,36 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted }: Props) {
       )}
     </div>
   );
+}
+
+function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) {
+  const { t } = useI18n();
+  const [providers, setProviders] = useState<AIProviderInfo[]>([]);
+  const [provider, setProvider] = useState(run.request.ai_provider);
+  const [model, setModel] = useState(run.request.ai_model);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
+  const submit = async () => {
+    setBusy(true); setError("");
+    try { await api.retryAnalysis(run.id, provider, model); onStarted(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return <div className="mt-4 border-t border-line pt-4">
+    <p className="text-sm text-ink-soft">{t("run.retryAnalysisHint")}</p>
+    <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
+      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
+        <option value="auto">{t("profile.auto")}</option>
+        {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
+        {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider}</option>}
+        <option value="offline">{t("profile.offlineOption")}</option>
+      </Select></label>
+      {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <Button busy={busy} onClick={submit}>{t("run.retryAnalysis")}</Button>
+    </fieldset>
+  </div>;
 }
 
 function InProgress({ run }: { run: Run }) {
@@ -252,14 +288,14 @@ function DigestView({ d, name }: { d: NonNullable<Run["digest"]>; name: (c: stri
         </div>
       </div>
       {d.action_items.length > 0 && (
-        <aside className="h-fit border border-[var(--field-line)] bg-[var(--reading-panel)] p-4 lg:sticky lg:top-6">
+        <aside className="h-fit border-y border-line-strong bg-sunken p-4 lg:sticky lg:top-6">
           <h3 className="font-headline text-xl font-semibold">{t("run.nextSteps")}</h3>
           <ul className="mt-3 space-y-2.5">
             {d.action_items.map((a, i) => (
               <li key={i}>
                 <label className="flex min-h-10 gap-3 py-1 text-sm [overflow-wrap:anywhere]">
                   <input type="checkbox" className="peer sr-only" />
-                  <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[4px] border border-[var(--field-line)] bg-[var(--field-bg)] text-transparent transition-colors duration-[var(--duration-fast)] peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent peer-focus-visible:outline-offset-2">
+                  <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[4px] border border-ink-faint bg-surface text-transparent transition-colors duration-[var(--duration-fast)] peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent peer-focus-visible:outline-offset-2">
                     <Check className="size-3" strokeWidth={2.5} />
                   </span>
                   <span className="min-w-0 flex-1 leading-relaxed">{a}</span>
@@ -474,9 +510,9 @@ function ReadingPost({ p, name }: { p: Post; name: (c: string) => string }) {
   return (
     <li className="stagger-item min-w-0 py-7 first:pt-0 [overflow-wrap:anywhere]">
       <article>
-        <h3 className="max-w-[38ch] font-headline text-2xl leading-snug font-semibold sm:text-3xl">{p.summary}</h3>
+        <h3 className="max-w-[38ch] font-headline text-2xl leading-snug font-semibold sm:text-3xl">{p.summary || p.text.slice(0, 100)}</h3>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-soft">
-          <span className="font-medium" style={{ color: categoryTone(p.category) }}>{name(p.category)}</span>
+          <span className="font-medium" style={{ color: categoryTone(p.category) }}>{p.analyzed === false ? t("run.rawPost") : name(p.category)}</span>
           <span>{p.source}</span>
           <span>{p.author || t("posts.unknownAuthor")}</span>
         </div>

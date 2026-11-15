@@ -26,6 +26,7 @@ class UserRow(Base):
     agent_last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     # Cài đặt "Lướt mới" lần trước + danh sách group đã lưu (frontend quyết định cấu trúc)
     preferences: Mapped[Optional[dict]] = mapped_column(JSON)
+    default_ai_provider: Mapped[Optional[str]] = mapped_column(String(20))
 
 
 class ApiKeyRow(Base):
@@ -63,12 +64,13 @@ class RunRow(Base):
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     request: Mapped[dict] = mapped_column(JSON)
-    # pending (chờ agent) | queued | scraping | analyzing | done | error
+    # pending (chờ agent) | queued | scraping | analyzing | done | analysis_failed | error
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     collected: Mapped[int] = mapped_column(Integer, default=0)
     ai_label: Mapped[str] = mapped_column(String(120), default="")
     error: Mapped[Optional[str]] = mapped_column(Text)
     digest: Mapped[Optional[dict]] = mapped_column(JSON)
+    raw_posts: Mapped[Optional[list]] = mapped_column(JSON)
 
     posts: Mapped[list["PostRow"]] = relationship(back_populates="run", cascade="all, delete-orphan",
                                                   order_by="PostRow.id")

@@ -75,6 +75,7 @@ export const api = {
   checkSession: (p: string) => call<PlatformSession>(`/api/sessions/${p}/check`, { method: "POST" }),
   newAgentToken: () => call<{ token: string }>("/api/agent/token", { method: "POST" }),
   providers: () => call<AIProviderInfo[]>("/api/ai/providers"),
+  setDefaultAI: (provider: string) => call("/api/ai/default", { method: "PUT", body: JSON.stringify({ provider }) }),
   saveKey: (p: string, apiKey: string) =>
     call<{ models: string[] }>(`/api/ai/keys/${p}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) }),
   deleteKey: (p: string) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
@@ -88,6 +89,8 @@ export const api = {
   createRun: (req: RunRequest) =>
     call<{ id: number; agent?: AgentInfo }>("/api/runs", { method: "POST", body: JSON.stringify(req) }),
   deleteRun: (id: number) => call(`/api/runs/${id}`, { method: "DELETE" }),
+  retryAnalysis: (id: number, ai_provider: string, ai_model: string) =>
+    call(`/api/runs/${id}/analysis`, { method: "POST", body: JSON.stringify({ ai_provider, ai_model }) }),
   /** Tải file xuất kèm token (thẻ <a href> thường không gửi được header Authorization). */
   download: async (id: number, fmt: "md" | "csv" | "json") => {
     const r = await raw(`/api/runs/${id}/export?fmt=${fmt}`);

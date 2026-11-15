@@ -5,6 +5,7 @@ import traceback
 from typing import Callable
 
 from .ai import user_keys
+from .ai.registry import preferred_provider
 from .analyzer import get_analyzer
 from .config import settings
 from .db import Database
@@ -81,7 +82,7 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
     lock = _platform_locks[req.platform]  # 1 trình duyệt / profile tại một thời điểm
     try:
         # Kiểm tra AI trước khi lướt, để không lướt xong mới báo thiếu API key
-        analyzer = get_analyzer(req.ai_provider, req.ai_model or None, _keys(db, user_id), user_id or 0)
+        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
         db.update_run(run_id, ai_label=analyzer.label)
         with lock:
             db.update_run(run_id, status="scraping")
@@ -94,6 +95,7 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
 
 def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer, report) -> None:
     prog = PROGRESS.setdefault(run_id, {})
+    db.save_raw_posts(run_id, raw)
     db.update_run(run_id, status="analyzing", collected=len(raw))
     if not raw:
         raise RuntimeError("Không lấy được bài nào — kiểm tra đăng nhập hoặc selector của nền tảng.")
@@ -105,11 +107,17 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if req.job_mode:
         owner = (db.get_run(run_id) or {}).get("user_id")
         analyzer.job_profile = load_profile(db, owner)
-    analyzed = analyzer.classify(raw, req.job_mode, req.keywords, req.profile, report("analyzing"))
-    db.save_posts(run_id, analyzed)
+    completed = db.get_posts(run_id)
+    known = {p.fingerprint for p in completed}
+    pending = [p for p in raw if p.fingerprint not in known]
+    analyzer.on_batch = lambda batch: db.save_batch(run_id, batch)
+    if pending:
+        analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, report("analyzing"))
+        db.save_batch(run_id, analyzed)
+    analyzed = db.get_posts(run_id)
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
     digest = analyzer.digest(analyzed, req.job_mode)
-    db.update_run(run_id, status="done", digest=digest, ai_label=analyzer.label)  # model có thể đã đổi
+    db.update_run(run_id, status="done", error=None, digest=digest, ai_label=analyzer.label)  # model có thể đã đổi
     prog.update(phase="done", message="Hoàn tất")
 
 
@@ -119,8 +127,9 @@ def _fail(db: Database, run_id: int, e: Exception) -> None:
 
 
 def fail_run(db: Database, run_id: int, message: str) -> None:
-    db.update_run(run_id, status="error", error=message[:2000])
-    PROGRESS.setdefault(run_id, {}).update(phase="error", message=message[:300])
+    status = "analysis_failed" if db.get_raw_posts(run_id) else "error"
+    db.update_run(run_id, status=status, error=message[:2000])
+    PROGRESS.setdefault(run_id, {}).update(phase=status, message=message[:300])
 
 
 def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None) -> None:
@@ -133,11 +142,13 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
         return _fn
 
     try:
-        analyzer = get_analyzer(req.ai_provider, req.ai_model or None, _keys(db, user_id), user_id or 0)
+        if not db.get_raw_posts(run_id):
+            if req.only_new:
+                known = db.known_fingerprints(req.platform, user_id)
+                raw = [p for p in raw if p.fingerprint not in known]
+            db.save_raw_posts(run_id, raw)
+        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
         db.update_run(run_id, ai_label=analyzer.label)
-        if req.only_new:
-            known = db.known_fingerprints(req.platform, user_id)
-            raw = [p for p in raw if p.fingerprint not in known]
         _analyze(db, run_id, req, raw, analyzer, report)
     except Exception as e:  # noqa: BLE001
         _fail(db, run_id, e)
@@ -170,7 +181,7 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
         return _fn
 
     try:
-        analyzer = get_analyzer(req.ai_provider, req.ai_model or None, _keys(db, user_id), user_id)
+        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id)
         db.update_run(run_id, ai_label=analyzer.label)
         row = db.get_session(user_id, req.platform)
         cookies = json.loads(decrypt(row.ciphertext) or "null") if row else None
@@ -202,6 +213,11 @@ def start_server_run(db: Database, req: RunRequest, user_id: int) -> int:
 
 
 def start_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None) -> None:
+    if not db.get_raw_posts(run_id):
+        if req.only_new:
+            known = db.known_fingerprints(req.platform, user_id)
+            raw = [p for p in raw if p.fingerprint not in known]
+        db.save_raw_posts(run_id, raw)
     db.update_run(run_id, status="analyzing", collected=len(raw))
     _spawn(execute_analysis, run_id, db, run_id, req, raw, user_id)
 

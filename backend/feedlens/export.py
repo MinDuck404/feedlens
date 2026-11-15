@@ -19,6 +19,9 @@ def to_markdown(run: dict, posts: list[AnalyzedPost]) -> str:
             lines += [f"## {CATEGORIES.get(c['category'], c['category'])} ({c['count']})", c["summary"]]
             lines += [f"- {h}" for h in c["highlights"]] + [""]
     jobs = sorted((p for p in posts if p.job), key=lambda p: -p.job.match_score)
+    if not d:
+        for p in posts:
+            lines += [f"## {p.source}", p.author, "", p.text, "", p.url, ""]
     if jobs:
         lines += ["## Việc làm", "| Điểm | Vị trí | Công ty | Nơi làm | Lương | Liên hệ | Link |",
                   "|---|---|---|---|---|---|---|"]

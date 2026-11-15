@@ -53,6 +53,7 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
             viewport=None if not headless else {"width": 1280, "height": 900},
             locale="vi-VN",
             chromium_sandbox=True,  # giữ sandbox của Chrome (Playwright mặc định thêm --no-sandbox)
+            timeout=20_000,
         )
         channel = settings.browser_channel
         try:
@@ -101,15 +102,19 @@ def interactive_login(platform: str, timeout_s: int = 600) -> bool:
         return _has_session(ctx, info) and not (ctx.pages and _verification_pending(ctx, platform))
 
 
-def check_session(platform: str) -> bool:
+def check_session(platform: str) -> bool | None:
     info = PLATFORMS[platform]
     if not profile_dir(platform).exists():
         return False
     try:
         with open_context(platform, headless=True) as ctx:
-            return _has_session(ctx, info)
+            if not _has_session(ctx, info):
+                return False
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            page.goto(info.home_url, wait_until="domcontentloaded", timeout=15_000)
+            return _has_session(ctx, info) and not _verification_pending(ctx, platform)
     except Exception:
-        return False
+        return None
 
 
 def logout(platform: str) -> None:

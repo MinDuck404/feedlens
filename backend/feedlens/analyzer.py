@@ -217,12 +217,22 @@ class LLMAnalyzer:
         batches = [posts[i:i + BATCH_SIZE] for i in range(0, len(posts), BATCH_SIZE)]
         results: list[list[AnalyzedPost] | None] = [None] * len(batches)
         done = 0
+        errors = []
         with ThreadPoolExecutor(max_workers=min(PARALLEL_BATCHES, len(batches) or 1)) as pool:
             futures = {pool.submit(run_batch, b): i for i, b in enumerate(batches)}
             for fut in as_completed(futures):
-                results[futures[fut]] = fut.result()
+                try:
+                    batch = fut.result()
+                except Exception as e:
+                    errors.append(e)
+                    continue
+                results[futures[fut]] = batch
+                if checkpoint := getattr(self, "on_batch", None):
+                    checkpoint(batch)
                 done += len(batches[futures[fut]])
                 progress(done, f"Đã phân loại {done}/{len(posts)}")
+        if errors:
+            raise errors[0]
         return [p for r in results for p in (r or [])]
 
     def digest(self, posts: list[AnalyzedPost], job_mode: bool) -> Digest:

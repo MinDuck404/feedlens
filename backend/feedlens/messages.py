@@ -1,7 +1,15 @@
 """Stable UI codes alongside legacy human-readable diagnostics."""
 
 
-def error_code(message: str, status: int = 500, *, run_error: bool = False) -> str:
+def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if analysis_error:
+        lowered = message.lower()
+        if any(s in lowered for s in ("401", "403", "invalid api", "api key not valid", "api_key_invalid", "authentication", "unauthorized")):
+            return "error.ai_auth"
+        if any(s in lowered for s in ("429", "quota", "rate_limit", "rate limit", "resource_exhausted", "credit", "billing")):
+            return "error.ai_quota"
+        if any(s in lowered for s in ("500", "502", "503", "504", "overloaded", "unavailable", "timeout", "timed out", "connection")):
+            return "error.ai_unavailable"
     for fragment, code in (
         ("Sai email", "invalid_credentials"),
         ("FEEDLENS_SECRET", "config"),
@@ -30,7 +38,7 @@ def error_code(message: str, status: int = 500, *, run_error: bool = False) -> s
     ):
         if fragment in message:
             return f"error.{code}"
-    default = "run_failed" if run_error else "request_failed"
+    default = "analysis_failed" if analysis_error else "run_failed" if run_error else "request_failed"
     return f"error.{ {401: 'session_expired', 403: 'forbidden', 409: 'conflict', 422: 'validation'}.get(status, default)}"
 
 

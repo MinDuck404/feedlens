@@ -53,6 +53,7 @@ class JobInfo(BaseModel):
 
 class AnalyzedPost(RawPost):
     id: Optional[int] = None
+    analyzed: bool = True
     category: str = "other"
     summary: str = ""
     job: Optional[JobInfo] = None

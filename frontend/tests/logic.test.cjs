@@ -7,7 +7,6 @@ const ts = require("typescript");
 for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
-    if (filename.endsWith("Composer.tsx")) source += "\nexport { ModelPicker };";
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
@@ -264,4 +263,56 @@ test("match type filtering preserves legacy jobs and isolates primary, adjacent 
   assert.deepEqual(types.filter((type) => matchesJobType(type, "adjacent")), ["adjacent"]);
   assert.deepEqual(types.filter((type) => matchesJobType(type, "stretch")), ["stretch"]);
   assert.deepEqual(types.filter((type) => matchesJobType(type, "none")), ["none", null, undefined]);
+});
+
+test("background session checks show a spinner and suppress reconnect until complete", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
+    React.createElement(PlatformRow, { p: { key: "facebook", name: "Facebook", has_profile: true, logged_in: false, login_state: "idle", checking: true }, onChanged() {}, onLogin() {} })));
+  assert.ok(html.includes(i18n.translate("plat.checking")));
+  assert.ok(html.includes("animate-spin"));
+  assert.equal((html.match(/<button\b/g) || []).length, 0);
+});
+
+test("analysis failures stop polling and keep saved posts available", async () => {
+  const RunView = require("../src/components/RunView.tsx").default;
+  const original = api.run, oldTimer = window.setTimeout;
+  const timers = [];
+  window.setTimeout = (...args) => timers.push(args);
+  const context = hooks(i18n.I18nProvider);
+  const value = context.render({ children: null }).props.value; context.close();
+  const originalContext = React.useContext; React.useContext = () => value;
+  api.run = async () => ({ id: 1, status: "analysis_failed", request: { platform: "facebook", source_type: "feed", ai_provider: "offline", ai_model: "" }, created_at: "2026-11-14T12:00:00Z", posts: [{ id: -1, analyzed: false, text: "Saved post" }], error_code: "error.ai_quota" });
+  const harness = hooks(RunView);
+  const props = { runId: 1, tab: "posts", meta: {}, onTab() {}, onDeleted() {} };
+  try {
+    harness.render(props); await tick();
+    const result = JSON.stringify(harness.render(props));
+    assert.ok(result.includes("quota") && result.includes("Saved post"));
+    assert.ok(result.includes("Saved posts"));
+    assert.equal(timers.length, 0);
+  } finally { harness.close(); React.useContext = originalContext; api.run = original; window.setTimeout = oldTimer; }
+});
+
+test("theme preference applies explicit overrides and restores system styling before render", () => {
+  const vm = require("node:vm");
+  const html = fs.readFileSync(require.resolve("../index.html"), "utf8");
+  const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const classes = new Set();
+  const root = { dataset: {}, classList: { add: (value) => classes.add(value), toggle: (value, on) => on ? classes.add(value) : classes.delete(value) } };
+  vm.runInNewContext(bootstrap, { localStorage: { getItem: () => "dark" }, document: { documentElement: root } });
+  assert.equal(root.dataset.theme, "dark");
+  assert.ok(classes.has("dark"));
+  const original = global.document;
+  global.document = { documentElement: root };
+  try {
+    const { getThemePreference, setThemePreference } = require("../src/theme.ts");
+    assert.equal(getThemePreference(), "dark");
+    setThemePreference("light");
+    assert.equal(root.dataset.theme, "light"); assert.ok(classes.has("light") && !classes.has("dark"));
+    setThemePreference("system");
+    assert.equal(root.dataset.theme, undefined); assert.equal(classes.size, 0);
+    assert.equal(memory.get("feedlens.theme"), "system");
+  } finally { global.document = original; }
 });

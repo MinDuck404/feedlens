@@ -1,8 +1,9 @@
 export type Platform = "facebook" | "linkedin" | "x" | "reddit";
 export type SourceType = "feed" | "group" | "search";
-export type RunStatus = "pending" | "queued" | "scraping" | "analyzing" | "done" | "error";
+export type RunStatus = "pending" | "queued" | "scraping" | "analyzing" | "done" | "error" | "analysis_failed";
 
 export interface AIProviderInfo {
+  is_default?: boolean;
   key: string;
   name: string;
   configured: boolean;
@@ -40,6 +41,7 @@ export interface PlatformState {
   logged_in: boolean | null;
   has_profile: boolean;
   login_state: "idle" | "waiting";
+  checking?: boolean;
 }
 
 export interface RunRequest {
@@ -87,6 +89,7 @@ export interface Job {
 }
 
 export interface Post {
+  analyzed?: boolean;
   id: number;
   platform: string;
   source: string;

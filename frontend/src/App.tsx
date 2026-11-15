@@ -197,8 +197,8 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
     loadPrefs();
   }, [refreshPlatforms, refreshRuns, refreshMe]);
 
-  const busy = runs.some((r) => !["done", "error"].includes(r.status));
-  const waitingLogin = platforms.some((p) => p.login_state === "waiting");
+  const busy = runs.some((r) => !["done", "error", "analysis_failed"].includes(r.status));
+  const waitingLogin = platforms.some((p) => p.login_state === "waiting" || p.checking);
   const cloud = meta.mode === "cloud";
 
   useEffect(() => {
@@ -293,6 +293,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               runId={route.id}
               meta={meta}
               tab={route.tab}
+              onAnalysisStarted={refreshRuns}
               onTab={(tab) =>
                 navigate({ page: "run", id: route.id, tab }, { replace: true })
               }

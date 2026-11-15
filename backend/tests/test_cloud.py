@@ -309,6 +309,7 @@ def test_local_platform_session_is_unknown_until_explicit_check(cloud, tmp_path,
     client = cloud(mode="local")
     monkeypatch.setattr(api, "_session_cache", {})
     monkeypatch.setattr(api, "_login_state", {})
+    monkeypatch.setattr(api, "_session_started", True)  # Startup worker is covered separately; inspect manual checks here.
     monkeypatch.setattr(api.browser, "profile_dir", lambda platform: tmp_path / platform)
     (tmp_path / "facebook").mkdir()
     monkeypatch.setattr(api.browser, "check_session", lambda platform: platform == "facebook")

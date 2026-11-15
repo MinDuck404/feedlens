@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, delete, event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from ..models import AnalyzedPost, Digest, JobInfo, RunRequest
+from ..models import AnalyzedPost, Digest, JobInfo, RawPost, RunRequest
 from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
@@ -40,8 +40,8 @@ class Database:
         """Nâng cấp nhẹ cho DB tạo từ phiên bản trước: thêm cột còn thiếu."""
         json_type = "JSONB" if self.engine.dialect.name == "postgresql" else "JSON"
         wanted = {
-            "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE"},
-            "users": {"preferences": json_type},
+            "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type},
+            "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
         }
         insp = inspect(self.engine)
         for table, cols in wanted.items():
@@ -88,6 +88,15 @@ class Database:
     def set_preferences(self, user_id: int, prefs: dict) -> None:
         with self.Session.begin() as s:
             s.get(UserRow, user_id).preferences = prefs
+
+    def get_default_ai(self, user_id: int) -> str | None:
+        with self.Session() as s:
+            user = s.get(UserRow, user_id)
+            return user.default_ai_provider if user else None
+
+    def set_default_ai(self, user_id: int, provider: str | None) -> None:
+        with self.Session.begin() as s:
+            s.get(UserRow, user_id).default_ai_provider = provider
 
     def set_agent_token_hash(self, user_id: int, token_hash: str) -> None:
         with self.Session.begin() as s:
@@ -195,9 +204,17 @@ class Database:
         with self.Session.begin() as s:
             rows = list(s.scalars(select(RunRow).where(RunRow.status.in_(("analyzing", "queued")))))
             for r in rows:
-                r.status = "error"
-                r.error = "Server khởi động lại giữa lúc đang phân tích. Hãy tạo lượt mới."
+                r.status = "analysis_failed" if r.raw_posts else "error"
+                r.error = "Server khởi động lại giữa lúc đang phân tích."
             return len(rows)
+
+    def claim_analysis(self, run_id: int, req: RunRequest) -> bool:
+        from sqlalchemy import update
+        with self.Session.begin() as s:
+            result = s.execute(update(RunRow).where(RunRow.id == run_id,
+                RunRow.status.in_(("analysis_failed", "error"))).values(
+                    status="analyzing", request=req.model_dump(), error=None, digest=None))
+            return result.rowcount == 1
 
     def claim_next_pending(self, user_id: int) -> dict | None:
         """Agent nhận lượt 'pending' cũ nhất của user và chuyển sang 'scraping'."""
@@ -214,6 +231,29 @@ class Database:
             return _run_dict(row)
 
     # ---------------------------------------------------------------- posts
+    def save_raw_posts(self, run_id: int, posts: list[RawPost]) -> None:
+        self.update_run(run_id, raw_posts=[p.model_dump(include=set(RawPost.model_fields)) for p in posts], collected=len(posts))
+
+    def get_raw_posts(self, run_id: int) -> list[RawPost]:
+        with self.Session() as s:
+            row = s.get(RunRow, run_id)
+            return [RawPost(**p) for p in (row.raw_posts or [])] if row else []
+
+    def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
+        """Checkpoint completed batches without replacing IDs used by applied-job markers."""
+        with self.Session.begin() as s:
+            rows = {r.fingerprint: r for r in s.scalars(select(PostRow).where(PostRow.run_id == run_id))}
+            for p in posts:
+                row = rows.get(p.fingerprint)
+                if row is None:
+                    row = PostRow(run_id=run_id, fingerprint=p.fingerprint)
+                    s.add(row)
+                    rows[p.fingerprint] = row
+                for key in RawPost.model_fields:
+                    setattr(row, key, getattr(p, key))
+                row.category, row.summary = p.category, p.summary
+                row.job = p.job.model_dump() if p.job else None
+
     def known_fingerprints(self, platform: str, user_id: int | None = None) -> set[str]:
         q = select(PostRow.fingerprint).where(PostRow.platform == platform)
         if user_id is not None:
@@ -230,14 +270,21 @@ class Database:
                 summary=p.summary, job=p.job.model_dump() if p.job else None,
             ) for p in posts)
 
-    def get_posts(self, run_id: int) -> list[AnalyzedPost]:
+    def get_posts(self, run_id: int, include_raw: bool = False) -> list[AnalyzedPost]:
         with self.Session() as s:
             rows = s.scalars(select(PostRow).where(PostRow.run_id == run_id).order_by(PostRow.id)).all()
-            return [AnalyzedPost(
+            posts = [AnalyzedPost(
                 id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text, url=r.url,
                 posted_at=r.posted_at, category=r.category, summary=r.summary,
                 job=JobInfo(**r.job) if r.job else None,
             ) for r in rows]
+        if include_raw:
+            by_fingerprint = {p.fingerprint: p for p in posts}
+            raw = self.get_raw_posts(run_id)
+            if raw:
+                return [by_fingerprint.get(p.fingerprint) or AnalyzedPost(**p.model_dump(), id=-(i + 1), analyzed=False)
+                        for i, p in enumerate(raw)]
+        return posts
 
 
     def get_job_profile(self, user_id: int) -> str | None:

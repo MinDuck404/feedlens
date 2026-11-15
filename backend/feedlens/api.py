@@ -34,7 +34,8 @@ from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
 from .messages import error_code, progress_message
 from .cookies import CookieError, cookie_hint, parse_cookies
-from .pipeline import PROGRESS, fail_run, start_analysis, start_ingest, start_run, start_server_run
+from .pipeline import PROGRESS, _platform_locks, fail_run, start_analysis, start_ingest, start_run, start_server_run
+from .ai.registry import preferred_provider
 
 app = FastAPI(title="FeedLens API", version="0.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
@@ -59,7 +60,10 @@ private = APIRouter(prefix="/api")
 User = CurrentUser
 AGENT_ONLINE_SECONDS = 30
 _login_state: dict[str, str] = {}   # platform -> idle | waiting (chỉ local)
-_session_cache: dict[str, bool] = {}
+_session_cache: dict[str, bool | None] = {}
+_session_checks: dict[str, str] = {}
+_session_start_lock = threading.Lock()
+_session_started = False
 _attempts: dict[str, deque] = defaultdict(deque)
 LOGIN_WINDOW, LOGIN_MAX_FAILS = 15 * 60, 10
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -282,6 +286,21 @@ def ai_providers(user: User = Depends(current_user)):
     return provider_status(db(), user.id)
 
 
+class DefaultAIBody(BaseModel):
+    provider: str = Field(max_length=40)
+
+
+@private.put("/ai/default")
+def set_default_ai(body: DefaultAIBody, user: User = Depends(current_user)):
+    _provider_or_404(body.provider)
+    try:
+        resolve_provider_key(body.provider, user_keys(db(), user.id))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    db().set_default_ai(user.id, body.provider)
+    return {"ok": True}
+
+
 class KeyBody(BaseModel):
     api_key: str = Field(min_length=8, max_length=500)
 
@@ -309,6 +328,8 @@ async def save_key(p: str, body: KeyBody, user: User = Depends(current_user)):
 def delete_key(p: str, user: User = Depends(current_user)):
     _provider_or_404(p)
     db().delete_key(user.id, p)
+    if db().get_default_ai(user.id) == p:
+        db().set_default_ai(user.id, None)
     forget_models(user.id, p)
     return {"ok": True}
 
@@ -327,12 +348,43 @@ async def models(p: str, refresh: bool = False, user: User = Depends(current_use
 
 
 # ================================================================== platforms (chỉ local)
+def _check_platform(p: str) -> bool | None:
+    _session_checks[p] = "checking"
+    try:
+        with _platform_locks[p]:
+            ok = browser.check_session(p)
+            _session_cache[p] = ok
+            return ok
+    finally:
+        _session_checks.pop(p, None)
+
+
+def _start_session_checks() -> None:
+    global _session_started
+    with _session_start_lock:
+        if _session_started or settings.is_cloud:
+            return
+        _session_started = True
+        platforms = [p for p in browser.PLATFORMS if browser.profile_dir(p).exists() and p not in _session_cache]
+        _session_checks.update({p: "queued" for p in platforms})
+    def worker():
+        for p in platforms:
+            try:
+                _check_platform(p)
+            except Exception:
+                # Network/browser failures leave the session unknown, not expired.
+                _session_cache.pop(p, None)
+    threading.Thread(target=worker, daemon=True).start()
+
+
 @private.get("/platforms")
 def platforms(user: User = Depends(current_user)):
     if settings.is_cloud:
         return []
+    _start_session_checks()
     return [{"key": k, "name": v.name, "logged_in": _session_cache.get(k),
              "has_profile": browser.profile_dir(k).exists(),
+             "checking": k in _session_checks,
              "login_state": _login_state.get(k, "idle")} for k, v in browser.PLATFORMS.items()]
 
 
@@ -340,8 +392,7 @@ def platforms(user: User = Depends(current_user)):
 async def check(p: str, user: User = Depends(current_user)):
     _local_only()
     _platform_or_404(p)
-    ok = await run_in_threadpool(browser.check_session, p)
-    _session_cache[p] = ok
+    ok = await run_in_threadpool(_check_platform, p)
     return {"logged_in": ok}
 
 
@@ -353,7 +404,8 @@ def login_platform(p: str, user: User = Depends(current_user)):
         def worker():
             _login_state[p] = "waiting"
             try:
-                _session_cache[p] = browser.interactive_login(p)
+                with _platform_locks[p]:
+                    _session_cache[p] = browser.interactive_login(p)
             finally:
                 _login_state[p] = "idle"
         threading.Thread(target=worker, daemon=True).start()
@@ -364,15 +416,16 @@ def login_platform(p: str, user: User = Depends(current_user)):
 def logout_platform(p: str, user: User = Depends(current_user)):
     _local_only()
     _platform_or_404(p)
-    browser.logout(p)
-    _session_cache[p] = False
+    with _platform_locks[p]:
+        browser.logout(p)
+        _session_cache[p] = False
     return {"ok": True}
 
 
 # ================================================================== runs
 def _check_ai(req: RunRequest, user_id: int):
     try:
-        resolve_provider_key(req.ai_provider, user_keys(db(), user_id))
+        resolve_provider_key(preferred_provider(db(), user_id, req.ai_provider), user_keys(db(), user_id))
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -410,14 +463,33 @@ def create_run(req: RunRequest, user: User = Depends(current_user)):
 
 @private.get("/runs")
 def runs(user: User = Depends(current_user)):
-    return [{**r, "progress": progress_message(PROGRESS.get(r["id"])), "error_code": error_code(r["error"], run_error=True) if r.get("error") else None} for r in db().list_runs(user.id)]
+    return [{**r, "progress": progress_message(PROGRESS.get(r["id"])), "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None} for r in db().list_runs(user.id)]
 
 
 @private.get("/runs/{run_id}")
 def run_detail(run_id: int, user: User = Depends(current_user)):
     r = _own_run(run_id, user)
     return {**r, "progress": progress_message(PROGRESS.get(run_id)),
-            "error_code": error_code(r["error"], run_error=True) if r.get("error") else None, "posts": [p.model_dump() for p in db().get_posts(run_id)]}
+            "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None, "posts": [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]}
+
+
+class AnalysisBody(BaseModel):
+    ai_provider: str = Field("auto", max_length=40)
+    ai_model: str = Field("", max_length=200)
+
+
+@private.post("/runs/{run_id}/analysis")
+def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current_user)):
+    r = _own_run(run_id, user)
+    raw = db().get_raw_posts(run_id)
+    if not raw or r["status"] not in {"analysis_failed", "error"}:
+        raise HTTPException(409, "Lượt này không có bài chờ phân tích lại.")
+    req = RunRequest(**{**r["request"], **body.model_dump()})
+    _check_ai(req, user.id)
+    if not db().claim_analysis(run_id, req):
+        raise HTTPException(409, "Lượt này đang được phân tích.")
+    start_analysis(db(), run_id, req, raw, user.id)
+    return {"ok": True}
 
 
 @private.delete("/runs/{run_id}")
@@ -431,7 +503,7 @@ def delete_run(run_id: int, user: User = Depends(current_user)):
 @private.get("/runs/{run_id}/export")
 def export(run_id: int, fmt: str = "md", user: User = Depends(current_user)):
     r = _own_run(run_id, user)
-    posts = db().get_posts(run_id)
+    posts = db().get_posts(run_id, include_raw=True)
     body, mime, ext = {
         "csv": (lambda: to_csv(posts), "text/csv; charset=utf-8", "csv"),
         "json": (lambda: to_json(r, posts), "application/json", "json"),
