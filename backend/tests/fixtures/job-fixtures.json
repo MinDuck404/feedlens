@@ -1,0 +1,389 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "description": "10 authentic Vietnamese IT job postings (fixtures) with expected matching results for 2 benchmark candidate profiles.",
+    "profiles": [
+      {
+        "id": "profile_1",
+        "label": "Junior Python dev, muốn remote, HCM",
+        "primary_role": "Junior Python Developer / Backend Developer",
+        "level": "junior",
+        "experience_years": 1.5,
+        "skills": ["Python", "FastAPI", "Django", "PostgreSQL", "Docker", "Git", "RESTful API"],
+        "criteria": {
+          "work_modes": ["remote"],
+          "locations": ["HCM", "Toàn quốc"],
+          "min_salary": 15000000,
+          "currency": "VND",
+          "level": "junior"
+        },
+        "allow_adjacent": true
+      },
+      {
+        "id": "profile_2",
+        "label": "Junior dev muốn chuyển sang IT helpdesk, Hà Nội, onsite ok",
+        "primary_role": "IT Helpdesk / IT Support / Kỹ thuật viên IT",
+        "background": "Junior Web Developer chuyển hướng sang IT Helpdesk/Support; có nền tảng lập trình, mạng máy tính căn bản, cài đặt hệ điều hành và hỗ trợ người dùng.",
+        "level": "junior",
+        "experience_years": 1.0,
+        "skills": [
+          "Cài đặt máy tính Windows/Linux",
+          "Khắc phục sự cố phần cứng & máy in",
+          "Cấu hình mạng LAN/WiFi văn phòng",
+          "Quản trị Google Workspace & Microsoft 365",
+          "Scripting tự động hóa cơ bản (Python/Bash)"
+        ],
+        "criteria": {
+          "work_modes": ["onsite", "hybrid"],
+          "locations": ["Hà Nội"],
+          "min_salary": 10000000,
+          "currency": "VND",
+          "level": "junior"
+        },
+        "allow_adjacent": true
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "id": "job_01",
+      "title": "Junior / Mid Python Backend Developer (FastAPI / Django)",
+      "company": "Katalon Technology Vietnam",
+      "platform": "facebook",
+      "source_group": "Tuyển Dụng Lập Trình Viên Python Việt Nam",
+      "raw_text": "🔥 [100% REMOTE - TOÀN QUỐC] TUYỂN DỤNG JUNIOR / MID PYTHON BACKEND DEVELOPER 🔥\n\nBên mình đang mở rộng sản phẩm SaaS quản lý dữ liệu cho thị trường APAC và cần tìm 02 bạn Lập trình viên Python đồng hành cùng team.\n\n📌 QUYỀN LỢI & ĐÃI NGỘ:\n- Mức lương: 18.000.000 - 25.000.000 VNĐ Net (thỏa thuận theo năng lực).\n- Hình thức: 100% Remote, linh hoạt thời gian, WFH toàn thời gian (hỗ trợ chi phí điện nước/internet 1tr/tháng).\n- Thưởng tháng 13 + thưởng hiệu quả dự án hàng quý.\n- Bảo hiểm sức khỏe cao cấp Bảo Việt.\n\n📌 YÊU CẦU CÔNG VIỆC:\n- Từ 1 - 3 năm kinh nghiệm lập trình backend với Python (FastAPI hoặc Django).\n- Thành thạo thiết kế RESTful API, hiểu biết về microservices là điểm cộng.\n- Sử dụng tốt PostgreSQL hoặc MySQL (viết query tối ưu, đánh index, transaction).\n- Quen thuộc với Docker, Git, CI/CD cơ bản.\n- Đọc hiểu tài liệu tiếng Anh kỹ thuật tốt.\n\n📩 Ứng tuyển: Gửi CV về email hr-tech@katalon-cloud.example hoặc inbox trực tiếp cho mình để nhận JD chi tiết nha!",
+      "extracted_data": {
+        "standard_role": "junior_backend_dev",
+        "level": "junior",
+        "work_mode": "remote",
+        "location": "Toàn quốc",
+        "salary_text": "18.000.000 - 25.000.000 VNĐ Net",
+        "salary_min": 18000000,
+        "salary_max": 25000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "primary",
+          "score_range": [88, 98],
+          "constraint_flags": [],
+          "match_reason": "Khớp hoàn hảo vị trí Python backend, cấp độ junior, hình thức 100% remote và mức đãi ngộ hấp dẫn.",
+          "gaps": []
+        },
+        "profile_2": {
+          "match_type": "stretch",
+          "score_range": [20, 35],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Công việc lập trình backend thuần túy; vi phạm định hướng IT Helpdesk tại Hà Nội.",
+          "gaps": ["Không đúng định hướng vai trò IT Helpdesk", "Yêu cầu chuyên sâu FastAPI/Django và thiết kế API", "Trái địa điểm Hà Nội"]
+        }
+      }
+    },
+    {
+      "id": "job_02",
+      "title": "Chuyên Viên IT Helpdesk / IT Support Nội Bộ (Cầu Giấy, Hà Nội)",
+      "company": "Tập đoàn Bán lẻ F-Retail Hà Nội",
+      "platform": "facebook",
+      "source_group": "Cộng Đồng IT Helpdesk - Quản Trị Mạng Việt Nam",
+      "raw_text": "🏢 [HÀ NỘI - CẦU GIẤY] TUYỂN DỤNG GẤP: CHUYÊN VIÊN IT HELPDESK / IT SUPPORT NỘI BỘ\n\nCông ty bên mình quy mô ~350 nhân sự tại Duy Tân, Cầu Giấy cần tuyển 01 bạn IT Support trẻ, nhiệt huyết gia nhập team Vận hành CNTT.\n\n📍 Địa điểm: Tòa nhà CMC, phố Duy Tân, Dịch Vọng Hậu, Cầu Giấy, Hà Nội.\n⏰ Hình thức làm việc: Onsite toàn thời gian (Thứ 2 - Thứ 6, 8h30 - 17h30).\n💰 Mức lương: 10.000.000 - 14.000.000 VNĐ (thỏa thuận theo kinh nghiệm) + Phụ cấp ăn trưa 800k/tháng.\n\n🎯 MÔ TẢ CÔNG VIỆC:\n- Cài đặt, lắp ráp, xử lý sự cố máy tính (Windows/macOS), máy in, máy scan, hệ thống camera, máy chấm công.\n- Quản trị hệ thống mạng văn phòng: LAN, WiFi DrayTek/Aruba, chia VLAN, bấm dây mạng, cấp phát IP.\n- Quản lý tài khoản người dùng nội bộ trên Google Workspace và Microsoft 365.\n- Tiếp nhận ticket hỗ trợ từ người dùng qua hệ thống Jira Service Desk.\n\n🎯 YÊU CẦU:\n- Tốt nghiệp CĐ/ĐH chuyên ngành CNTT hoặc có chứng chỉ CCNA/MCSA là lợi thế.\n- Có từ 6 tháng - 2 năm kinh nghiệm ở vị trí IT Helpdesk, IT Support hoặc kỹ thuật viên máy tính.\n- Biết viết script tự động hóa cơ bản là điểm cộng cực lớn.\n- Giao tiếp hòa nhã, cẩn thận, có trách nhiệm cao.\n\n📲 Ứng tuyển: Nhắn tin Zalo 0987.xxx.xxx hoặc gửi CV qua email recruitment@f-retail.example",
+      "extracted_data": {
+        "standard_role": "it_helpdesk_support",
+        "level": "junior",
+        "work_mode": "onsite",
+        "location": "Hà Nội",
+        "salary_text": "10.000.000 - 14.000.000 VNĐ",
+        "salary_min": 10000000,
+        "salary_max": 14000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [15, 28],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Vi phạm cả hai tiêu chí cứng (Onsite tại Hà Nội vs Remote tại HCM); vai trò Helpdesk thuộc ngành lân cận.",
+          "gaps": ["Vi phạm hình thức làm việc (Onsite vs Remote)", "Vi phạm địa điểm (Hà Nội vs HCM)", "Chưa đúng mục tiêu chuyên môn lập trình backend"]
+        },
+        "profile_2": {
+          "match_type": "primary",
+          "score_range": [88, 96],
+          "constraint_flags": [],
+          "match_reason": "Khớp chính xác vai trò mục tiêu IT Helpdesk tại Cầu Giấy - Hà Nội, hình thức Onsite và mức đãi ngộ đúng kỳ vọng.",
+          "gaps": []
+        }
+      }
+    },
+    {
+      "id": "job_03",
+      "title": "Junior Data Analyst (Python / SQL) - Quận 1, TP.HCM",
+      "company": "Fintech Solutions Vietnam",
+      "platform": "linkedin",
+      "source_group": "Vietnam Data Community (BI / DA / DE / DS)",
+      "raw_text": "📊 [HCM - QUẬN 1] JUNIOR DATA ANALYST (HYBRID) - THU NHẬP 15M - 20M\n\nFintech Solutions đang tìm kiếm bạn Junior Data Analyst gia nhập Squad Tăng trưởng Người dùng (Growth).\n\n📌 CHẾ ĐỘ LÀM VIỆC:\n- Địa điểm: Tòa nhà Bitexco, Q.1, TP. Hồ Chí Minh.\n- Hình thức: Hybrid (Lên văn phòng 2 ngày/tuần, WFH linh hoạt 3 ngày còn lại).\n- Lương: 15.000.000 - 20.000.000 VNĐ Gross.\n\n📌 TRÁCH NHIỆM CHÍNH:\n- Trích xuất, làm sạch và tổng hợp dữ liệu giao dịch từ PostgreSQL và BigQuery bằng SQL và Python.\n- Xây dựng các báo cáo, dashboard theo dõi hành vi người dùng trên Power BI / Looker Studio.\n- Phối hợp với team Marketing và Product để phân tích kết quả chiến dịch A/B testing.\n\n📌 YÊU CẦU:\n- Từ 1+ năm kinh nghiệm làm Data Analyst hoặc Developer có định hướng chuyển sang dữ liệu.\n- Thành thạo viết câu lệnh SQL phức tạp (Window Functions, CTE, subqueries).\n- Sử dụng tốt Python cho phân tích dữ liệu (Pandas, NumPy).\n- Có tư duy số học và kỹ năng trực quan hóa dữ liệu tốt.\n\n👉 Apply ngay bằng cách drop CV về email hr@fintech-solutions.example với tiêu đề [DA_HọTên]",
+      "extracted_data": {
+        "standard_role": "data_analyst",
+        "level": "junior",
+        "work_mode": "hybrid",
+        "location": "HCM",
+        "salary_text": "15.000.000 - 20.000.000 VNĐ Gross",
+        "salary_min": 15000000,
+        "salary_max": 20000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [55, 68],
+          "constraint_flags": ["work_mode"],
+          "match_reason": "Ngành lân cận tương thích cao với kỹ năng Python/SQL tại HCM, nhưng vi phạm tiêu chí Remote (yêu cầu Hybrid).",
+          "gaps": ["Vi phạm tiêu chí Remote hoàn toàn (yêu cầu lên công ty 2 ngày/tuần)", "Kinh nghiệm trực quan hóa trên Power BI / Looker Studio", "Kỹ năng phân tích số liệu kinh doanh và A/B testing"]
+        },
+        "profile_2": {
+          "match_type": "none",
+          "score_range": [10, 20],
+          "constraint_flags": ["location"],
+          "match_reason": "Vị trí Data Analyst tại TP.HCM không khớp cả về vị trí IT Helpdesk lẫn địa điểm Hà Nội.",
+          "gaps": ["Không đúng vai trò mục tiêu IT Helpdesk", "Sai địa điểm (HCM thay vì Hà Nội)", "Thiếu kỹ năng chuyên sâu về phân tích dữ liệu & BI"]
+        }
+      }
+    },
+    {
+      "id": "job_04",
+      "title": "Senior DevOps / Cloud Engineer (AWS / Kubernetes) - Upto 60M",
+      "company": "V-Media Corporation",
+      "platform": "facebook",
+      "source_group": "DevOps & Cloud Engineers Vietnam",
+      "raw_text": "⚡ [HCM - BÌNH THẠNH] SENIOR DEVOPS ENGINEER - LƯƠNG UP TO 60.000.000 VNĐ ⚡\n\nDo nhu cầu mở rộng cụm microservices phục vụ 5 triệu người dùng, V-Media cần tuyển gấp 01 Senior DevOps Engineer làm việc trực tiếp tại trụ sở.\n\n🏢 Địa điểm: Pearl Plaza, Điện Biên Phủ, P.25, Q. Bình Thạnh, TP.HCM.\n💼 Chế độ: Onsite full-time (Thứ 2 - Thứ 6).\n💰 Lương: 45.000.000 - 60.000.000 VNĐ Net + Thưởng năm 2-3 tháng lương.\n\n🎯 YÊU CẦU CÔNG VIỆC:\n- Tối thiểu 4 - 5 năm kinh nghiệm thực chiến ở vị trí DevOps / SRE / Cloud Engineer.\n- Làm chủ hạ tầng AWS (EKS, RDS, S3, CloudFront, IAM, VPC, Route53).\n- Thành thạo Kubernetes (K8s), Helm chart, viết pipeline CI/CD với GitLab CI / ArgoCD.\n- Quản trị hạ tầng bằng mã (IaC) với Terraform, Ansible.\n- Thành thạo ngôn ngữ kịch bản: Python hoặc Golang.\n- Có kinh nghiệm thiết lập hệ thống Observability: Prometheus, Grafana, Loki/ELK.\n\n📩 Ứng viên quan tâm gửi CV qua Telegram @vmedia_hr_lead",
+      "extracted_data": {
+        "standard_role": "devops_engineer",
+        "level": "senior",
+        "work_mode": "onsite",
+        "location": "HCM",
+        "salary_text": "45.000.000 - 60.000.000 VNĐ Net",
+        "salary_min": 45000000,
+        "salary_max": 60000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "stretch",
+          "score_range": [25, 40],
+          "constraint_flags": ["work_mode", "level"],
+          "match_reason": "Vị trí yêu cầu cấp độ Senior (4+ năm) và làm việc Onsite, vượt quá số năm kinh nghiệm Junior và vi phạm tiêu chí Remote.",
+          "gaps": ["Chênh lệch cấp độ kinh nghiệm (Senior 4+ năm vs Junior 1.5 năm)", "Vi phạm hình thức làm việc (Yêu cầu Onsite)", "Kinh nghiệm điều phối Kubernetes quy mô lớn và Terraform"]
+        },
+        "profile_2": {
+          "match_type": "none",
+          "score_range": [5, 15],
+          "constraint_flags": ["location", "level"],
+          "match_reason": "Vị trí DevOps cấp Senior tại TP.HCM hoàn toàn không phù hợp với hồ sơ Junior Helpdesk tại Hà Nội.",
+          "gaps": ["Chênh lệch cấp độ quá lớn (Senior)", "Không đúng vai trò IT Helpdesk", "Sai địa điểm (HCM)"]
+        }
+      }
+    },
+    {
+      "id": "job_05",
+      "title": "Lập trình viên Python / Odoo ERP Junior (Tân Bình, TP.HCM)",
+      "company": "SmartBiz Solutions Vietnam",
+      "platform": "facebook",
+      "source_group": "Cộng Đồng Odoo & ERP Vietnam",
+      "raw_text": "🚀 [HCM - TÂN BÌNH] TUYỂN DỤNG LẬP TRÌNH VIÊN PYTHON / ODOO ERP (JUNIOR)\n\nSmartBiz cần tuyển 02 Junior Python Developer tham gia phát triển và tùy biến hệ thống quản trị doanh nghiệp Odoo ERP cho các chuỗi bán lẻ.\n\n📍 Địa điểm: Đường Bạch Đằng, P.2, Q. Tân Bình, TP. Hồ Chí Minh.\n⏰ Hình thức: Làm việc tại văn phòng (Onsite), thứ 2 - thứ 6.\n💵 Thu nhập: 13.000.000 - 18.000.000 VNĐ (lương cứng thỏa thuận theo năng lực) + thưởng dự án.\n\n📋 YÊU CẦU:\n- 1 - 2 năm kinh nghiệm lập trình Python cơ bản/nâng cao.\n- Ưu tiên ứng viên đã từng làm việc với Odoo framework hoặc Django/Flask.\n- Nắm vững kiến thức về cơ sở dữ liệu quan hệ PostgreSQL.\n- Biết viết query, view, form và báo cáo tùy biến.\n- Tinh thần học hỏi cao, chịu khó nghiên cứu module nghiệp vụ (Kế toán, Kho, Mua hàng).\n\n📌 Ứng tuyển: Gửi CV về email tuyendung@smartbiz.example hoặc inbox để trao đổi nhanh.",
+      "extracted_data": {
+        "standard_role": "junior_backend_dev",
+        "level": "junior",
+        "work_mode": "onsite",
+        "location": "HCM",
+        "salary_text": "13.000.000 - 18.000.000 VNĐ",
+        "salary_min": 13000000,
+        "salary_max": 18000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "primary",
+          "score_range": [48, 62],
+          "constraint_flags": ["work_mode"],
+          "match_reason": "Đúng chuyên môn lập trình Python tại TP.HCM, nhưng vi phạm tiêu chí bắt buộc làm việc từ xa (Remote).",
+          "gaps": ["Vi phạm hình thức làm việc (Yêu cầu Onsite toàn thời gian tại Tân Bình)", "Kinh nghiệm nghiệp vụ Odoo ERP framework", "Chưa đảm bảo mức sàn 15M nếu chốt ở mức min 13M"]
+        },
+        "profile_2": {
+          "match_type": "none",
+          "score_range": [5, 15],
+          "constraint_flags": ["location"],
+          "match_reason": "Công việc lập trình phần mềm tại TP.HCM không khớp định hướng IT Helpdesk tại Hà Nội.",
+          "gaps": ["Sai định hướng vai trò (Lập trình ERP vs IT Helpdesk)", "Sai địa điểm (HCM vs Hà Nội)"]
+        }
+      }
+    },
+    {
+      "id": "job_06",
+      "title": "Kỹ thuật viên IT Văn phòng / IT Nội bộ (Hoàn Kiếm, Hà Nội)",
+      "company": "Khách Sạn & Dịch Vụ Du Lịch Metropole Heritage",
+      "platform": "facebook",
+      "source_group": "Việc Làm IT Hà Nội 2026",
+      "raw_text": "🛎️ [HÀ NỘI - HOÀN KIẾM] TUYỂN DỤNG: KỸ THUẬT VIÊN IT NỘI BỘ (ONSITE)\n\nKhối văn phòng khách sạn & du lịch Metropole Heritage cần tuyển 01 Kỹ thuật viên IT hỗ trợ người dùng và hệ thống vận hành.\n\n📍 Nơi làm việc: Phố Tràng Tiền, Q. Hoàn Kiếm, Hà Nội.\n⏰ Thời gian: Giờ hành chính (Thứ 2 đến sáng Thứ 7).\n💰 Lương: 11.000.000 - 15.000.000 VNĐ (lương thực nhận/Net) + Ăn trưa tại khách sạn + Thưởng lễ tết.\n\n🛠️ CÔNG VIỆC CHÍNH:\n- Cài đặt, bảo trì máy trạm người dùng, laptop, hệ thống máy in hóa đơn, máy POS thu ngân, tổng đài nội bộ.\n- Giám sát mạng LAN, hệ thống phát WiFi cho khách và nhân viên, hỗ trợ xử lý khi rớt mạng.\n- Quản lý tài khoản phần mềm PMS nội bộ và email doanh nghiệp Google Workspace.\n- Báo cáo và phối hợp với đối tác phần mềm khi có sự cố kỹ thuật lớn.\n\n🎯 TIÊU CHÍ TUYỂN:\n- Tốt nghiệp chuyên ngành CNTT, Điện tử viễn thông hoặc liên quan.\n- Từ 1 năm kinh nghiệm làm IT Helpdesk hoặc kỹ thuật viên hỗ trợ máy tính.\n- Thân thiện, cẩn thận, có kỹ năng giao tiếp và xử lý tình huống tốt.\n\n📬 Nộp hồ sơ: Gửi CV về email career@metropole-heritage.example",
+      "extracted_data": {
+        "standard_role": "it_helpdesk_support",
+        "level": "junior",
+        "work_mode": "onsite",
+        "location": "Hà Nội",
+        "salary_text": "11.000.000 - 15.000.000 VNĐ (Net)",
+        "salary_min": 11000000,
+        "salary_max": 15000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [15, 25],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Vi phạm cả địa điểm (Hà Nội) và hình thức (Onsite); không phải vai trò lập trình chuyên môn.",
+          "gaps": ["Sai địa điểm làm việc (Hà Nội vs HCM)", "Sai hình thức làm việc (Onsite vs Remote)", "Khác biệt định hướng lập trình backend"]
+        },
+        "profile_2": {
+          "match_type": "primary",
+          "score_range": [90, 98],
+          "constraint_flags": [],
+          "match_reason": "Rất phù hợp: đúng vai trò Kỹ thuật viên IT nội bộ, tại trung tâm Hà Nội, hình thức làm việc onsite đúng mong muốn.",
+          "gaps": []
+        }
+      }
+    },
+    {
+      "id": "job_07",
+      "title": "Junior QA / Tester (Chấp nhận Dev chuyển sang) - Cầu Giấy, Hà Nội",
+      "company": "VTI Cloud Software",
+      "platform": "facebook",
+      "source_group": "Cộng Đồng Tester Việt Nam (QA/QC)",
+      "raw_text": "🔍 [HÀ NỘI - CẦU GIẤY] JUNIOR TESTER / QA (CHẤP NHẬN DEV CHUYỂN SANG)\n\nVTI Cloud cần tuyển 02 Junior Tester tham gia các dự án phát triển phần mềm ngân hàng số.\n\n🏢 Địa điểm: Tòa Handico, Phạm Hùng, Nam Từ Liêm / Duy Tân, Cầu Giấy, Hà Nội.\n💻 Hình thức: Hybrid (Lên văn phòng 3 ngày/tuần, WFH 2 ngày/tuần).\n💵 Lương: 12.000.000 - 17.000.000 VNĐ Gross.\n\n✨ ĐIỂM ĐẶC BIỆT:\n- Chấp nhận các bạn có background Developer (mới ra trường hoặc 1-2 năm code) muốn chuyển hướng sang mảng Kiểm thử / QA chuyên nghiệp.\n\n📌 MÔ TẢ:\n- Đọc tài liệu yêu cầu (SRS, User Story), thiết kế Test Case, Test Scenario.\n- Thực hiện kiểm thử chức năng (Manual Testing) trên Web và Mobile app.\n- Tham gia viết automation test script bằng Python/Selenium/Playwright (được đào tạo thêm).\n\n📌 YÊU CẦU:\n- Có tư duy logic tốt, cẩn thận, tỉ mỉ.\n- Biết lập trình cơ bản (Python, Java hoặc JS) là một lợi thế cực kỳ lớn.\n- Có kiến thức cơ bản về API (Postman) và truy vấn SQL.\n\n📩 Nộp CV: Inbox trực tiếp hoặc gửi về hr@vti-cloud.example",
+      "extracted_data": {
+        "standard_role": "tester_qa_manual",
+        "level": "junior",
+        "work_mode": "hybrid",
+        "location": "Hà Nội",
+        "salary_text": "12.000.000 - 17.000.000 VNĐ Gross",
+        "salary_min": 12000000,
+        "salary_max": 17000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [20, 35],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Vị trí QA là ngành lân cận tốt cho lập trình viên, nhưng vi phạm cả địa điểm (Hà Nội) và hình thức (Hybrid).",
+          "gaps": ["Vi phạm địa điểm làm việc (Hà Nội vs HCM)", "Vi phạm tiêu chí Remote (Hybrid)", "Kiến thức thiết kế Test Case và quy trình QA bài bản"]
+        },
+        "profile_2": {
+          "match_type": "adjacent",
+          "score_range": [60, 75],
+          "constraint_flags": [],
+          "match_reason": "Vai trò lân cận phù hợp tại Hà Nội: công ty ưu tiên ứng viên có nền tảng dev chuyển sang, hình thức làm việc khớp tiêu chí.",
+          "gaps": ["Chưa đúng hoàn toàn định hướng IT Helpdesk (thiên về test phần mềm)", "Cần bổ sung kiến thức viết Test Plan/Test Case chính quy"]
+        }
+      }
+    },
+    {
+      "id": "job_08",
+      "title": "Junior React / Frontend Developer (100% Remote Toàn Quốc)",
+      "company": "E-Commerce Global Logistics",
+      "platform": "linkedin",
+      "source_group": "Vietnam Frontend Developers (ReactJS, VueJS, Angular)",
+      "raw_text": "🌐 [REMOTE TOÀN QUỐC] JUNIOR FRONTEND DEVELOPER (REACTJS / TYPESCRIPT)\n\nCông ty sản phẩm logistics của Singapore có văn phòng đại diện tại VN cần tuyển 01 Junior Frontend Developer làm việc Remote 100%.\n\n💰 Lương: 15.000.000 - 22.000.000 VNĐ Net.\n🏠 Hình thức: Remote 100% (ở bất kỳ tỉnh thành nào cũng được, cung cấp laptop công ty).\n\n📌 YÊU CẦU KỸ THUẬT:\n- 1 - 2 năm kinh nghiệm làm việc với ReactJS, TypeScript và Tailwind CSS.\n- Nắm chắc kiến thức về React Hooks, State Management (Zustand hoặc Redux Toolkit).\n- Có kinh nghiệm kết nối RESTful API và xử lý dữ liệu bất đồng bộ.\n- Biết cơ bản về backend (Python hoặc Node) để trao đổi luồng API là điểm cộng lớn.\n- Tinh thần tự giác cao khi làm việc từ xa.\n\n📬 Ứng tuyển: Gửi CV tiếng Anh hoặc tiếng Việt về email talent@ecom-logistics.example",
+      "extracted_data": {
+        "standard_role": "junior_frontend_dev",
+        "level": "junior",
+        "work_mode": "remote",
+        "location": "Toàn quốc",
+        "salary_text": "15.000.000 - 22.000.000 VNĐ Net",
+        "salary_min": 15000000,
+        "salary_max": 22000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [65, 78],
+          "constraint_flags": [],
+          "match_reason": "Đáp ứng hoàn hảo hình thức Remote và mức lương; vai trò Frontend là ngành lân cận trực tiếp với backend dev.",
+          "gaps": ["Kỹ năng chuyên sâu về ReactJS / TypeScript", "Kinh nghiệm tối ưu hóa CSS / Tailwind và Responsive UI", "Quản lý state client-side phức tạp (Zustand/Redux)"]
+        },
+        "profile_2": {
+          "match_type": "stretch",
+          "score_range": [20, 35],
+          "constraint_flags": [],
+          "match_reason": "Vị trí lập trình Frontend chuyên sâu không đúng với mục tiêu chuyển sang làm IT Helpdesk/Support.",
+          "gaps": ["Không đúng định hướng vai trò IT Helpdesk", "Thiếu kỹ năng React/TypeScript nâng cao"]
+        }
+      }
+    },
+    {
+      "id": "job_09",
+      "title": "Nhân Viên Quản Trị Hệ Thống & Support Mạng (Mỹ Đình, Hà Nội)",
+      "company": "Bệnh Viện Đa Khoa Quốc Tế Phương Đông",
+      "platform": "facebook",
+      "source_group": "Tuyển Dụng Quản Trị Mạng & IT Helpdesk Miền Bắc",
+      "raw_text": "🏥 [HÀ NỘI - MỸ ĐÌNH] TUYỂN DỤNG NHÂN VIÊN QUẢN TRỊ HỆ THỐNG & SUPPORT MẠNG\n\nBệnh viện Đa khoa Quốc tế tuyển dụng nhân sự cho phòng Công nghệ Thông tin.\n\n📍 Địa điểm: Đường Phố Viên, P. Cổ Nhuế 2, Q. Bắc Từ Liêm / Mỹ Đình, Hà Nội.\n⏰ Hình thức: Onsite theo ca hành chính (8h00 - 17h00).\n💰 Mức lương: 12.000.000 - 16.000.000 VNĐ + Thưởng doanh thu bệnh viện + Bữa ăn ca.\n\n🛠️ NHIỆM VỤ:\n- Quản trị, bảo dưỡng hệ thống máy chủ Windows Server, Active Directory, hệ thống sao lưu dữ liệu bệnh án (PACS, HIS).\n- Cấu hình và giám sát hệ thống mạng LAN, WiFi Aruba, Firewall Fortinet.\n- Hỗ trợ các phòng ban chuyên môn xử lý lỗi máy trạm, máy in mã vạch, máy đọc kết quả xét nghiệm.\n- Tham gia trực kỹ thuật và khắc phục sự cố hệ thống khi có yêu cầu khẩn cấp.\n\n📋 YÊU CẦU:\n- 1 - 2 năm kinh nghiệm quản trị hệ thống, mạng hoặc IT helpdesk văn phòng/bệnh viện.\n- Nắm vững kiến thức mạng máy tính, cấu hình switch, router, phân quyền thư mục.\n- Tinh thần trách nhiệm cao, chịu được áp lực trong môi trường y tế.\n\n📬 Nộp hồ sơ: Gửi CV về email tuyendung-it@phuongdong-hospital.example",
+      "extracted_data": {
+        "standard_role": "it_helpdesk_support",
+        "level": "junior",
+        "work_mode": "onsite",
+        "location": "Hà Nội",
+        "salary_text": "12.000.000 - 16.000.000 VNĐ",
+        "salary_min": 12000000,
+        "salary_max": 16000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "adjacent",
+          "score_range": [15, 25],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Vi phạm hai tiêu chí cứng (Onsite và Hà Nội); công việc quản trị hệ thống là vai trò lân cận.",
+          "gaps": ["Vi phạm địa điểm làm việc (Hà Nội vs HCM)", "Vi phạm hình thức làm việc (Onsite vs Remote)", "Kiến thức quản trị máy chủ Windows Server & Firewall chuyên dụng"]
+        },
+        "profile_2": {
+          "match_type": "primary",
+          "score_range": [88, 96],
+          "constraint_flags": [],
+          "match_reason": "Khớp hoàn hảo với mục tiêu IT Helpdesk / System Support, đúng địa điểm Hà Nội và hình thức onsite.",
+          "gaps": []
+        }
+      }
+    },
+    {
+      "id": "job_10",
+      "title": "Chuyên Viên Tư Vấn Phần Mềm B2B / IT Sales (Đống Đa, Hà Nội)",
+      "company": "Công Ty Cổ Phần Công Nghệ Quản Trị Doanh Nghiệp M-Cloud",
+      "platform": "facebook",
+      "source_group": "Việc Làm Kinh Doanh & IT Sales Hà Nội",
+      "raw_text": "💼 [HÀ NỘI - ĐỐNG ĐA] TUYỂN DỤNG CHUYÊN VIÊN TƯ VẤN PHẦN MỀM B2B (IT SALES) - THU NHẬP LÊN ĐẾN 25M+\n\nM-Cloud cần tuyển 03 Chuyên viên Tư vấn giải pháp phần mềm Quản lý Nhân sự & Chấm công cho doanh nghiệp.\n\n📍 Địa điểm: Phố Thái Hà, Q. Đống Đa, Hà Nội.\n⏰ Hình thức: Onsite kết hợp đi gặp gỡ khách hàng doanh nghiệp.\n💰 Lương: Lương cứng 8.000.000 - 10.000.000 VNĐ + Hoa hồng doanh số không giới hạn (Thu nhập trung bình 18M - 25M/tháng).\n\n🎯 MÔ TẢ CÔNG VIỆC:\n- Khai thác nguồn khách hàng tiềm năng là các doanh nghiệp vừa và nhỏ.\n- Tư vấn, demo tính năng phần mềm cho khách hàng trực tiếp hoặc qua Zoom/Google Meet.\n- Đàm phán, chốt hợp đồng và chuyển giao cho bộ phận triển khai.\n\n🎯 YÊU CẦU:\n- Từ 6 tháng - 1 năm kinh nghiệm telesales, tư vấn phần mềm hoặc bán hàng B2B.\n- Có hiểu biết về công nghệ thông tin là một lợi thế cực lớn.\n- Hoạt ngôn, kỹ năng giao tiếp, thuyết phục và xử lý từ chối tốt.\n- Không yêu cầu kỹ năng lập trình hay kỹ thuật máy tính.\n\n📩 Nộp hồ sơ: Gửi CV về email hr@mcloud-software.example",
+      "extracted_data": {
+        "standard_role": "non_technical_sales",
+        "level": "junior",
+        "work_mode": "onsite",
+        "location": "Hà Nội",
+        "salary_text": "Lương cứng 8.000.000 - 10.000.000 VNĐ + Hoa hồng",
+        "salary_min": 8000000,
+        "salary_max": 25000000,
+        "currency": "VND"
+      },
+      "expected_evaluations": {
+        "profile_1": {
+          "match_type": "none",
+          "score_range": [5, 15],
+          "constraint_flags": ["work_mode", "location"],
+          "match_reason": "Vị trí kinh doanh/sales phần mềm không liên quan đến lập trình kỹ thuật; vi phạm địa điểm và hình thức làm việc.",
+          "gaps": ["Hoàn toàn không đúng chuyên môn kỹ thuật phần mềm", "Vi phạm địa điểm (Hà Nội vs HCM)", "Vi phạm hình thức làm việc (Onsite vs Remote)"]
+        },
+        "profile_2": {
+          "match_type": "stretch",
+          "score_range": [15, 30],
+          "constraint_flags": [],
+          "match_reason": "Công việc kinh doanh phần mềm tại Hà Nội; có thể tận dụng kiến thức CNTT để tư vấn nhưng khác xa công việc IT Helpdesk.",
+          "gaps": ["Không đúng chuyên môn kỹ thuật hỗ trợ phần cứng/mạng", "Thiếu kỹ năng sales, đàm phán và chốt hợp đồng B2B", "Lương cứng thấp hơn kỳ vọng (8M vs 10M)"]
+        }
+      }
+    }
+  ]
+}

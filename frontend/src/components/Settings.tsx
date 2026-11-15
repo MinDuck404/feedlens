@@ -4,6 +4,7 @@ import { parseTimestamp } from "../logic";
 import { API_BASE, api } from "../api";
 import type { AIProviderInfo, Me, Meta } from "../types";
 import CookieSessions from "./CookieSessions";
+import JobProfileSettings from "./JobProfileSettings";
 import { useI18n } from "../i18n";
 import { Sheet, Button, SkeletonCard } from "./ui";
 
@@ -42,6 +43,7 @@ export default function Settings({ meta, me, onClose, onChanged }: Props) {
       maxWidth="max-w-lg"
       className="[&_h2]:font-headline"
     >
+      <JobProfileSettings providers={providers} />
       <div>
         <h3 className="font-headline text-2xl font-semibold">{t("set.keys")}</h3>
         <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.keysHint")}</p>

@@ -254,3 +254,14 @@ test("saved sessions remain unchecked until verification and offer login only wh
     if (has_profile && logged_in === null && login_state === "idle") assert.ok(html.includes(i18n.translate("plat.saved")));
   }
 });
+
+
+test("match type filtering preserves legacy jobs and isolates primary, adjacent and stretch", () => {
+  const { matchesJobType } = require("../src/logic.ts");
+  const types = ["primary", "adjacent", "stretch", "none", null, undefined];
+  assert.equal(types.filter((type) => matchesJobType(type, "all")).length, 6);
+  assert.deepEqual(types.filter((type) => matchesJobType(type, "primary")), ["primary"]);
+  assert.deepEqual(types.filter((type) => matchesJobType(type, "adjacent")), ["adjacent"]);
+  assert.deepEqual(types.filter((type) => matchesJobType(type, "stretch")), ["stretch"]);
+  assert.deepEqual(types.filter((type) => matchesJobType(type, "none")), ["none", null, undefined]);
+});

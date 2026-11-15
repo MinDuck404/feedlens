@@ -81,6 +81,9 @@ export interface Job {
   contact: string;
   match_score: number;
   match_reason: string;
+  match_type?: MatchType | null;
+  gaps?: string[];
+  constraint_flags?: ("work_mode" | "location" | "salary" | "level")[];
 }
 
 export interface Post {
@@ -132,4 +135,20 @@ export interface PlatformSession {
   status_message: string;
   status_message_code?: string;
   checked_at: string | null;
+}
+
+
+export type MatchType = "primary" | "adjacent" | "stretch" | "none";
+export interface JobProfile {
+  markdown: string;
+  criteria: { work_modes: ("remote" | "hybrid" | "onsite")[]; locations: string[]; min_salary: number | null; currency: "VND" | "USD"; level: string };
+  primary_roles: string[];
+  adjacent_roles: { role: string; reason: string; enabled: boolean }[];
+  allow_adjacent: boolean;
+}
+export interface CVAnalysis {
+  markdown: string;
+  suggested_roles: string[];
+  adjacent_roles: JobProfile["adjacent_roles"];
+  offline: boolean;
 }

@@ -6,7 +6,7 @@ import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, useI18n, type Key } from "../i18n";
 import { Sheet, Button, IconButton, Skeleton } from "./ui";
 import type {
-  AIProviderInfo, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
+  AIProviderInfo, JobProfile, Me, Meta, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup, SourceType,
 } from "../types";
 
 const SOURCE_HINT: Record<Platform, Record<Exclude<SourceType, "feed">, { label: Key; ph: string; phKey?: Key }>> = {
@@ -66,6 +66,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
 
   const saved = prefs.composer ?? {};
   const { t, lang } = useI18n();
+  const [jobProfile, setJobProfile] = useState<JobProfile | null>(null);
   const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
   const [sessions, setSessions] = useState<PlatformSession[]>([]);
   const [f, setF] = useState<RunRequest>({ ...DEFAULTS, ...saved, sources: [], keywords: [] });
@@ -117,7 +118,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                      ai_model: ok(saved.ai_provider) ? saved.ai_model ?? "" : "" }));
     }).catch((e) => { setProviders([]); setLoadError(e.message); });
   };
-  useEffect(() => { loadProviders(); }, []);
+  useEffect(() => { loadProviders(); api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)); }, []);
 
   const snapshot = (next: Partial<Preferences> = {}): Preferences => ({
     composer: { ...f, sources: undefined, keywords: undefined, keywords_text: keywordsText },
@@ -408,11 +409,12 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                     ))}
                   </div>
                 </div>
+                {jobProfile && <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-y border-line py-3 text-sm"><span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span><button type="button" onClick={onOpenSettings} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button></p>}
                 <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium">{t("cmp.profile")}</span>
-                  <textarea className="field resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
-                    placeholder={t("cmp.profilePh")} />
-                  <span className="mt-1 block text-xs text-ink-soft">{t("cmp.profileHint")}</span>
+                  <span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
+                  <textarea aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="field resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
+                    placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
+                  <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
                 </label>
               </div>
             )}

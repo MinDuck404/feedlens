@@ -513,6 +513,8 @@ def ingest(body: IngestBody, user: User = Depends(current_user)):
 
 app.include_router(public)
 app.include_router(private)
+from .profile_api import profile_router
+app.include_router(profile_router(db, lambda: settings.is_cloud))
 
 # ================================================================== frontend build (chế độ local, tùy chọn)
 DIST = BACKEND_DIR.parent / "frontend" / "dist"

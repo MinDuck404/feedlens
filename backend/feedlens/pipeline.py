@@ -9,6 +9,7 @@ from .analyzer import get_analyzer
 from .config import settings
 from .db import Database
 from .models import RawPost, RunRequest
+from .job_profile import load_profile
 from .scrapers import SCRAPERS
 
 # Tiến độ trực tiếp cho UI: run_id -> {"phase", "message", "done", "target"}
@@ -101,6 +102,9 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if hasattr(analyzer, "language"):
         analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
     prog.update(phase="analyzing", done=0, target=len(raw), message=f"{analyzer.label} đang đọc {len(raw)} bài…")
+    if req.job_mode:
+        owner = (db.get_run(run_id) or {}).get("user_id")
+        analyzer.job_profile = load_profile(db, owner)
     analyzed = analyzer.classify(raw, req.job_mode, req.keywords, req.profile, report("analyzing"))
     db.save_posts(run_id, analyzed)
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")

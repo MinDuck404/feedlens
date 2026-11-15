@@ -46,6 +46,9 @@ class JobInfo(BaseModel):
     contact: str = ""
     match_score: int = 0  # 0-100 vs user's keywords/profile
     match_reason: str = ""
+    match_type: Literal["primary", "adjacent", "stretch", "none"] | None = None
+    gaps: list[str] = Field(default_factory=list, max_length=3)
+    constraint_flags: list[Literal["work_mode", "location", "salary", "level"]] = Field(default_factory=list, max_length=4)
 
 
 class AnalyzedPost(RawPost):

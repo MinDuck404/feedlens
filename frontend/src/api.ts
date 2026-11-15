@@ -1,6 +1,6 @@
 import { serverMessage, translate } from "./i18n";
 import { serialWriter } from "./logic";
-import type { AgentInfo, AIProviderInfo, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -26,7 +26,7 @@ async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   try { r = await fetch(API_BASE + path, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
@@ -62,6 +62,10 @@ export const api = {
   register: (email: string, password: string) =>
     call<{ token: string; email: string }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => call<Me>("/api/auth/me"),
+  profile: () => call<JobProfile | null>("/api/profile"),
+  saveProfile: (profile: JobProfile) => call<JobProfile>("/api/profile", { method: "PUT", body: JSON.stringify(profile) }),
+  deleteProfile: () => call("/api/profile", { method: "DELETE" }),
+  analyzeCV: (form: FormData) => call<CVAnalysis>("/api/profile/cv", { method: "POST", body: form }),
   preferences: () => call<Preferences>("/api/preferences"),
   savePreferences: (p: Preferences) => savePreferences({ body: JSON.stringify(p), token: auth.get() }),
   sessions: () => call<PlatformSession[]>("/api/sessions"),

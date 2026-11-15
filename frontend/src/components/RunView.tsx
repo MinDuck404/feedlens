@@ -6,7 +6,7 @@ import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
 import type { Meta, Post, Run } from "../types";
 
-import { isRemoteText, parseTimestamp } from "../logic";
+import { isRemoteText, matchesJobType, parseTimestamp } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState } from "./ui";
 
@@ -315,6 +315,7 @@ function useApplied(runId: number) {
 function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
   const [filter, setFilter] = useState<JobFilter>("all");
   const [sort, setSort] = useState<JobSort>("score");
+  const [matchType, setMatchType] = useState("all");
   const [q, setQ] = useState("");
   const [applied, toggleApplied] = useApplied(runId);
   const { t, locale, lang } = useI18n();
@@ -324,12 +325,13 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = jobs.filter((p) =>
+      matchesJobType(p.job?.match_type, matchType) &&
       (filter === "all" || (filter === "good" ? p.job!.match_score >= 70 : isRemote(p))) &&
       (!needle || `${p.job!.title} ${p.job!.company} ${p.job!.location} ${p.summary}`.toLowerCase().includes(needle)));
     if (sort === "salary") list = [...list].sort((a, b) => Number(!!b.job!.salary) - Number(!!a.job!.salary) || b.job!.match_score - a.job!.match_score);
     if (sort === "source") list = [...list].sort((a, b) => a.source.localeCompare(b.source, locale) || b.job!.match_score - a.job!.match_score);
     return list;
-  }, [jobs, filter, sort, q, locale]);
+  }, [jobs, filter, sort, q, locale, matchType]);
 
   const chips: [JobFilter, string, number][] = [["all", t("job.filterAll"), jobs.length], ["good", t("job.filterGood"), good], ["remote", t("job.filterRemote"), remote]];
 
@@ -344,27 +346,34 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
         ))}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      <div className="mt-5 space-y-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2 sm:space-y-0">
+        <div className="flex min-w-0 gap-2 overflow-x-auto pr-5 pb-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] sm:pr-0 sm:pb-0 sm:[mask-image:none]">
         {chips.map(([k, l, n]) => (
           <button key={k} onClick={() => setFilter(k)} aria-pressed={filter === k}
-            className="interactive-tap min-h-11 rounded-full border border-line px-3.5 py-2 text-sm hover:border-ink aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-ink">
+            className="interactive-tap min-h-11 shrink-0 whitespace-nowrap rounded-full border border-line px-3.5 py-2 text-sm hover:border-ink aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-ink">
             {l} <span className="font-mono text-xs opacity-70">{formatNumber(n, lang)}</span>
           </button>
         ))}
-        <div className="ml-auto flex min-h-11 w-full items-center rounded-full border border-[var(--field-line)] bg-[var(--field-bg)] px-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)] sm:w-56">
+        </div>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-1 sm:flex-wrap">
+        <div className="col-span-2 flex min-h-11 min-w-0 items-center rounded-full border border-[var(--field-line)] bg-[var(--field-bg)] px-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)] sm:ml-auto sm:w-56">
           <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
             value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
         </div>
-        <select className="field min-h-11 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
+        <select className="field min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
+          {["all", "primary", "adjacent", "stretch", "none"].map((type) => <option key={type} value={type}>{t(`profile.match.${type}` as Key)}</option>)}
+        </select>
+        <select className="field min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
           <option value="score">{t("job.sortScore")}</option>
           <option value="salary">{t("job.sortSalary")}</option>
           <option value="source">{t("job.sortSource")}</option>
         </select>
+        </div>
       </div>
 
       {shown.length === 0 ? (
         <EmptyState className="mt-6" icon={<Briefcase className="size-6" />} title={t("job.none")}
-          action={{ label: t("act.seeAll"), onClick: () => { setFilter("all"); setQ(""); } }} />
+          action={{ label: t("act.seeAll"), onClick: () => { setFilter("all"); setMatchType("all"); setQ(""); } }} />
       ) : (
         <ul className="mt-5 space-y-3">
           {shown.map((p) => <JobCard key={p.id} p={p} applied={applied.has(p.id)} onApplied={() => toggleApplied(p.id)} />)}
@@ -376,12 +385,12 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
 
 function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onApplied: () => void }) {
   const j = p.job!;
-  const tier = tierOf(j.match_score);
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const workMode = j.work_mode?.trim().toLowerCase();
   const tags = [
     j.location && { label: j.location },
-    j.work_mode && { label: j.work_mode },
+    j.work_mode && { label: workMode && ["remote", "hybrid", "onsite"].includes(workMode) ? t(`profile.mode.${workMode}` as Key) : j.work_mode },
     j.salary && { label: j.salary },
   ].filter(Boolean) as { label: string; mono?: boolean }[];
   const copy = async () => {
@@ -394,9 +403,9 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
       <div className="flex gap-3 sm:gap-4">
         <ScoreRing v={j.match_score} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
+          <div className="flex flex-col items-start gap-x-2 gap-y-1 sm:flex-row sm:flex-wrap sm:items-baseline">
             <h3 className="min-w-0 font-headline text-xl leading-snug font-semibold text-balance [overflow-wrap:anywhere]">{j.title || p.summary}</h3>
-            <span className="text-xs font-medium" style={{ color: tier.color }}>{t(tier.key)}</span>
+            {j.match_type && j.match_type !== "none" && <span className="order-first text-xs font-medium text-link sm:order-last">{t(`profile.match.${j.match_type}` as Key)}</span>}
           </div>
           <p className="mt-0.5 text-sm text-ink-soft">
             {j.company || t("job.unknownCompany")}<span className="mx-1.5">/</span>{p.source}
@@ -408,6 +417,8 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
               ))}
             </div>
           )}
+          {!!j.gaps?.length && <p className="mt-2 text-sm text-ink-soft">{t("profile.gaps")} {j.gaps.join(" · ")}</p>}
+          {!!j.constraint_flags?.length && <ul className="mt-2 border border-warning/50 bg-warning/10 p-3 text-sm text-ink">{j.constraint_flags.map((flag) => <li key={flag}>{t(`profile.flag.${flag}` as Key)}</li>)}</ul>}
           {j.match_reason && <p className="mt-3 max-w-[70ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">{j.match_reason}</p>}
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
             {p.url && (

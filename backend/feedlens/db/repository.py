@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from ..models import AnalyzedPost, Digest, JobInfo, RunRequest
-from .tables import ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, UserRow
+from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
 
@@ -238,6 +238,24 @@ class Database:
                 posted_at=r.posted_at, category=r.category, summary=r.summary,
                 job=JobInfo(**r.job) if r.job else None,
             ) for r in rows]
+
+
+    def get_job_profile(self, user_id: int) -> str | None:
+        with self.Session() as s:
+            row = s.get(JobProfileRow, user_id)
+            return row.payload if row else None
+
+    def set_job_profile(self, user_id: int, payload: str) -> None:
+        with self.Session.begin() as s:
+            row = s.get(JobProfileRow, user_id)
+            if row:
+                row.payload = payload
+            else:
+                s.add(JobProfileRow(user_id=user_id, payload=payload))
+
+    def delete_job_profile(self, user_id: int) -> None:
+        with self.Session.begin() as s:
+            s.execute(delete(JobProfileRow).where(JobProfileRow.user_id == user_id))
 
 
 def _run_dict(r: RunRow) -> dict:

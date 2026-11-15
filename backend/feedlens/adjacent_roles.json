@@ -1,0 +1,855 @@
+{
+  "junior_backend_dev": {
+    "title": "Junior Backend Developer",
+    "aliases": [
+      "Backend Developer",
+      "Lập trình viên Backend",
+      "Junior Backend Engineer",
+      "Python Developer",
+      "NodeJS Developer",
+      "Java Developer",
+      "Golang Developer",
+      "PHP/Laravel Developer",
+      ".NET Developer",
+      "Lập trình viên phía máy chủ"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Automation Test Engineer",
+        "reason": "Backend dev đã vững tư duy logic, cấu trúc dữ liệu, OOP và viết script code, chuyển sang viết test script và framework tự động hóa rất tự nhiên.",
+        "transferable_skills": [
+          "Lập trình (Python/Java/JS)",
+          "Tư duy luồng dữ liệu & logic",
+          "API testing (Postman, curl)",
+          "SQL querying",
+          "Git & CI/CD workflow"
+        ],
+        "skill_gaps": [
+          "Kiến thức kiểm thử phần mềm (test case, test plan, boundary testing)",
+          "Test frameworks chuyên sâu (Selenium, Playwright, Cypress, PyTest)",
+          "Performance testing (JMeter, k6)"
+        ]
+      },
+      {
+        "role_title": "Junior Fullstack Developer",
+        "reason": "Nền tảng backend và database vững chắc; chỉ cần bổ sung kiến thức frontend để làm chủ trọn vẹn vòng đời tính năng web.",
+        "transferable_skills": [
+          "Kiến trúc REST/GraphQL",
+          "Xử lý dữ liệu và logic nghiệp vụ",
+          "Quản lý cơ sở dữ liệu",
+          "Git & Docker"
+        ],
+        "skill_gaps": [
+          "HTML/CSS/Tailwind UI responsive",
+          "Frontend framework hiện đại (React, Vue, Next.js)",
+          "State management & tối ưu trải nghiệm client-side"
+        ]
+      },
+      {
+        "role_title": "Junior Data Engineer",
+        "reason": "Cùng chia sẻ nền tảng xử lý dữ liệu, tối ưu truy vấn SQL và lập trình backend (đặc biệt Python/Java/Scala).",
+        "transferable_skills": [
+          "Lập trình Python/Java",
+          "SQL nâng cao & tối ưu query",
+          "Làm việc với cơ sở dữ liệu quan hệ và NoSQL",
+          "Docker và kiến trúc microservices"
+        ],
+        "skill_gaps": [
+          "Data pipeline frameworks (Airflow, Kafka, Spark)",
+          "Data warehouse (BigQuery, Snowflake, Redshift)",
+          "Mô hình hóa dữ liệu dạng OLAP & ETL/ELT pipelines"
+        ]
+      },
+      {
+        "role_title": "Junior DevOps / Cloud Engineer",
+        "reason": "Backend dev hiểu rõ cách ứng dụng khởi chạy, kết nối database và các phụ thuộc môi trường, là tiền đề tốt cho quản trị hạ tầng phần mềm.",
+        "transferable_skills": [
+          "Linux OS căn bản",
+          "Docker & containerization",
+          "Scripting (Python/Bash)",
+          "Hiểu sâu networking ứng dụng (HTTP, TCP, DNS, proxy)"
+        ],
+        "skill_gaps": [
+          "CI/CD pipelines nâng cao (GitLab CI, GitHub Actions, Jenkins)",
+          "Infrastructure as Code (Terraform, Ansible)",
+          "Cloud platforms (AWS/GCP/Azure) & Kubernetes"
+        ]
+      },
+      {
+        "role_title": "IT Helpdesk / IT Support / Technical Support",
+        "reason": "Lập trình viên backend có tư duy phân tích lỗi logic, hiểu biết về mạng máy tính, hệ điều hành và cơ sở dữ liệu, đáp ứng vượt trội các yêu cầu kỹ thuật cơ bản của vị trí hỗ trợ.",
+        "transferable_skills": [
+          "Troubleshooting tư duy logic",
+          "Kiến thức hệ điều hành và mạng máy tính",
+          "Xử lý cơ sở dữ liệu / tra cứu log lỗi",
+          "Giao tiếp kỹ thuật"
+        ],
+        "skill_gaps": [
+          "Quy trình quản lý dịch vụ ITIL & phần mềm ticketing",
+          "Sửa chữa phần cứng vật lý, máy in, mạng LAN văn phòng",
+          "Kỹ năng chăm sóc khách hàng và giải thích cho người không chuyên"
+        ]
+      }
+    ]
+  },
+  "junior_frontend_dev": {
+    "title": "Junior Frontend Developer",
+    "aliases": [
+      "Frontend Developer",
+      "Lập trình viên Frontend",
+      "React Developer",
+      "Vue.js Developer",
+      "Angular Developer",
+      "Next.js Developer",
+      "Web Frontend Engineer",
+      "Lập trình viên giao diện web"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Cross-platform Mobile Developer (React Native / Flutter)",
+        "reason": "Hệ sinh thái React Native dùng chung tư duy React, JSX, hooks, state management và TypeScript; với Flutter chỉ cần học thêm Dart trong khi mô hình reactive widget tương tự component web.",
+        "transferable_skills": [
+          "Tư duy kiến trúc component và state",
+          "JavaScript/TypeScript",
+          "CSS layout / Flexbox styling",
+          "Tích hợp API và xử lý dữ liệu bất đồng bộ"
+        ],
+        "skill_gaps": [
+          "Kiến thức vòng đời ứng dụng di động (Android/iOS lifecycle)",
+          "Native build tools (Xcode, Android Studio, Gradle)",
+          "Cơ chế push notifications, deep links, app store deployment"
+        ]
+      },
+      {
+        "role_title": "UI/UX Designer / Product Designer",
+        "reason": "Frontend dev đã có sẵn cảm nhận về layout, component, typography, spacing, thiết kế đáp ứng (responsive) và khả năng hiện thực hóa thiết kế trong thực tế.",
+        "transferable_skills": [
+          "Hiểu sâu Design System và component library",
+          "Nắm vững nguyên lý Responsive Design và Accessibility (WCAG)",
+          "Thực tế hóa các tương tác vi mô (micro-interactions)"
+        ],
+        "skill_gaps": [
+          "Sử dụng thành thạo Figma (Auto Layout, Variables, Component set, Prototyping)",
+          "Nghiên cứu người dùng (User Research, User Journey, Wireframing)",
+          "Lý thuyết màu sắc, nghệ thuật thị giác và tư duy thiết kế lấy người dùng làm trung tâm (Design Thinking)"
+        ]
+      },
+      {
+        "role_title": "Junior Fullstack Developer",
+        "reason": "Đã làm chủ tầng giao diện và tích hợp client-side, chỉ cần học thêm cách xây dựng API và quản trị cơ sở dữ liệu phía máy chủ.",
+        "transferable_skills": [
+          "TypeScript / JavaScript (rất thuận lợi với Node.js / NestJS / Express)",
+          "Tư duy luồng dữ liệu Client-Server",
+          "Git & quy trình CI/CD cơ bản"
+        ],
+        "skill_gaps": [
+          "Thiết kế cơ sở dữ liệu quan hệ (PostgreSQL/MySQL), quan hệ khóa ngoại, index",
+          "Bảo mật backend (JWT, OAuth2, Session, CORS, SQL injection)",
+          "Triển khai server, môi trường runtime và containerization"
+        ]
+      },
+      {
+        "role_title": "Frontend QA / UAT Tester",
+        "reason": "Hiểu rõ các ngóc ngách của trình duyệt, lỗi render trên các kích thước màn hình và cách kiểm tra network/console trong DevTools.",
+        "transferable_skills": [
+          "Sử dụng thành thạo Chrome/Firefox DevTools",
+          "Phát hiện lỗi layout, responsive và trải nghiệm người dùng",
+          "Kiểm tra API response và mã trạng thái HTTP"
+        ],
+        "skill_gaps": [
+          "Phương pháp luận kiểm thử chính quy (ISTQB căn bản)",
+          "Kỹ năng viết Test Case, Test Scenario và ma trận kiểm thử (Traceability Matrix)",
+          "Kiểm thử hồi quy (Regression Testing) và quản lý defect"
+        ]
+      }
+    ]
+  },
+  "junior_fullstack_dev": {
+    "title": "Junior Fullstack Developer",
+    "aliases": [
+      "Fullstack Developer",
+      "Lập trình viên Fullstack",
+      "NodeJS + React Developer",
+      "Java + Vue Developer",
+      ".NET + Angular Developer",
+      "Web Developer tổng hợp"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Junior Backend Developer",
+        "reason": "Thu hẹp phạm vi để tập trung chuyên sâu vào hiệu năng xử lý backend, kiến trúc hệ thống và cơ sở dữ liệu.",
+        "transferable_skills": [
+          "Lập trình backend sẵn có",
+          "Database & ORM",
+          "API development",
+          "Tư duy logic hệ thống"
+        ],
+        "skill_gaps": [
+          "Tối ưu truy vấn phức tạp ở quy mô lớn",
+          "Cơ chế caching đa tầng (Redis, Memcached)",
+          "Kiến trúc bất đồng bộ (Message Queue, Worker, Microservices)"
+        ]
+      },
+      {
+        "role_title": "Junior Frontend Developer",
+        "reason": "Chuyên môn hóa vào giao diện, trải nghiệm người dùng và hiệu năng render của web client.",
+        "transferable_skills": [
+          "Kiến thức framework frontend",
+          "CSS/Tailwind & responsive",
+          "Tích hợp API và state management"
+        ],
+        "skill_gaps": [
+          "Tối ưu hiệu năng frontend chuyên sâu (Core Web Vitals, SSR/SSG, code-splitting)",
+          "Animation phức tạp (Framer Motion, Canvas, SVG)",
+          "Design System đồng bộ"
+        ]
+      },
+      {
+        "role_title": "Technical Solutions / Pre-sales / Solution Engineer",
+        "reason": "Fullstack dev nắm tổng quan bức tranh toàn cảnh từ giao diện đến server và database, giúp trao đổi rất tốt với khách hàng về tính khả thi kỹ thuật.",
+        "transferable_skills": [
+          "Hiểu tổng thể vòng đời sản phẩm phần mềm",
+          "Khả năng xây dựng bản mẫu (POC/Prototype) nhanh chóng",
+          "Phân tích yêu cầu và tích hợp hệ thống bên thứ ba"
+        ],
+        "skill_gaps": [
+          "Kỹ năng thuyết trình, bán hàng kỹ thuật và đàm phán giải pháp",
+          "Khảo sát và viết tài liệu đề xuất giải pháp (RFP/RFI)",
+          "Tư duy chi phí và giá trị kinh doanh của phần mềm"
+        ]
+      },
+      {
+        "role_title": "Junior DevOps Engineer",
+        "reason": "Hiểu cả hai đầu cầu ứng dụng (build asset frontend và triển khai server backend), dễ tiếp cận việc tự động hóa CI/CD.",
+        "transferable_skills": [
+          "Docker & build scripts",
+          "Môi trường runtime Node/Java/Python",
+          "Hiểu cấu hình Nginx/Reverse Proxy và SSL"
+        ],
+        "skill_gaps": [
+          "Hạ tầng đám mây (AWS/GCP)",
+          "Điều phối container quy mô lớn (Kubernetes/Helm)",
+          "Giám sát hệ thống (Prometheus, Grafana, ELK/Loki)"
+        ]
+      }
+    ]
+  },
+  "mobile_dev": {
+    "title": "Mobile Developer",
+    "aliases": [
+      "Flutter Developer",
+      "React Native Developer",
+      "iOS Developer (Swift)",
+      "Android Developer (Kotlin/Java)",
+      "Mobile App Engineer",
+      "Lập trình viên Mobile"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Junior Frontend Developer",
+        "reason": "Tư duy phát triển giao diện người dùng, quản lý component, state management và xử lý bất đồng bộ giữa Mobile và Frontend Web tương đồng nhau đến 80%.",
+        "transferable_skills": [
+          "Tư duy Component-driven UI",
+          "State management & Reactive architecture",
+          "Xử lý tương tác cảm ứng, animation và responsive",
+          "Tiêu thụ REST/GraphQL API"
+        ],
+        "skill_gaps": [
+          "HTML5 semantic, CSS layout sâu, Tailwind/SCSS",
+          "Cơ chế render trình duyệt (DOM, CSSOM, Event Loop)",
+          "SEO & tối ưu hóa hiệu năng web client (Core Web Vitals)"
+        ]
+      },
+      {
+        "role_title": "Mobile QA Tester",
+        "reason": "Hiểu rõ các thiết bị di động, cơ chế phân mảnh Android, các tình huống mất mạng, chạy nền, quyền truy cập hệ thống và crash log.",
+        "transferable_skills": [
+          "Sử dụng ADB, Xcode Devices log, Logcat để bắt lỗi",
+          "Hiểu rõ trải nghiệm và hành vi người dùng di động",
+          "Thử nghiệm trên đa dạng thiết bị và kích thước màn hình"
+        ],
+        "skill_gaps": [
+          "Quy trình kiểm thử bài bản, tài liệu Test Strategy",
+          "Quản lý trường hợp kiểm thử (Test Case Management tools)",
+          "Kỹ thuật kiểm thử phi chức năng (bảo mật, tải, pin)"
+        ]
+      },
+      {
+        "role_title": "Mobile Automation Tester (Appium/Maestro/Flutter Driver)",
+        "reason": "Mobile dev có sẵn kỹ năng code và hiểu sâu cấu trúc view hierarchy trên Android/iOS, cực kỳ thuận lợi khi chuyển sang viết automation test cho app.",
+        "transferable_skills": [
+          "Kỹ năng lập trình (Dart/JS/Kotlin/Swift)",
+          "Hiểu sâu cấu trúc accessibility IDs và Widget tree",
+          "Build & release pipelines (Fastlane, CI/CD)"
+        ],
+        "skill_gaps": [
+          "Framework tự động hóa chuyên dụng (Appium, Maestro, Detox, Espresso, XCUITest)",
+          "Thiết kế bộ kiểm thử hồi quy tự động",
+          "Báo cáo kiểm thử tự động và tích hợp device farm"
+        ]
+      }
+    ]
+  },
+  "tester_qa_manual": {
+    "title": "Manual Tester / QA QC",
+    "aliases": [
+      "Tester",
+      "QA Manual",
+      "QC Engineer",
+      "Kiểm thử phần mềm",
+      "Chuyên viên kiểm thử",
+      "Software Tester",
+      "Manual QA Engineer",
+      "Nhân viên QA/QC"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Automation Test Engineer",
+        "reason": "Lộ trình thăng tiến trực tiếp và phổ biến nhất của Manual QA; kế thừa toàn bộ tư duy nghiệp vụ và kiểm thử, chỉ cần bổ sung kỹ năng lập trình.",
+        "transferable_skills": [
+          "Tư duy thiết kế test case sắc bén",
+          "Hiểu sâu vòng đời lỗi (Defect Lifecycle)",
+          "Thành thạo công cụ Postman và API testing",
+          "Nắm rõ nghiệp vụ sản phẩm"
+        ],
+        "skill_gaps": [
+          "Kỹ năng lập trình căn bản (Python, Java hoặc JavaScript/TypeScript)",
+          "Làm chủ framework automation (Playwright, Selenium, Cypress)",
+          "Tích hợp kiểm thử tự động vào CI/CD pipeline (GitLab CI, GitHub Actions)"
+        ]
+      },
+      {
+        "role_title": "Business Analyst (BA)",
+        "reason": "Tester là người hiểu chi tiết nhất về quy trình nghiệp vụ, các kịch bản ngoại lệ (edge cases) và logic của hệ thống, rất gần với công việc phân tích yêu cầu.",
+        "transferable_skills": [
+          "Đọc hiểu và phản biện tài liệu yêu cầu (BRD/SRS)",
+          "Tư duy quy trình và các trường hợp biên/ngoại lệ",
+          "Giao tiếp cầu nối giữa kinh doanh và lập trình viên",
+          "Sử dụng Jira/Confluence quản lý công việc"
+        ],
+        "skill_gaps": [
+          "Kỹ năng khơi gợi yêu cầu (Elicitation: phỏng vấn, workshop, khảo sát)",
+          "Vẽ sơ đồ nghiệp vụ chuẩn (BPMN, Flowchart, Activity Diagram)",
+          "Viết tài liệu User Story, Acceptance Criteria và quản lý Product Backlog"
+        ]
+      },
+      {
+        "role_title": "Associate Product Owner / Product Operation",
+        "reason": "Tester nắm sâu tính năng sản phẩm từ góc nhìn người dùng thực tế, phối hợp chặt chẽ với team dev để nghiệm thu sản phẩm.",
+        "transferable_skills": [
+          "Kiểm tra và nghiệm thu tính năng theo tiêu chí chấp nhận (UAT)",
+          "Hiểu sâu trải nghiệm người dùng và các điểm nghẽn nghiệp vụ",
+          "Làm việc hàng ngày trong quy trình Agile/Scrum"
+        ],
+        "skill_gaps": [
+          "Phân tích dữ liệu người dùng (Product Analytics: Mixpanel, GA4)",
+          "Xác định ưu tiên tính năng dựa trên giá trị kinh doanh (Prioritization Frameworks)",
+          "Định hình lộ trình sản phẩm (Product Roadmap)"
+        ]
+      },
+      {
+        "role_title": "Technical Support / Customer Support Tier 2",
+        "reason": "Khả năng tái hiện lỗi, đọc log, giao tiếp kiên nhẫn và phân loại sự cố là lợi thế lớn khi hỗ trợ khách hàng kỹ thuật.",
+        "transferable_skills": [
+          "Kỹ năng tái hiện lỗi và điều tra nguyên nhân gốc (Troubleshooting)",
+          "Giao tiếp rõ ràng, rành mạch",
+          "Sử dụng các hệ thống ticketing và quy trình xử lý sự cố"
+        ],
+        "skill_gaps": [
+          "Kiến thức phần cứng, cài đặt máy tính và mạng nội bộ",
+          "Kỹ năng giải quyết khủng hoảng tâm lý khách hàng khi gặp sự cố gấp"
+        ]
+      }
+    ]
+  },
+  "qa_automation": {
+    "title": "Automation Test Engineer",
+    "aliases": [
+      "QA Automation Engineer",
+      "Kỹ sư Automation Test",
+      "SDET (Software Development Engineer in Test)",
+      "Automation Tester",
+      "Lập trình viên kiểm thử tự động"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Junior Backend Developer",
+        "reason": "Automation QA đã viết code hàng ngày, làm việc sâu với API, HTTP status, database assertion; hoàn toàn có thể bước sang xây dựng logic server.",
+        "transferable_skills": [
+          "Ngôn ngữ lập trình (Python/Java/JS)",
+          "Tư duy kiểm soát lỗi và cấu trúc dữ liệu",
+          "Kiểm thử API và truy vấn cơ sở dữ liệu",
+          "Làm việc với Git và CI/CD"
+        ],
+        "skill_gaps": [
+          "Thiết kế kiến trúc ứng dụng phía server (MVC, Clean Architecture)",
+          "Quản lý transaction, khóa phân tán và concurrency",
+          "Tối ưu hóa tài nguyên server và cấu hình môi trường production"
+        ]
+      },
+      {
+        "role_title": "Junior DevOps / CI-CD Engineer",
+        "reason": "Automation QA thường xuyên tiếp xúc với pipeline CI/CD để kích hoạt test suite, môi trường test Docker và báo cáo tự động.",
+        "transferable_skills": [
+          "Cấu hình và vận hành CI/CD pipelines",
+          "Sử dụng Docker để đóng gói test runners",
+          "Scripting tự động hóa (Bash, Python)",
+          "Quản lý biến môi trường và artifacts"
+        ],
+        "skill_gaps": [
+          "Quản lý hạ tầng đám mây (AWS/GCP/Azure) và Terraform",
+          "Giám sát hệ thống và phân tích log phân tán (Prometheus, Grafana)",
+          "Bảo mật hệ điều hành và mạng máy chủ"
+        ]
+      },
+      {
+        "role_title": "Performance / Security QA Engineer",
+        "reason": "Nâng cấp từ kiểm thử chức năng tự động sang đo lường hiệu năng chịu tải, nghẽn cổ chai và lỗ hổng bảo mật.",
+        "transferable_skills": [
+          "Hiểu sâu giao thức HTTP, WebSocket và luồng dữ liệu mạng",
+          "Kỹ năng lập trình kịch bản giả lập tải",
+          "Tư duy phân tích số liệu và metric"
+        ],
+        "skill_gaps": [
+          "Làm chủ công cụ kiểm thử tải (JMeter, k6, Locust, Gatling)",
+          "Phân tích tài nguyên máy chủ (CPU, RAM, I/O, GC, thread dump)",
+          "Kiến thức kiểm thử bảo mật cơ bản (OWASP Top 10, ZAP, Burp Suite)"
+        ]
+      }
+    ]
+  },
+  "business_analyst": {
+    "title": "Business Analyst (BA)",
+    "aliases": [
+      "Business Analyst",
+      "IT BA",
+      "Chuyên viên BA",
+      "Phân tích nghiệp vụ phần mềm",
+      "Technical BA",
+      "System Analyst"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Product Owner (PO) / Associate Product Manager (APM)",
+        "reason": "BA đã nắm rõ yêu cầu nghiệp vụ và chi tiết sản phẩm; khi bổ sung thêm tư duy chiến lược kinh doanh và quyền quyết định ưu tiên backlog, việc chuyển sang PO/PM là bước đi tự nhiên.",
+        "transferable_skills": [
+          "Phân tích sâu bài toán nghiệp vụ người dùng",
+          "Viết User Stories và Acceptance Criteria chất lượng cao",
+          "Làm việc chặt chẽ hàng ngày với đội ngũ phát triển và khách hàng"
+        ],
+        "skill_gaps": [
+          "Tư duy chiến lược sản phẩm (Product Strategy, Product-Market Fit)",
+          "Phân tích chỉ số kinh doanh và dữ liệu sản phẩm (ROI, Retention, Funnel, CAC, LTV)",
+          "Kỹ năng ra quyết định và từ chối yêu cầu (Prioritization frameworks: RICE, MoSCoW)"
+        ]
+      },
+      {
+        "role_title": "Project Coordinator / Scrum Master / Junior PM",
+        "reason": "BA thường xuyên theo dõi tiến độ thực hiện các yêu cầu, điều phối các bên và hỗ trợ giải quyết vướng mắc cho team dev.",
+        "transferable_skills": [
+          "Kỹ năng điều phối cuộc họp và giao tiếp đa bên",
+          "Nắm vững nguyên lý và các buổi lễ trong Scrum (Daily, Planning, Retro)",
+          "Theo dõi tiến độ tính năng và phát hiện rủi ro sớm"
+        ],
+        "skill_gaps": [
+          "Quản lý phạm vi dự án, kế hoạch ngân sách và phân bổ nguồn lực (WBS, Gantt Chart)",
+          "Kỹ năng quản trị rủi ro và giải quyết xung đột nhân sự",
+          "Quản lý hợp đồng và tiến độ thanh toán dự án phần mềm"
+        ]
+      },
+      {
+        "role_title": "Business Data Analyst",
+        "reason": "BA có sẵn sự nhạy bén với logic nghiệp vụ; khi kết hợp thêm công cụ phân tích dữ liệu định lượng, họ trở thành người phân tích dữ liệu kinh doanh rất mạnh.",
+        "transferable_skills": [
+          "Hiểu tường tận ý nghĩa các trường dữ liệu nghiệp vụ",
+          "Kỹ năng giao tiếp và truyền đạt câu chuyện kinh doanh",
+          "Tư duy phản biện và giải quyết vấn đề"
+        ],
+        "skill_gaps": [
+          "Kỹ năng truy vấn SQL nâng cao (Window functions, CTE, joins phức tạp)",
+          "Sử dụng công cụ trực quan hóa dữ liệu (Power BI, Tableau, Looker)",
+          "Thống kê mô tả và phân tích xu hướng số liệu"
+        ]
+      },
+      {
+        "role_title": "UAT Coordinator / Lead QA",
+        "reason": "BA là người nắm rõ nhất tiêu chí thành công của tính năng, cực kỳ phù hợp để dẫn dắt công tác nghiệm thu người dùng (UAT).",
+        "transferable_skills": [
+          "Nắm rõ Acceptance Criteria của từng tính năng",
+          "Hiểu kỳ vọng thực tế của khách hàng",
+          "Phát hiện ngay những điểm sai lệch giữa code và yêu cầu"
+        ],
+        "skill_gaps": [
+          "Kỹ thuật kiểm thử chuyên sâu (kiểm thử chịu tải, kiểm thử bảo mật)",
+          "Sử dụng các công cụ quản lý test suite chuyên nghiệp"
+        ]
+      }
+    ]
+  },
+  "it_helpdesk_support": {
+    "title": "IT Helpdesk / IT Support",
+    "aliases": [
+      "IT Helpdesk",
+      "IT Support",
+      "Kỹ thuật viên IT",
+      "Nhân viên IT nội bộ",
+      "IT Văn phòng",
+      "Technical Support Specialist",
+      "IT Support Executive",
+      "Chuyên viên Quản trị hạ tầng người dùng"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Junior System Administrator (Quản trị hệ thống)",
+        "reason": "Lộ trình phát triển kinh điển: từ hỗ trợ máy trạm người dùng tiến lên quản trị hệ thống máy chủ, lưu trữ, sao lưu và dịch vụ hạ tầng mạng cốt lõi.",
+        "transferable_skills": [
+          "Quản trị Active Directory, DHCP, DNS căn bản",
+          "Xử lý sự cố mạng văn phòng",
+          "Hiểu biết phần cứng và hệ điều hành",
+          "Tư duy khắc phục sự cố có hệ thống"
+        ],
+        "skill_gaps": [
+          "Quản trị máy chủ Linux chuyên sâu (CentOS/RHEL, Ubuntu Server)",
+          "Ảo hóa máy chủ (VMware ESXi, Proxmox, Hyper-V)",
+          "Tự động hóa tác vụ bằng Bash/PowerShell script",
+          "Cấu hình sao lưu thảm họa (Disaster Recovery & Backup)"
+        ]
+      },
+      {
+        "role_title": "Junior Network Engineer (Quản trị mạng)",
+        "reason": "Helpdesk đã có sẵn nền tảng bấm dây mạng, cấu hình WiFi, router và xử lý mạng nội bộ; chỉ cần học thêm kiến thức mạng chuyên sâu theo chuẩn Cisco/Juniper.",
+        "transferable_skills": [
+          "Mô hình OSI và TCP/IP cơ bản",
+          "Cấu hình router, access point và switch văn phòng",
+          "Troubleshooting kết nối mạng (ping, traceroute, netstat)"
+        ],
+        "skill_gaps": [
+          "Định tuyến động (OSPF, BGP) và chuyển mạch nâng cao (VLAN, STP, Trunking)",
+          "Cấu hình tường lửa doanh nghiệp (Fortinet, Palo Alto, pfSense)",
+          "Chứng chỉ chuyên ngành (CCNA, Network+)"
+        ]
+      },
+      {
+        "role_title": "Junior Cloud / DevOps Support Engineer",
+        "reason": "Từ quản trị hạ tầng on-premise chuyển sang hạ tầng đám mây và tự động hóa; đòi hỏi học thêm kỹ năng lập trình/scripting.",
+        "transferable_skills": [
+          "Hiểu nguyên lý hệ điều hành, phân quyền tài nguyên",
+          "Quản trị mạng (IP, CIDR, Port, DNS, VPN)",
+          "Tư duy giám sát và trực cảnh báo sự cố"
+        ],
+        "skill_gaps": [
+          "Ngôn ngữ lập trình/scripting (Python, Bash, Go)",
+          "Công nghệ Container và Cloud (Docker, AWS/GCP, K8s)",
+          "Công cụ CI/CD và Infrastructure as Code (Terraform)"
+        ]
+      },
+      {
+        "role_title": "Software Tester / QA Manual",
+        "reason": "Nhân viên Helpdesk có lợi thế am hiểu nhiều môi trường phần cứng, trình duyệt, hệ điều hành và tâm lý người dùng khi sử dụng phần mềm gặp lỗi.",
+        "transferable_skills": [
+          "Khả năng tái hiện lỗi từng bước trên nhiều cấu hình máy",
+          "Kiên nhẫn và cẩn thận trong kiểm tra sự cố",
+          "Quen thuộc với quy trình log lỗi và ticket"
+        ],
+        "skill_gaps": [
+          "Phương pháp thiết kế Test Case và Test Plan bài bản",
+          "Kiểm thử API và cơ sở dữ liệu",
+          "Quy trình phát triển phần mềm Agile/Scrum"
+        ]
+      },
+      {
+        "role_title": "Junior SOC / Cybersecurity Analyst",
+        "reason": "Helpdesk là tuyến đầu tiếp xúc với mã độc, email lừa đảo (phishing) và các cuộc tấn công nhắm vào máy trạm người dùng nội bộ.",
+        "transferable_skills": [
+          "Nhận diện các dấu hiệu bất thường trên máy trạm và mạng",
+          "Phân tích phần mềm độc hại cơ bản trên Windows",
+          "Quản lý quyền truy cập và chính sách bảo mật máy trạm"
+        ],
+        "skill_gaps": [
+          "Sử dụng công cụ giám sát an ninh (SIEM, EDR, Wireshark)",
+          "Kiến thức điều tra phân tích số sự cố an ninh (Incident Response)",
+          "Chứng chỉ bảo mật nhập môn (CompTIA Security+, CEH)"
+        ]
+      }
+    ]
+  },
+  "system_admin": {
+    "title": "System Administrator",
+    "aliases": [
+      "System Admin",
+      "Sysadmin",
+      "Quản trị hệ thống",
+      "System Engineer",
+      "Kỹ sư hệ thống CNTT",
+      "Linux System Administrator",
+      "Windows Server Administrator"
+    ],
+    "adjacent": [
+      {
+        "role_title": "DevOps / Cloud Platform Engineer",
+        "reason": "Lộ trình chuyển đổi tự nhiên và có nhu cầu tuyển dụng cao nhất hiện nay: từ quản trị hệ thống thủ công sang tự động hóa hạ tầng bằng code.",
+        "transferable_skills": [
+          "Kiến thức hệ điều hành Linux và networking sâu sắc",
+          "Kinh nghiệm vận hành môi trường production thực tế",
+          "Kỹ năng troubleshooting hạ tầng và bảo mật máy chủ",
+          "Tư duy giám sát, cảnh báo và dự phòng rủi ro"
+        ],
+        "skill_gaps": [
+          "Triết lý CI/CD và công cụ pipeline (GitLab CI, GitHub Actions)",
+          "Containerization & Orchestration (Docker, Kubernetes)",
+          "Infrastructure as Code (Terraform, Ansible) và Public Cloud (AWS, GCP)"
+        ]
+      },
+      {
+        "role_title": "Site Reliability Engineer (SRE)",
+        "reason": "Sysadmin có tư duy giữ cho hệ thống luôn chạy ổn định (uptime 99.9%), trực on-call và quản lý sự cố, rất gần với tôn chỉ SRE.",
+        "transferable_skills": [
+          "Troubleshooting sự cố production dưới áp lực",
+          "Cấu hình hệ thống giám sát và log tập trung",
+          "Hiểu biết sâu về hiệu năng kernel, memory, storage I/O"
+        ],
+        "skill_gaps": [
+          "Khả năng code giải quyết bài toán vận hành (Python/Go)",
+          "Xác định và theo dõi SLA/SLO/SLI và Error Budget",
+          "Kiến trúc microservices phân tán và distributed tracing"
+        ]
+      },
+      {
+        "role_title": "Junior Database Administrator (DBA)",
+        "reason": "Sysadmin đã quen với việc cài đặt, cấu hình lưu trữ, sao lưu định kỳ và phục hồi thảm họa cho các dịch vụ cơ sở dữ liệu.",
+        "transferable_skills": [
+          "Chiến lược backup & restore an toàn",
+          "Tối ưu hóa tài nguyên server cấp phát cho database",
+          "Bảo mật và phân quyền truy cập máy chủ dữ liệu"
+        ],
+        "skill_gaps": [
+          "Tối ưu hóa câu lệnh SQL và index chuyên sâu",
+          "Thiết lập mô hình Replication, Cluster (Master-Slave, Patroni, Galera)",
+          "Phân vùng dữ liệu (Partitioning, Sharding)"
+        ]
+      }
+    ]
+  },
+  "devops_engineer": {
+    "title": "DevOps Engineer",
+    "aliases": [
+      "DevOps Engineer",
+      "Kỹ sư DevOps",
+      "Cloud Engineer",
+      "SRE (Site Reliability Engineer)",
+      "Infrastructure Engineer",
+      "Platform Engineer",
+      "CI/CD Engineer"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Site Reliability Engineer (SRE)",
+        "reason": "Hai vai trò có sự giao thoa rất lớn; SRE đặt nặng hơn vào kỹ năng code, quản trị độ tin cậy bằng toán học (SLO/SLI) và giảm thiểu toil.",
+        "transferable_skills": [
+          "Hạ tầng K8s và Cloud",
+          "Observability (Metrics, Logs, Traces)",
+          "Automation scripting",
+          "Xử lý sự cố production"
+        ],
+        "skill_gaps": [
+          "Lập trình ứng dụng sâu (Go/Python)",
+          "Thiết kế hệ thống có khả năng tự phục hồi (Chaos Engineering)",
+          "Thiết lập khung đo lường Service Level Objectives"
+        ]
+      },
+      {
+        "role_title": "Cloud Solutions Architect",
+        "reason": "Từ việc trực tiếp triển khai hạ tầng chuyển sang tư vấn, thiết kế bản vẽ kiến trúc đám mây tối ưu chi phí và độ an toàn cho doanh nghiệp.",
+        "transferable_skills": [
+          "Hiểu sâu các dịch vụ đám mây AWS/GCP/Azure",
+          "Nắm rõ các mô hình mạng và bảo mật đám mây",
+          "Tối ưu chi phí hạ tầng (FinOps)"
+        ],
+        "skill_gaps": [
+          "Kỹ năng thuyết trình giải pháp với cấp lãnh đạo (C-level)",
+          "Thiết kế kiến trúc đám mây theo chuẩn Well-Architected Framework",
+          "Hiểu các quy chuẩn tuân thủ quốc tế (SOC2, ISO 27001, PCI-DSS)"
+        ]
+      },
+      {
+        "role_title": "Junior Backend Developer",
+        "reason": "DevOps có kỹ năng scripting vững, hiểu rõ cách ứng dụng chạy và giao tiếp; chuyển sang viết business logic là hoàn toàn khả thi.",
+        "transferable_skills": [
+          "Lập trình Python/Go",
+          "Hiểu tường tận cơ chế mạng và microservices",
+          "Quản lý database và caching"
+        ],
+        "skill_gaps": [
+          "Thiết kế mô hình nghiệp vụ domain phức tạp (DDD)",
+          "Thiết kế schema cơ sở dữ liệu quan hệ",
+          "Framework backend chuyên sâu (Django, Spring Boot, NestJS)"
+        ]
+      }
+    ]
+  },
+  "data_analyst": {
+    "title": "Data Analyst (DA)",
+    "aliases": [
+      "Data Analyst",
+      "Chuyên viên Phân tích dữ liệu",
+      "BI Analyst",
+      "Business Intelligence Developer",
+      "Product Data Analyst",
+      "Chuyên viên báo cáo dữ liệu"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Business Analyst (Nghiệp vụ / Hệ thống)",
+        "reason": "Data Analyst đã nắm vững dữ liệu hoạt động của doanh nghiệp và tư duy giải quyết vấn đề, rất thuận lợi để chuyển sang phân tích quy trình nghiệp vụ.",
+        "transferable_skills": [
+          "Hiểu sâu mô hình kinh doanh và chỉ số hoạt động",
+          "Kỹ năng phân tích logic và phản biện",
+          "Giao tiếp với các bên liên quan phi kỹ thuật"
+        ],
+        "skill_gaps": [
+          "Viết tài liệu đặc tả phần mềm (BRD, SRS, User Story)",
+          "Vẽ sơ đồ quy trình nghiệp vụ (BPMN, Flowchart)",
+          "Quản lý tiến độ triển khai tính năng theo Agile"
+        ]
+      },
+      {
+        "role_title": "Junior Data Engineer",
+        "reason": "DA hiểu rõ cấu trúc dữ liệu đầu ra mà người dùng cần; khi học thêm về kiến trúc đường ống dữ liệu (ETL/ELT), họ trở thành Data Engineer rất chắc tay.",
+        "transferable_skills": [
+          "SQL thành thạo và nắm vững cấu trúc schema",
+          "Lập trình Python xử lý dữ liệu (Pandas)",
+          "Hiểu các nguồn dữ liệu kinh doanh"
+        ],
+        "skill_gaps": [
+          "Xây dựng data pipeline với orchestrator (Airflow, Prefect, dbt)",
+          "Công nghệ dữ liệu lớn phân tán (Spark, Kafka)",
+          "Tối ưu hóa kiến trúc Data Warehouse và Data Lake (Snowflake, BigQuery, Databricks)"
+        ]
+      },
+      {
+        "role_title": "Product Analyst / Growth Analyst",
+        "reason": "Chuyên môn hóa phân tích dữ liệu vào hành vi người dùng trên sản phẩm số (web, app) để tối ưu tỷ lệ chuyển đổi và tăng trưởng.",
+        "transferable_skills": [
+          "Phân tích phễu chuyển đổi (Funnel analysis) và phân khúc người dùng (Cohort)",
+          "Thiết kế và đo lường thử nghiệm A/B Testing",
+          "Trực quan hóa dashboard báo cáo tiến độ KPI"
+        ],
+        "skill_gaps": [
+          "Sử dụng công cụ Product Analytics chuyên dụng (Mixpanel, Amplitude, Google Analytics 4)",
+          "Hiểu sâu hành trình trải nghiệm người dùng (UX) và tâm lý người dùng"
+        ]
+      }
+    ]
+  },
+  "ui_ux_designer": {
+    "title": "UI/UX Designer",
+    "aliases": [
+      "UI/UX Designer",
+      "Product Designer",
+      "Thiết kế UI/UX",
+      "UX/UI Designer",
+      "Web Designer",
+      "Mobile App Designer",
+      "Chuyên viên thiết kế sản phẩm số"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Creative / Design-oriented Frontend Developer",
+        "reason": "Designer hiểu rõ cấu trúc giao diện, visual hierarchy và animation; học thêm HTML/CSS/Tailwind và React sẽ biến họ thành cầu nối hoàn hảo giữa design và dev.",
+        "transferable_skills": [
+          "Cảm quan thẩm mỹ và visual hierarchy tinh tế",
+          "Hiểu sâu cấu trúc Design System và tokens",
+          "Nắm vững nguyên lý Responsive Design"
+        ],
+        "skill_gaps": [
+          "Lập trình JavaScript / TypeScript",
+          "Làm chủ cú pháp HTML semantic và CSS layout hiện đại (Flexbox, Grid, Tailwind)",
+          "Thực hành component trong React / Vue và tích hợp API"
+        ]
+      },
+      {
+        "role_title": "Product Designer to Associate PM / Product Owner",
+        "reason": "Product Designer làm việc hướng đến người dùng, hiểu nỗi đau (pain points) và giá trị trải nghiệm; khi trang bị thêm tư duy kinh doanh và ưu tiên backlog sẽ đảm nhận tốt vai trò PM/PO.",
+        "transferable_skills": [
+          "Tư duy lấy người dùng làm trung tâm (User-centric Mindset)",
+          "Kỹ năng phỏng vấn, khảo sát và phân tích hành vi người dùng",
+          "Trình bày giải pháp mạch lạc và trực quan"
+        ],
+        "skill_gaps": [
+          "Phân tích chỉ số kinh doanh và tài chính sản phẩm (Revenue, CAC, LTV)",
+          "Đánh giá tính khả thi kỹ thuật và cân đối nguồn lực kỹ thuật",
+          "Lập kế hoạch phát hành sản phẩm (Release Planning) và quản lý phạm vi"
+        ]
+      },
+      {
+        "role_title": "UX Business Analyst",
+        "reason": "Sự kết hợp giữa trực quan hóa giao diện và phân tích logic luồng nghiệp vụ tạo nên một BA có khả năng wireframe và mẫu hóa yêu cầu cực kỳ thuyết phục.",
+        "transferable_skills": [
+          "Vẽ luồng trải nghiệm người dùng (User Flow)",
+          "Phỏng vấn và nắm bắt nhu cầu từ các bên liên quan",
+          "Mô phỏng giao diện mẫu trước khi dev bắt đầu code"
+        ],
+        "skill_gaps": [
+          "Viết tài liệu quy tả hệ thống chính quy (SRS, Data Dictionary)",
+          "Tư duy logic cấu trúc cơ sở dữ liệu và ràng buộc kỹ thuật ngầm",
+          "Quản lý yêu cầu phi chức năng (bảo mật, hiệu năng, khả năng mở rộng)"
+        ]
+      }
+    ]
+  },
+  "product_manager_po": {
+    "title": "Product Manager / Product Owner",
+    "aliases": [
+      "Product Manager",
+      "Product Owner",
+      "PO",
+      "PM",
+      "Quản lý sản phẩm",
+      "Technical Product Manager",
+      "Associate Product Manager",
+      "Trưởng nhóm sản phẩm"
+    ],
+    "adjacent": [
+      {
+        "role_title": "Senior / Lead Business Analyst",
+        "reason": "PM/PO có kỹ năng phân tích bài toán và hiểu sâu nghiệp vụ; chuyển sang vai trò Lead BA tập trung vào đặc tả giải pháp chi tiết cho dự án lớn rất thuận lợi.",
+        "transferable_skills": [
+          "Hiểu sâu mô hình kinh doanh và giải pháp phần mềm",
+          "Giao tiếp và quản lý kỳ vọng khách hàng",
+          "Viết tài liệu và hướng dẫn nghiệp vụ rõ ràng"
+        ],
+        "skill_gaps": [
+          "Kỹ năng viết đặc tả kỹ thuật chi tiết mức thấp (Data mapping, API schema)",
+          "Sử dụng các công cụ vẽ sơ đồ kỹ thuật sâu (UML, ERD)"
+        ]
+      },
+      {
+        "role_title": "Project Manager (PMP / Agile PM)",
+        "reason": "PM quản lý 'cái gì' và 'tại sao', trong khi Project Manager tập trung vào 'khi nào' và 'bằng cách nào'. Sự chuyển dịch tập trung vào kỷ luật thực thi dự án.",
+        "transferable_skills": [
+          "Lãnh đạo đội nhóm và truyền cảm hứng mục tiêu",
+          "Giao tiếp với ban giám đốc và khách hàng",
+          "Nhận diện sớm các nút thắt cản trở tiến độ"
+        ],
+        "skill_gaps": [
+          "Quản lý ngân sách, hợp đồng và chi phí nhân sự dự án",
+          "Quản lý tiến độ chi tiết theo đường găng (Critical Path Method, Gantt)",
+          "Chứng chỉ quản lý dự án chính quy (PMP, PMI-ACP)"
+        ]
+      },
+      {
+        "role_title": "Customer Success Manager / Product Solutions Lead",
+        "reason": "PM hiểu rõ giá trị sản phẩm mang lại cho khách hàng; rất phù hợp để tư vấn cho khách hàng doanh nghiệp khai thác tối đa sản phẩm.",
+        "transferable_skills": [
+          "Hiểu rõ sản phẩm và các trường hợp sử dụng (Use Cases)",
+          "Kỹ năng lắng nghe và đồng cảm với nỗi đau của khách hàng",
+          "Đo lường sự hài lòng và tỷ lệ giữ chân khách hàng (Net Promoter Score, Churn)"
+        ],
+        "skill_gaps": [
+          "Kỹ năng đàm phán gia hạn hợp đồng và bán thêm (Upsell / Cross-sell)",
+          "Xử lý phàn nàn và chăm sóc khách hàng VIP theo quy trình dịch vụ"
+        ]
+      }
+    ]
+  }
+}

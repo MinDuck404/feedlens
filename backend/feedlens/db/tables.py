@@ -91,3 +91,10 @@ class PostRow(Base):
     job: Mapped[Optional[dict]] = mapped_column(JSON)
 
     run: Mapped[RunRow] = relationship(back_populates="posts")
+
+
+class JobProfileRow(Base):
+    __tablename__ = "job_profiles"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text)

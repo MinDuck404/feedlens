@@ -21,3 +21,8 @@ export function serialWriter<T>(write: (value: T) => Promise<unknown>) {
     return next;
   };
 }
+
+
+export function matchesJobType(type: string | null | undefined, filter: string): boolean {
+  return filter === "all" || (type ?? "none") === filter;
+}
