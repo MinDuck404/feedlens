@@ -12,14 +12,25 @@ $Port = if ($env:FEEDLENS_PORT) { $env:FEEDLENS_PORT } else { "8765" }
 function Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Fail($msg) { Write-Host "Lỗi: $msg" -ForegroundColor Red; Read-Host "Bấm Enter để đóng"; exit 1 }
 function Has($cmd) { [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
+# "python" trong WindowsApps chỉ là lối tắt mở Microsoft Store, không phải Python thật.
+function HasPython($cmd) { $c = Get-Command $cmd -ErrorAction SilentlyContinue; [bool]$c -and $c.Source -notlike "*\WindowsApps\*" }
 
 # ---------------------------------------------------------------- Python
+# Máy chưa có Python: tự cài uv (một file nhỏ của Astral), uv sẽ tự tải Python 3.11 riêng cho FeedLens.
+function Install-Uv {
+    Step "Chưa có Python - đang cài uv để tự lo Python (chỉ lần đầu)…"
+    try { Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression }
+    catch { Fail "Không tải được uv ($($_.Exception.Message)). Kiểm tra mạng, hoặc cài Python 3.10+ tại https://www.python.org/downloads/ (tick 'Add to PATH')." }
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+    if (-not (Has "uv")) { Fail "Cài uv xong nhưng chưa tìm thấy lệnh uv. Mở lại start.bat thử lần nữa." }
+}
 if (-not (Test-Path $Py)) {
     Step "Tạo môi trường Python (lần đầu)…"
+    if (-not (Has "uv") -and -not (HasPython "py") -and -not (HasPython "python")) { Install-Uv }
     if (Has "uv") { uv venv $Venv --python 3.11 -q }
-    elseif (Has "py") { py -3 -m venv $Venv }
-    elseif (Has "python") { python -m venv $Venv }
-    else { Fail "Chưa có Python 3.10+. Tải tại https://www.python.org/downloads/ (nhớ tick 'Add to PATH')." }
+    elseif (HasPython "py") { py -3 -m venv $Venv }
+    else { python -m venv $Venv }
+    if (-not (Test-Path $Py)) { Fail "Không tạo được môi trường Python." }
 }
 $Marker = Join-Path $Venv ".feedlens-installed"
 $Hash = (Get-FileHash (Join-Path $Backend "pyproject.toml")).Hash
@@ -35,8 +46,14 @@ if (-not (Test-Path $Marker) -or (Get-Content $Marker) -ne $Hash) {
 $Dist = Join-Path $Frontend "dist\index.html"
 $Newest = Get-ChildItem (Join-Path $Frontend "src"), (Join-Path $Frontend "index.html"), (Join-Path $Frontend "package.json") -Recurse -File |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if (-not (Test-Path $Dist) -or $Newest.LastWriteTime -gt (Get-Item $Dist).LastWriteTime) {
-    if (-not (Has "npm")) { Fail "Cần Node.js để build giao diện lần đầu. Tải tại https://nodejs.org (bản LTS)." }
+$NeedBuild = -not (Test-Path $Dist) -or $Newest.LastWriteTime -gt (Get-Item $Dist).LastWriteTime
+if ($NeedBuild -and (Test-Path $Dist) -and -not (Has "npm")) {
+    # Bản tải từ GitHub Releases đã có giao diện dựng sẵn; không có Node thì dùng luôn bản đó.
+    Write-Host "Giao diện dựng sẵn có thể cũ hơn mã nguồn, nhưng máy không có Node.js nên dùng bản dựng sẵn." -ForegroundColor Yellow
+    $NeedBuild = $false
+}
+if ($NeedBuild) {
+    if (-not (Has "npm")) { Fail "Cần Node.js để build giao diện. Tải bản FeedLens dựng sẵn ở https://github.com/MinDuck404/feedlens/releases (không cần Node), hoặc cài Node.js LTS tại https://nodejs.org." }
     Step "Build giao diện…"
     Push-Location $Frontend
     try {

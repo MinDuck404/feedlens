@@ -53,11 +53,12 @@ Job groups, community groups, and news feeds post hundreds of items a day, and m
 
 ## Quick start
 
-You need [Python 3.10+](https://www.python.org/downloads/) (tick *Add to PATH*), [Node.js LTS](https://nodejs.org), and Google Chrome.
+You only need **Google Chrome**. If Python is missing, the start script installs [uv](https://docs.astral.sh/uv/), which brings its own Python.
 
-1. Get the code: **Code → Download ZIP** and unzip, or `git clone https://github.com/MinDuck404/feedlens.git`.
+1. Download `FeedLens-<version>.zip` from [Releases](https://github.com/MinDuck404/feedlens/releases/latest) and unzip it. It already contains the built UI, so Node.js is not needed.
+   (Using `git clone` or **Code → Download ZIP** instead? Then you also need [Node.js LTS](https://nodejs.org) to build the UI on first run.)
 2. **Windows:** double-click `start.bat`. **macOS/Linux:** run `./start.sh`.
-   The first run takes a few minutes to install dependencies and build the UI. Your browser opens http://127.0.0.1:8765.
+   The first run takes a few minutes to set up Python and the dependencies. Your browser opens http://127.0.0.1:8765.
 3. Click **Sign in** next to Facebook (on mobile, open the ☰ menu). A Chrome window opens; sign in as usual, including two-step verification. It closes itself when done.
 4. **Settings** (gear) → **API keys**: add a Gemini, ChatGPT, or Claude key. Without a key the app falls back to keyword matching.
 5. Looking for work? **Job profile** tab: upload your CV, review the summary, pick your criteria and the roles you are open to.

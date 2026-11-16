@@ -53,11 +53,12 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 
 ## 快速开始
 
-需要预先安装 [Python 3.10+](https://www.python.org/downloads/)（勾选 *Add to PATH*）、[Node.js LTS](https://nodejs.org) 和 Google Chrome。
+只需要 **Google Chrome**。如果没有 Python，启动脚本会自动安装 [uv](https://docs.astral.sh/uv/)，uv 会自带 Python。
 
-1. 获取代码：**Code → Download ZIP** 后解压，或 `git clone https://github.com/MinDuck404/feedlens.git`。
+1. 从 [Releases](https://github.com/MinDuck404/feedlens/releases/latest) 下载 `FeedLens-<版本>.zip` 并解压。其中已包含构建好的界面，无需 Node.js。
+   （如果使用 `git clone` 或 **Code → Download ZIP**，首次运行还需要 [Node.js LTS](https://nodejs.org) 来构建界面。）
 2. **Windows：** 双击 `start.bat`。**macOS/Linux：** 运行 `./start.sh`。
-   首次运行需要几分钟安装依赖并构建界面，之后浏览器会自动打开 http://127.0.0.1:8765。
+   首次运行需要几分钟安装 Python 和依赖，之后浏览器会自动打开 http://127.0.0.1:8765。
 3. 点击 Facebook 旁的**登录**（手机上先打开 ☰ 菜单）。会弹出一个 Chrome 窗口，照常登录（包括两步验证），完成后窗口自动关闭。
 4. **设置**（齿轮）→ **API key** 标签：添加 Gemini、ChatGPT 或 Claude 的 key。没有 key 时使用关键词匹配。
 5. 在找工作？打开**求职档案**标签：上传简历，检查摘要，选择求职条件和愿意尝试的岗位。

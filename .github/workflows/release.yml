@@ -1,0 +1,57 @@
+# Push a tag like v0.2.0 to publish FeedLens-v0.2.0.zip on GitHub Releases.
+# The zip contains the source plus the built UI (frontend/dist), so users only need Chrome:
+# start.bat / start.sh install uv (which brings its own Python) and skip the Node build step.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the UI
+        working-directory: frontend
+        env:
+          VITE_API_URL: ""   # served by the local backend on the same address
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          node --test tests/logic.test.cjs
+
+      - name: Package source + built UI
+        run: |
+          name="FeedLens-${TAG}"
+          git archive --format=tar --prefix="feedlens/" HEAD | tar -x -C "$RUNNER_TEMP"
+          cp -r frontend/dist "$RUNNER_TEMP/feedlens/frontend/dist"
+          # The built UI must look newer than its sources so start scripts do not try to rebuild it.
+          find "$RUNNER_TEMP/feedlens/frontend/dist" -exec touch {} +
+          (cd "$RUNNER_TEMP" && zip -qr "$GITHUB_WORKSPACE/${name}.zip" feedlens)
+          echo "ASSET=${name}.zip" >> "$GITHUB_ENV"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          files: ${{ env.ASSET }}
+          generate_release_notes: true

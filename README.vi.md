@@ -53,11 +53,12 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 
 ## Bắt đầu nhanh
 
-Cần cài sẵn [Python 3.10+](https://www.python.org/downloads/) (nhớ tick *Add to PATH*), [Node.js LTS](https://nodejs.org) và Google Chrome.
+Chỉ cần có **Google Chrome**. Máy chưa có Python thì script khởi động tự cài [uv](https://docs.astral.sh/uv/), uv tự mang theo Python.
 
-1. Tải code: **Code → Download ZIP** rồi giải nén, hoặc `git clone https://github.com/MinDuck404/feedlens.git`.
+1. Tải `FeedLens-<phiên bản>.zip` ở [Releases](https://github.com/MinDuck404/feedlens/releases/latest) rồi giải nén. File này có sẵn giao diện đã build, nên không cần Node.js.
+   (Nếu dùng `git clone` hoặc **Code → Download ZIP** thì cần thêm [Node.js LTS](https://nodejs.org) để build giao diện ở lần chạy đầu.)
 2. **Windows:** bấm đúp `start.bat`. **macOS/Linux:** chạy `./start.sh`.
-   Lần đầu mất vài phút để cài thư viện và build giao diện. Trình duyệt tự mở http://127.0.0.1:8765.
+   Lần đầu mất vài phút để cài Python và thư viện. Trình duyệt tự mở http://127.0.0.1:8765.
 3. Bấm **Đăng nhập** cạnh Facebook (trên điện thoại: mở menu ☰). Một cửa sổ Chrome hiện ra; đăng nhập như bình thường, kể cả xác minh 2 bước. Xong thì cửa sổ tự đóng.
 4. **Cài đặt** (bánh răng) → tab **API key**: thêm key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
 5. Tìm việc? Tab **Hồ sơ tìm việc**: tải CV PDF, kiểm tra bản tóm tắt, chọn tiêu chí và vai trò muốn chuyển sang.
