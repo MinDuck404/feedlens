@@ -108,6 +108,7 @@ def main(argv: list[str] | None = None) -> None:
     ck.add_argument("--token", default="", help="Token agent (mặc định lấy từ cấu hình agent)")
 
     sub.add_parser("demo", help="Tạo một lượt mẫu (dữ liệu giả) để xem giao diện")
+    sub.add_parser("clean-cache", help="Dọn cache Chrome trong các profile (giữ nguyên phiên đăng nhập)")
 
     a = ap.parse_args(argv)
     if sys.platform == "win32":
@@ -157,6 +158,14 @@ def main(argv: list[str] | None = None) -> None:
             print("\nĐã dừng agent.")
     elif a.cmd == "cookies":
         _push_cookies(a)
+    elif a.cmd == "clean-cache":
+        from .browser import clean_all_caches
+
+        results = clean_all_caches()
+        if not results:
+            print("Chưa có profile nào để dọn.")
+        for platform, before, after in results:
+            print(f"{platform}: {before / 1048576:.0f}MB -> {after / 1048576:.0f}MB")
     elif a.cmd == "demo":
         from . import pipeline
         from .config import settings

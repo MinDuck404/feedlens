@@ -5,10 +5,12 @@ Người dùng tự đăng nhập trong cửa sổ Chrome thật; cookie phiên 
 """
 from __future__ import annotations
 
+import os
 import shutil
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 
 from playwright.sync_api import BrowserContext, sync_playwright
@@ -38,8 +40,82 @@ PLATFORMS: dict[str, PlatformInfo] = {
                            "https://www.reddit.com/", "reddit_session", "reddit.com"),
 }
 
-def profile_dir(platform: str):
+def profile_dir(platform: str) -> Path:
     return settings.profiles_dir / platform
+
+
+# Giới hạn dung lượng cache trên đĩa của Chrome (64MB). Chrome ghi cache ảnh/video/JS vào
+# Default/Cache và phình mãi; cờ này chặn nó ở mức nhỏ.
+DISK_CACHE_BYTES = 64 * 1024 * 1024
+
+# Thư mục cache có thể tạo lại được. TUYỆT ĐỐI không đụng Cookies, Local Storage, IndexedDB,
+# Session Storage, Login Data, Preferences, Network, Service Worker — chúng giữ phiên đăng nhập.
+CACHE_DIRS: tuple[str, ...] = (
+    "Default/Cache",
+    "Default/Code Cache",
+    "Default/GPUCache",
+    "Default/DawnWebGPUCache",
+    "Default/DawnGraphiteCache",
+    "GrShaderCache",
+    "ShaderCache",
+    "GraphiteDawnCache",
+)
+
+
+def _dir_size(path: Path) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path, onerror=lambda _e: None):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(root, name))
+            except OSError:  # file bị Chrome khoá / vừa bị xoá
+                continue
+    return total
+
+
+def profile_size(platform: str) -> int:
+    return _dir_size(profile_dir(platform))
+
+
+def _is_inside(base: Path, candidate: Path) -> bool:
+    try:
+        candidate.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
+def clean_cache(platform: str) -> tuple[int, int]:
+    """Xoá cache trong profile của một nền tảng, giữ nguyên phiên đăng nhập.
+
+    Trả về (dung lượng trước, dung lượng sau) tính bằng byte.
+    """
+    pdir = profile_dir(platform)
+    before = _dir_size(pdir)
+    if not pdir.exists():
+        return 0, 0
+    base = pdir.resolve()
+    for rel in CACHE_DIRS:
+        target = (pdir / rel).resolve()
+        # Chỉ xoá thư mục nằm trong profile (chặn symlink trỏ ra ngoài)
+        if target == base or not _is_inside(base, target):
+            continue
+        try:
+            shutil.rmtree(target, ignore_errors=True)
+        except OSError:
+            pass  # Chrome còn khoá file trên Windows: bỏ qua, không làm lỗi lượt lướt
+    return before, _dir_size(pdir)
+
+
+def clean_all_caches() -> list[tuple[str, int, int]]:
+    """Dọn cache cho mọi profile đang có. Trả về [(platform, trước, sau)]."""
+    results = []
+    for platform in PLATFORMS:
+        if not profile_dir(platform).exists():
+            continue
+        before, after = clean_cache(platform)
+        results.append((platform, before, after))
+    return results
 
 
 @contextmanager
@@ -53,6 +129,7 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
             viewport=None if not headless else {"width": 1280, "height": 900},
             locale="vi-VN",
             chromium_sandbox=True,  # giữ sandbox của Chrome (Playwright mặc định thêm --no-sandbox)
+            args=[f"--disk-cache-size={DISK_CACHE_BYTES}"],
             timeout=20_000,
         )
         channel = settings.browser_channel
@@ -65,7 +142,15 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
         try:
             yield ctx
         finally:
-            ctx.close()
+            try:
+                ctx.close()
+            finally:
+                # Dọn cache sau khi đóng Chrome: giữ profile nhỏ, giữ nguyên phiên đăng nhập.
+                # Không bao giờ để việc dọn cache làm hỏng lượt lướt.
+                try:
+                    clean_cache(platform)
+                except Exception:  # noqa: BLE001
+                    pass
 
 
 def _has_session(ctx: BrowserContext, info: PlatformInfo) -> bool:
