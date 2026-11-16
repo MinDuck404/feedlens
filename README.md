@@ -22,6 +22,8 @@ Then AI sorts the posts, summarizes each topic, and picks out the jobs that fit 
 
 ## Why FeedLens
 
+[Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Testing guide](docs/TESTING.md)
+
 Job groups, community groups, and news feeds post hundreds of items a day, and most of them are ads, memes, and reposts. FeedLens reads them for you and hands back a short digest: what is worth reading, which jobs match you, and a link to the original when you need it. It runs on your machine, in your browser, with your account.
 
 ## Features

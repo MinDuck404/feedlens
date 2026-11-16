@@ -22,6 +22,8 @@ Sau đó AI phân loại bài, tóm tắt theo chủ đề và lọc ra việc l
 
 ## Vì sao có FeedLens
 
+[Lộ trình](ROADMAP.vi.md) · [Hướng dẫn đóng góp](CONTRIBUTING.md) · [Hướng dẫn test](docs/TESTING.md#tiếng-việt)
+
 Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng trăm bài, phần lớn là quảng cáo, meme và bài lặp lại. FeedLens đọc hộ bạn rồi đưa ra một bản tin ngắn: cái gì đáng đọc, việc nào hợp với bạn, mở bài gốc khi cần. Mọi thứ chạy bằng tài khoản và trình duyệt của chính bạn, trên máy của bạn.
 
 ## Tính năng

@@ -1,0 +1,46 @@
+name: Test report / Kết quả test
+description: Share successful checks, failures and skipped scenarios without writing code.
+title: "[Test] "
+body:
+  - type: markdown
+    attributes:
+      value: "Follow docs/TESTING.md. Successful and partial reports both help. Never attach your database, cookies, keys or real CV."
+  - type: input
+    id: version
+    attributes:
+      label: FeedLens version / Phiên bản
+      description: Release tag or ZIP filename.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / Môi trường
+      description: OS, Chrome version, platform, local/cloud, language and light/dark.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Scenario results / Kết quả từng bước
+      description: Copy the 14 step numbers from TESTING.md. Mark pass, fail or skipped with a reason. Offline/no jobs are valid reasons to skip AI/job checks.
+      placeholder: "1. Pass\n2. Pass\n3. Skipped — no AI key\n…"
+    validations:
+      required: true
+  - type: textarea
+    id: run
+    attributes:
+      label: Run details / Chi tiết lượt
+      description: Requested/collected/skipped counts, stop reason, speed, only-new setting, time/timezone and AI provider/model (no key).
+  - type: textarea
+    id: observations
+    attributes:
+      label: Problems and redacted evidence / Vấn đề và bằng chứng đã che dữ liệu
+      description: Describe expected/actual results. Link separate bug issues for reproducible failures; include only inspected/redacted excerpts or images.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check / Kiểm tra thông tin cá nhân
+      options:
+        - label: I removed personal information and secrets from all logs, images and attachments (or attached none). / Tôi đã xoá thông tin cá nhân và bí mật khỏi log, ảnh và tệp (hoặc không đính kèm).
+          required: true

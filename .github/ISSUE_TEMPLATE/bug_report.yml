@@ -1,0 +1,47 @@
+name: Bug report / Báo lỗi
+description: Report a reproducible problem. Vietnamese or English is welcome.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Please read docs/TESTING.md first. Never upload cookies, keys, your database or an unredacted debug sample. / Không gửi cookie, key, database hoặc mẫu chưa che dữ liệu."
+  - type: input
+    id: version
+    attributes:
+      label: FeedLens version / Phiên bản
+      description: Release tag or ZIP filename; say unknown if necessary.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / Môi trường
+      description: OS, Chrome version, local/cloud, platform, UI language and light/dark.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce / Các bước tái hiện
+      placeholder: "1. Open…\n2. Click…\n3. Observe…"
+    validations:
+      required: true
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual result / Mong đợi và thực tế
+      description: Include frequency, run number and time/timezone if relevant. Do not paste private post content.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence / Log và ảnh đã che dữ liệu
+      description: Optional small log excerpt, screenshot or synthetic fixture. AI provider/model is useful; never include its key.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check / Kiểm tra thông tin cá nhân
+      options:
+        - label: I removed personal information and secrets from all logs, images and attachments (or attached none). / Tôi đã xoá thông tin cá nhân và bí mật khỏi log, ảnh và tệp (hoặc không đính kèm).
+          required: true
