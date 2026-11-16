@@ -414,7 +414,11 @@ FB_JS = r"""
     const adWords = /^(?:sponsored|được tài trợ|赞助内容|广告)$/i;
     const sponsored = [...n.querySelectorAll('a, span')].some(el =>
       adWords.test((el.getAttribute('aria-label') || el.innerText || '').trim()))
-      || anchors.some(a => /\/ads\/about|[?&]ad_id=/.test(a.getAttribute('href') || ''));
+      || anchors.some(a => /\/ads\/about|[?&]ad_id=/.test(a.getAttribute('href') || ''))
+      // Real feed samples (runs 6–10): the obfuscated "Sponsored" label is a header link whose
+      // only text is U+2060; organic posts put an aria-labelledby timestamp there instead.
+      || anchors.some(a => !a.closest('h2, h3, h4') && (a.textContent || '').includes('⁠')
+        && /^[⁠​\s]*$/.test(a.textContent || ''));
     out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
       _node_index: nodeIndex, _node_marker: n.getAttribute('data-feedlens-node'), _hover: hover, _author_url: authorUrl, posted_at: '', sponsored });
   }

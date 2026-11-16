@@ -701,3 +701,21 @@ def test_debug_json_uses_graphql_responses_that_arrive_after_first_dom_capture(m
     scraper.collect(page,'https://www.facebook.com/','feed',2,set(),lambda *a:None)
     assert scraper.missing_graphql_samples[0]['match']=='matched'
     assert 'new_page_shape' in scraper.missing_graphql_samples[0]['story']
+
+
+def test_facebook_word_joiner_header_link_marks_sponsored(facebook_page):
+    # Shape from real runs 6–10: the obfuscated "Sponsored" label is a header link whose text is only U+2060.
+    facebook_page.set_content('''<div role="feed"><div role="article">
+      <h4><a href="/profile.php?id=1">Rourke Heath</a> và <a href="/elevenlabsio">ElevenLabs</a></h4>
+      <div><a href="?__cft__[0]=x" role="link">⁠<span><span></span></span></a><span aria-hidden="true"> · </span></div>
+      <div data-ad-preview="message">Ranked #1 by Artificial Analysis. Expressive, lifelike voices.</div>
+      <a href="https://l.facebook.com/l.php?u=https%3A%2F%2Fjoin.elevenlabs.io" role="link">JOIN.ELEVENLABS.IO</a></div></div>''')
+    assert scrapers._facebook_items(facebook_page)[0]["sponsored"] is True
+
+
+def test_facebook_organic_labelled_timestamp_is_not_sponsored(facebook_page):
+    facebook_page.set_content('''<div role="feed"><div role="article">
+      <h4><a href="/page">Tú Uyên</a></h4>
+      <div><a aria-labelledby="_r_1_" href="?__cft__[0]=x" role="link"><span id="_r_1_">1 giờ</span></a></div>
+      <div data-ad-preview="message">An ordinary page post with a normal timestamp link.</div></div></div>''')
+    assert scrapers._facebook_items(facebook_page)[0]["sponsored"] is False
