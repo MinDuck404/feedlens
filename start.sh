@@ -41,7 +41,11 @@ fi
 if [ "$NEED_BUILD" = 1 ]; then
   has npm || fail "Cần Node.js để build giao diện. Tải bản dựng sẵn ở https://github.com/MinDuck404/feedlens/releases (không cần Node), hoặc cài Node.js LTS tại https://nodejs.org."
   step "Build giao diện…"
-  (cd "$FRONTEND" && { [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error; } && VITE_API_URL="" npm run build --silent)
+  # node_modules is only needed to build. If this script downloaded it (end-user machine, not a dev one),
+  # use a private npm cache and delete both after building (~300MB saved).
+  TEMP_DEPS=0; [ -d "$FRONTEND/node_modules" ] || TEMP_DEPS=1
+  (cd "$FRONTEND" && { [ "$TEMP_DEPS" = 0 ] || npm ci --no-audit --no-fund --loglevel=error --cache "$FRONTEND/.npm-cache"; } && VITE_API_URL="" npm run build --silent)
+  if [ "$TEMP_DEPS" = 1 ]; then rm -rf "$FRONTEND/node_modules" "$FRONTEND/.npm-cache"; fi
 fi
 
 unset FEEDLENS_MODE

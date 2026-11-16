@@ -18,3 +18,4 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+frontend/.npm-cache/

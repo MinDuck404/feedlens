@@ -57,10 +57,17 @@ if ($NeedBuild) {
     Step "Build giao diện…"
     Push-Location $Frontend
     try {
-        if (-not (Test-Path "node_modules")) { npm ci --no-audit --no-fund --loglevel=error }
+        # node_modules chỉ cần để build. Nếu script tự tải về (máy người dùng, không phải máy dev)
+        # thì dùng cache npm riêng rồi xoá cả hai sau khi build, tiết kiệm khoảng 300MB.
+        $Temporary = -not (Test-Path "node_modules")
+        $NpmCache = Join-Path $Frontend ".npm-cache"
+        if ($Temporary) { npm ci --no-audit --no-fund --loglevel=error --cache $NpmCache }
         $env:VITE_API_URL = ""   # chạy cùng địa chỉ với backend
         npm run build --silent
         if ($LASTEXITCODE -ne 0) { Fail "Build giao diện thất bại." }
+        if ($Temporary) {
+            Remove-Item -Recurse -Force "node_modules", $NpmCache -ErrorAction SilentlyContinue
+        }
     } finally { Pop-Location }
 }
 
