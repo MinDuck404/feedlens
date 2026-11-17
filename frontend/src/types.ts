@@ -33,6 +33,18 @@ export interface AIProviderInfo {
   key_url: string;
 }
 
+export interface AIKey {
+  id: number;
+  provider: "anthropic" | "openai" | "gemini";
+  label: string;
+  hint: string;
+  priority: number;
+  enabled: boolean;
+  tier: "free" | "paid";
+  status: "ok" | "invalid" | "unchecked";
+  usage_today: Record<string, { requests: number; limit_rpd: number | null }>;
+}
+
 export interface AgentInfo {
   has_token: boolean;
   online: boolean;

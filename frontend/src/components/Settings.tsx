@@ -1,8 +1,9 @@
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { parseTimestamp } from "../logic";
 import { API_BASE, api } from "../api";
-import type { AIProviderInfo, Me, Meta } from "../types";
+import type { AIKey, AIProviderInfo, Me, Meta } from "../types";
+import AIProviderKeys from "./AIProviderKeys";
 import CookieSessions from "./CookieSessions";
 import TopicSettings from "./TopicSettings";
 import JobProfileSettings from "./JobProfileSettings";
@@ -34,10 +35,13 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
   const tab = settingsTab(selectedTab, cloud);
   useEffect(() => { try { localStorage.setItem("feedlens.settingsTab", tab); } catch { /* Keep the current tab in memory. */ } }, [tab]);
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
+  const [keys, setKeys] = useState<AIKey[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const { t } = useI18n();
-  const reload = () => api.providers().then((p) => { setProviders(p); setLoadError(""); }).finally(() => setLoading(false));
+  const reload = () => Promise.all([api.providers(), api.listKeys()]).then(([providers, keys]) => {
+    setProviders(providers); setKeys(keys); setLoadError("");
+  }).finally(() => setLoading(false));
 
   const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, ...(cloud ? [{ value: "scrape", label: t("set.tab.scrape") }] : [])];
   const changeTab = (value: string) => {
@@ -78,7 +82,8 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
           <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.keysHint")}</p>
           {loadError && <p role="alert" className="mt-3 text-sm text-danger">{loadError} <button onClick={() => reload().catch((e) => setLoadError(e.message))}>{t("act.retry")}</button></p>}
           {loading ? <div role="status" aria-label={t("act.loading")} className="mt-4"><SkeletonCard /></div> : <ul className="mt-2">
-            {rows.map((p) => <KeyRow key={p.key} p={p} available={!loadError} onChanged={async () => { await reload(); onChanged(); }} />)}
+            {rows.map((p) => <AIProviderKeys key={p.key} provider={p} keys={keys.filter((key) => key.provider === p.key)}
+              available={!loadError} onChanged={async () => { await reload(); onChanged(); }} />)}
           </ul>}
         </div>
         <div hidden={tab !== "profile"} role="tabpanel" id={`${id}-panel-profile`} aria-labelledby={`${id}-tab-profile`} tabIndex={0}><JobProfileSettings providers={providers} /></div>
@@ -89,103 +94,6 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
         </div>}
       </div>
     </Sheet>
-  );
-}
-
-function KeyRow({ p, available, onChanged }: { p: AIProviderInfo; available: boolean; onChanged: () => Promise<void> }) {
-  const [verified, setVerified] = useState(false);
-  const [model, setModel] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const { t } = useI18n();
-
-  const save = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      await api.saveKey(p.key, value);
-      setVerified(true);
-      setValue("");
-      setEditing(false);
-      await onChanged();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const remove = async () => {
-    if (!confirm(t("set.confirmDeleteKey", { name: p.name }))) return;
-    if (busy) return;
-    setBusy(true); setError("");
-    try { await api.deleteKey(p.key); setVerified(false); setModel(""); await onChanged(); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  };
-
-  const check = async () => {
-    setBusy(true); setError(""); setVerified(false);
-    try { const result = await api.models(p.key, true); setModel(result.default); setVerified(true); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  };
-  const makeDefault = async () => {
-    setBusy(true); setError("");
-    try { await api.setDefaultAI(p.key); await onChanged(); }
-    catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <li className="border-b border-line py-4">
-      <div className="flex min-w-0 flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div className="min-w-0 [overflow-wrap:anywhere]">
-          <div className="flex flex-wrap items-center gap-2 font-medium"><h4>{p.name}</h4>{p.is_default && <span className="rounded-full bg-sunken px-2 py-1 text-xs text-link">{t("set.defaultAI")}</span>}</div>
-          <div className="text-xs text-ink-soft">
-            {!available ? t("set.keyUnknown") : error ? t("set.keyError") : p.configured
-              ? p.source === "env" ? t("set.envKey") : t("set.savedKey", { hint: p.hint })
-              : t("set.noKey")}
-          </div>
-          <p className="mt-1 break-words text-xs text-ink-soft">{t("set.defaultModel", { model: model || p.default_model || "—" })}</p>
-          {p.source === "env" && <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-soft">{t("set.envHint")}</p>}
-          {verified && !error && <p role="status" className="mt-1 text-xs text-ok">{t("set.keyValid")}</p>}
-        </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2 text-sm">
-          {!editing && (
-            <Button onClick={() => setEditing(true)} disabled={busy || !available} variant="outline" className="min-h-11" size="sm">
-              {p.configured ? t("set.changeKey") : t("set.addKey")}
-            </Button>
-          )}
-          {p.configured && !editing && <Button onClick={check} busy={busy} variant="ghost" size="sm" className="min-h-11">{t("set.checkKey")}</Button>}
-          {p.source === "db" && !editing && (
-            <Button onClick={remove} disabled={busy} variant="ghost" size="sm" className="min-h-11 hover:text-danger">{t("act.delete")}</Button>
-          )}
-        </div>
-      </div>
-      {p.configured && !p.is_default && !editing && <Button onClick={makeDefault} disabled={busy} variant="ghost" size="sm" className="mt-2 min-h-11">{t("set.useDefault")}</Button>}
-      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
-      {editing && (
-        <div className="page-enter mt-4 border-t border-line pt-4">
-          <label className="mb-2 block text-sm font-medium" htmlFor={`api-key-${p.key}`}>{t("set.pasteKey", { name: p.name })}</label>
-          <input id={`api-key-${p.key}`} type="password" className="field" autoFocus placeholder={t("set.pasteKey", { name: p.name })}
-            value={value} onChange={(e) => setValue(e.target.value)} autoComplete="off" />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <a href={p.key_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-1 text-sm text-link underline-offset-4 hover:underline">
-              {t("set.whereKey")} <ExternalLink className="size-3" />
-            </a>
-            <div className="flex gap-2">
-              <Button onClick={() => { setEditing(false); setError(""); setValue(""); }} disabled={busy} variant="ghost">{t("act.cancel")}</Button>
-              <Button onClick={save} busy={busy} disabled={value.trim().length < 8}>
-                {busy ? t("set.checking") : t("set.saveKey")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </li>
   );
 }
 

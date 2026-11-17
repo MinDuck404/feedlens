@@ -1,7 +1,7 @@
 import { serverMessage, translate } from "./i18n";
 import { searchParams } from "./search";
 import { serialWriter } from "./logic";
-import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIKey, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -94,7 +94,14 @@ export const api = {
   setDefaultAI: (provider: string) => call("/api/ai/default", { method: "PUT", body: JSON.stringify({ provider }) }),
   saveKey: (p: string, apiKey: string) =>
     call<{ models: string[] }>(`/api/ai/keys/${p}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) }),
-  deleteKey: (p: string) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
+  deleteKey: (p: string | number) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
+  listKeys: () => call<AIKey[]>("/api/ai/keys"),
+  addKey: (body: { provider: AIKey["provider"]; api_key: string; label?: string; tier?: AIKey["tier"] }) =>
+    call<AIKey>("/api/ai/keys", { method: "POST", body: JSON.stringify(body) }),
+  updateKey: (id: number, body: Partial<Pick<AIKey, "label" | "enabled" | "tier">>) =>
+    call<AIKey>(`/api/ai/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  reorderKeys: (provider: AIKey["provider"], ids: number[]) =>
+    call<{ ok: boolean }>("/api/ai/keys/order", { method: "PUT", body: JSON.stringify({ provider, ids }) }),
   models: (p: string, refresh = false) =>
     call<{ models: string[]; default: string }>(`/api/ai/models/${p}${refresh ? "?refresh=true" : ""}`),
   platforms: () => call<PlatformState[]>("/api/platforms"),
