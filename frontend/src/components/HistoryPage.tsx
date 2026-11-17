@@ -1,5 +1,5 @@
 import { Briefcase, ChevronRight, Inbox, Plus } from "lucide-react";
-import { parseTimestamp } from "../logic";
+import { describeRunSource, parseTimestamp } from "../logic";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, useI18n, type Key } from "../i18n";
 import { routeHref } from "../router";
@@ -27,15 +27,7 @@ export default function HistoryPage({ runs, onOpen, onNewRun }: Props) {
     });
 
   const sourceLabel = (r: Run): string => {
-    const q = r.request;
-    if (q.source_type === "feed")
-      return t("run.feedOf", { platform: PLATFORM_LABEL[q.platform] });
-    const short = (s: string) =>
-      s.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-    const first = short(q.sources[0] ?? "");
-    return q.sources.length > 1
-      ? t("run.andMore", { first, n: q.sources.length - 1 })
-      : first;
+    return describeRunSource(r.request, t, "history");
   };
 
   return (

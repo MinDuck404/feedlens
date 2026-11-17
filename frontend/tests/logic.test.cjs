@@ -65,6 +65,51 @@ test("malformed and Unicode saved group names render without crashing", () => {
   assert.equal(groupName("https://facebook.com/groups/viec-lam/"), "viec lam");
 });
 
+test("run source descriptions localize new modes and retain legacy surface labels", () => {
+  const { describeRunSource } = require("../src/logic.ts");
+  const context = hooks(i18n.I18nProvider);
+  try {
+    for (const lang of ["vi", "en", "zh"]) {
+      context.render({ children: null }).props.value.setLang(lang);
+      const translate = (key, vars) => i18n.translate(key, vars);
+      const jobs = describeRunSource({ platform: "linkedin", source_type: "search", sources: ["Python"], mode: "jobs",
+        options: { keywords: "Python", location: "Hà Nội", work_modes: ["remote"], posted_within: "week" } }, translate);
+      assert.ok(jobs.includes("LinkedIn") && jobs.includes("Python") && jobs.includes("Hà Nội"));
+      assert.ok(jobs.includes(translate("profile.mode.remote")) && jobs.includes(translate("source.period.week")));
+      const pages = describeRunSource({ platform: "facebook", source_type: "group", sources: ["a", "b", "c"], mode: "page" }, translate);
+      assert.ok(pages.includes(translate("source.pages", { n: 3 })));
+      const reddit = describeRunSource({ platform: "reddit", source_type: "group", sources: ["https://reddit.com/r/forhire/new/"], mode: "subreddit", options: { sort: "new" } }, translate);
+      assert.ok(reddit.includes("r/forhire") && reddit.includes(translate("source.sort.new")));
+      const legacy = { platform: "facebook", source_type: "group", sources: ["https://www.facebook.com/groups/a/"] };
+      assert.equal(describeRunSource(legacy, translate), legacy.sources[0]);
+      assert.equal(describeRunSource(legacy, translate, "history"), "facebook.com/groups/a");
+      assert.equal(describeRunSource({ ...legacy, source_type: "feed" }, translate, "sidebar"), translate("sb.feed"));
+    }
+  } finally { context.render({ children: null }).props.value.setLang("en"); context.close(); }
+});
+
+test("Jobs default only applies to bare LinkedIn Jobs URLs", () => {
+  const { defaultRunTab } = require("../src/logic.ts");
+  const req = { platform: "linkedin", mode: "jobs" };
+  assert.equal(defaultRunTab(req, "#/runs/12"), "jobs");
+  assert.equal(defaultRunTab(req, "#/runs/12?foo=bar"), "jobs");
+  for (const url of ["#/runs/12/digest", "#/runs/12/posts", "#/runs/12/jobs"]) assert.equal(defaultRunTab(req, url), null);
+  assert.equal(defaultRunTab({ platform: "linkedin" }, "#/runs/12"), null);
+  assert.equal(defaultRunTab({ platform: "facebook", mode: "jobs" }, "#/runs/12"), null);
+});
+
+test("observed job seed takes precedence without changing AI assessment or original data", () => {
+  const { jobPresentation } = require("../src/logic.ts");
+  const post = { url: "https://example.com/wrong", job: { title: "AI title", company: "AI company", location: "AI location", salary: "AI salary", work_mode: "onsite", match_score: 88, contact: "hr@example.test", match_reason: "CV fits" },
+    job_seed: { title: "Python", company: "Observed company", location: "Hà Nội", salary_text: "30M", work_mode: "remote", url: "https://www.linkedin.com/jobs/view/123/" } };
+  const result = jobPresentation(post);
+  assert.equal(result.job.company, "Observed company"); assert.equal(result.job.salary, "30M");
+  assert.equal(result.job.work_mode, "remote"); assert.equal(result.job.match_score, 88);
+  assert.equal(result.url, post.job_seed.url); assert.equal(post.job.company, "AI company");
+  assert.equal(jobPresentation({ ...post, job: null }).job.title, "Python");
+  assert.equal(jobPresentation({ ...post, job_seed: null }).url, post.url);
+});
+
 test("UTC-naive and signed-offset timestamps refer to the same instant", () => {
   assert.equal(parseTimestamp("2026-11-14T12:00:00").toISOString(), "2026-11-14T12:00:00.000Z");
   assert.equal(parseTimestamp("2026-11-14T07:00:00-05:00").toISOString(), "2026-11-14T12:00:00.000Z");

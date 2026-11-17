@@ -12,6 +12,15 @@ const LOCALE: Record<Lang, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN" };
 const STORE = "feedlens.lang";
 
 const vi = {
+  "source.count": "{n} nguồn",
+  "source.pages": "{n} Trang",
+  "source.period.day": "24 giờ",
+  "source.period.week": "1 tuần",
+  "source.period.month": "1 tháng",
+  "source.sort.new": "mới nhất",
+  "source.sort.top": "nổi bật",
+  "source.sort.top_day": "top ngày",
+  "source.sort.top_week": "top tuần",
   "topics.color.emerald": "Ngọc lục",
   "topics.color.indigo": "Xanh chàm",
   "topics.color.coral": "San hô",
@@ -645,6 +654,15 @@ const vi = {
 export type Key = keyof typeof vi;
 
 const en: Record<Key, string> = {
+  "source.count": "{n} sources",
+  "source.pages": "{n} pages",
+  "source.period.day": "24 hours",
+  "source.period.week": "1 week",
+  "source.period.month": "1 month",
+  "source.sort.new": "newest",
+  "source.sort.top": "top",
+  "source.sort.top_day": "top today",
+  "source.sort.top_week": "top this week",
   "topics.color.emerald": "Emerald",
   "topics.color.indigo": "Indigo",
   "topics.color.coral": "Coral",
@@ -1263,6 +1281,15 @@ const en: Record<Key, string> = {
 };
 
 const zh: Record<Key, string> = {
+  "source.count": "{n} 个来源",
+  "source.pages": "{n} 个主页",
+  "source.period.day": "24 小时",
+  "source.period.week": "1 周",
+  "source.period.month": "1 个月",
+  "source.sort.new": "最新",
+  "source.sort.top": "热门",
+  "source.sort.top_day": "今日热门",
+  "source.sort.top_week": "本周热门",
   "topics.color.emerald": "翡翠绿",
   "topics.color.indigo": "靛蓝",
   "topics.color.coral": "珊瑚橙",

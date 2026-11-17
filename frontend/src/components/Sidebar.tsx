@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
+import { describeRunSource } from "../logic";
 import { useI18n, type Key } from "../i18n";
 import { LanguageMenu, ThemeSwitch } from "./PreferenceMenus";
 import type { PlatformState, Run } from "../types";
@@ -310,14 +311,14 @@ function SidebarBody({
           <ul className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1 pb-4">
             {runs.map((r) => {
               const q = r.request;
-              const src =
-                q.source_type === "feed" ? t("sb.feed") : q.sources[0] ?? "";
+              const src = describeRunSource(q, t, "sidebar");
               const isSelected = page === "run" && selected === r.id;
 
               return (
                 <li key={r.id}>
                   <button
                     onClick={() => onSelect(r.id)}
+                    title={src}
                     aria-current={isSelected}
                     className={`group relative w-full rounded-xl border px-3 py-1.5 text-left transition-all interactive-tap ${
                       isSelected

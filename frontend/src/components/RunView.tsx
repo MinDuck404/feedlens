@@ -1,14 +1,13 @@
 import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../api";
-import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
 import type { AIProviderInfo, Meta, Post, Run, ScrapeReport, Topic } from "../types";
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
-import { canContinueAnalysis, isRemoteText, matchesJobType, parseTimestamp } from "../logic";
+import { canContinueAnalysis, defaultRunTab, describeRunSource, isRemoteText, jobPresentation, matchesJobType, parseTimestamp } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
@@ -34,8 +33,17 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
   const [loadError, setLoadError] = useState(false);
   const [retry, setRetry] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  const setTab = onTab;
+  const setTab = (next: Tab) => {
+    if (next === "digest" && run?.request.platform === "linkedin" && run.request.mode === "jobs") window.location.hash = `#/runs/${run.id}/digest`;
+    else onTab(next);
+  };
   const { t, locale, cat } = useI18n();
+  const defaulted = useRef<number | null>(null);
+  useEffect(() => {
+    if (!run || run.id !== runId || defaulted.current === runId) return;
+    defaulted.current = runId;
+    if (defaultRunTab(run.request, window.location?.hash ?? "") === "jobs") onTab("jobs");
+  }, [run, runId, onTab]);
 
   useEffect(() => { const reload = () => setRetry((value) => value + 1); window.addEventListener("feedlens:topicsChanged", reload); return () => window.removeEventListener("feedlens:topicsChanged", reload); }, []);
 
@@ -82,8 +90,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
     </div>
   );
   const q = run.request;
-  const title = q.source_type === "feed" ? t("run.feedOf", { platform: PLATFORM_LABEL[q.platform] })
-    : q.sources.length > 1 ? t("run.andMore", { first: q.sources[0], n: q.sources.length - 1 }) : q.sources[0];
+  const title = describeRunSource(q, t);
   const when = parseTimestamp(run.created_at);
   const canContinue = canContinueAnalysis(run);
   const failed = run.status === "error" || run.status === "analysis_failed";
@@ -119,6 +126,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
         </div>
       </header>
       <hr className="rule-double mt-4" />
+      {(q.platform === "reddit" || q.platform === "x") && <p className="mt-3 text-xs leading-relaxed text-ink-soft" role="note">{t(q.platform === "reddit" ? "cmp.warning.redditPolicy" : "cmp.warning.xPolicy")}</p>}
 
       {failed || canContinue ? (
         <>
@@ -257,7 +265,7 @@ function Done({ run, meta, tab: requested, setTab }: {
     return () => { alive = false; };
   }, [run.id, run.digest]);
   const jobs = useMemo(
-    () => posts.filter((p) => p.job).sort((a, b) => b.job!.match_score - a.job!.match_score),
+    () => posts.filter((p) => p.job || p.job_seed).map((p) => ({ ...p, ...jobPresentation(p) })).sort((a, b) => b.job!.match_score - a.job!.match_score),
     [posts],
   );
   const counts = useMemo(() => {
@@ -268,7 +276,7 @@ function Done({ run, meta, tab: requested, setTab }: {
   const { t, cat, lang } = useI18n();
   void meta;  // tên loại bài lấy theo ngôn ngữ giao diện thay vì meta.categories (tiếng Việt)
   const name = cat;
-  const tab: Tab = requested === "jobs" && !jobs.length ? "digest" : requested;  // URL cũ trỏ vào tab không còn
+  const tab: Tab = requested === "jobs" && !jobs.length && run.request.mode !== "jobs" ? "digest" : requested;
 
   const categoryBar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -515,7 +523,8 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
 }
 
 function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onApplied: () => void }) {
-  const j = p.job!;
+  const presentation = jobPresentation(p);
+  const j = presentation.job!;
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const workMode = j.work_mode?.trim().toLowerCase();
@@ -559,7 +568,7 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
                 <span className="truncate text-xs">{copied ? t("act.copied") : j.contact}</span>
               </button>
             )}
-            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" aria-label={t("job.openOriginalAria", { title: j.title || p.summary })} className="interactive-tap inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3 py-2 text-sm text-link hover:border-ink"><span>{t("job.openOriginal")}</span><ExternalLink aria-hidden="true" className="size-3.5" /></a>}
+            {presentation.url && <a href={presentation.url} target="_blank" rel="noopener noreferrer" aria-label={t("job.openOriginalAria", { title: j.title || p.summary })} className="interactive-tap inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-3 py-2 text-sm text-link hover:border-ink"><span>{t("job.openOriginal")}</span><ExternalLink aria-hidden="true" className="size-3.5" /></a>}
             <button onClick={onApplied} aria-pressed={applied}
               className="interactive-tap flex min-h-11 items-center gap-2 rounded-full border border-line px-3 py-2 text-sm text-ink-soft hover:text-ink aria-pressed:border-ok/30 aria-pressed:bg-ok/5 aria-pressed:text-ok sm:ml-auto">
               <CheckCircle2 className="size-4" /> {applied ? t("job.applied") : t("job.markApplied")}

@@ -513,7 +513,7 @@ def export(run_id: int, fmt: str = "md", user: User = Depends(current_user)):
     r = _own_run(run_id, user)
     posts = db().get_posts(run_id, include_raw=True)
     body, mime, ext = {
-        "csv": (lambda: to_csv(posts), "text/csv; charset=utf-8", "csv"),
+        "csv": (lambda: to_csv(posts, r), "text/csv; charset=utf-8", "csv"),
         "json": (lambda: to_json(r, posts), "application/json", "json"),
     }.get(fmt, (lambda: to_markdown(r, posts), "text/markdown; charset=utf-8", "md"))
     return PlainTextResponse(body(), media_type=mime,
