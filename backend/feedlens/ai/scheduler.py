@@ -150,6 +150,7 @@ class QuotaScheduler:
             on_selected(candidate)
             try:
                 result = candidate.client.complete_json(system, prompt, schema, effort)
+                attempts.pop(candidate.pair, None)
                 self.status[candidate.key_id] = "ok"
                 return result
             except Exception as exc:
@@ -175,7 +176,7 @@ class QuotaScheduler:
                     elif rate or transient:
                         self.learned[candidate.pair] = learn_limits(message, self.limits(candidate))
                         attempts[candidate.pair] += 1
-                        if transient and attempts[candidate.pair] > 3:
+                        if attempts[candidate.pair] > (6 if rate else 3):
                             candidate.disabled = True
                         else:
                             delay = re.search(r"retry in ([\d.]+)\s*s\b|retryDelay\W+([\d.]+)s", message, re.I)

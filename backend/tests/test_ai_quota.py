@@ -267,3 +267,40 @@ def test_paid_key_only_obeys_retry_after_including_long_waits():
     provider.complete_json = complete
     assert scheduler.complete_json([candidate], "", "", {}) == {"ok": True}
     assert provider.calls == [0, 120]
+
+
+@pytest.mark.parametrize("has_backup", [False, True])
+def test_paid_continuous_429_stops_or_uses_next_model(has_backup):
+    clock = Clock(); primary = Provider("primary", clock); backup = Provider("backup", clock)
+    scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep)
+    def limited(*args):
+        primary.calls.append(clock.value)
+        if len(primary.calls) > 7:
+            pytest.fail("429 retry loop exceeded its finite budget")
+        raise RuntimeError("429 retry in 1s")
+    primary.complete_json = limited
+    candidates = [Candidate(1, primary, tier="paid")]
+    if has_backup:
+        # Another model on the same key must remain eligible.
+        candidates.append(Candidate(1, backup, tier="paid"))
+        assert scheduler.complete_json(candidates, "", "", {}) == {"ok": True}
+        assert backup.calls == [6]
+    else:
+        with pytest.raises(QuotaExhausted):
+            scheduler.complete_json(candidates, "", "", {})
+    assert primary.calls == [0, 1, 2, 3, 4, 5, 6]
+
+
+def test_success_resets_consecutive_429_retry_budget():
+    clock = Clock(); provider = Provider("primary", clock)
+    scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep)
+    def complete(*args):
+        provider.calls.append(clock.value)
+        if len(provider.calls) % 7:
+            raise RuntimeError("429 retry in 1s")
+        return {"ok": True}
+    provider.complete_json = complete
+    candidates = [Candidate(1, provider, tier="paid")]
+    for _ in range(2):
+        assert scheduler.complete_json(candidates, "", "", {}) == {"ok": True}
+    assert len(provider.calls) == 14 and clock.value == 12
