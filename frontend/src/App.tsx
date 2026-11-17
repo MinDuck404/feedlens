@@ -13,7 +13,7 @@ import { Button } from "./components/ui/Button";
 import { Skeleton, SkeletonCard } from "./components/ui/Skeleton";
 import { useI18n } from "./i18n";
 import { navigate, routeHref, useRoute } from "./router";
-import type { Me, Meta, PlatformState, Preferences, Run } from "./types";
+import type { Me, Meta, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -119,6 +119,9 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const route = useRoute();
   const selected = route.page === "run" ? route.id : null;
   const [composerOpen, setComposerOpen] = useState(false);
+  const [rerunRequest, setRerunRequest] = useState<RunRequest | undefined>();
+  // Mọi đường đóng form (huỷ, tạo xong, mở Cài đặt) đều bỏ cài đặt chạy lại, để lần mở sau là form mới.
+  useEffect(() => { if (!composerOpen) setRerunRequest(undefined); }, [composerOpen]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<string>();
   const [me, setMe] = useState<Me | null>(null);
@@ -312,6 +315,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               meta={meta}
               tab={route.tab}
               onAnalysisStarted={refreshRuns}
+              onRerun={(request) => { setRerunRequest(request); setComposerOpen(true); }}
               onTab={(tab) =>
                 navigate({ page: "run", id: route.id, tab }, { replace: true })
               }
@@ -350,6 +354,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           platforms={platforms}
           prefs={prefs}
           onPrefsChange={savePrefs}
+          initialRequest={rerunRequest}
           onClose={() => setComposerOpen(false)}
           onCreated={(id) => {
             setComposerOpen(false);

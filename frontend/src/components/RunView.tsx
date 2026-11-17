@@ -1,9 +1,9 @@
-import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, Trash2 } from "lucide-react";
+import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../api";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { AIProviderInfo, Meta, Post, Run, ScrapeReport, Topic } from "../types";
+import type { AIProviderInfo, Meta, Post, Run, RunRequest, ScrapeReport, Topic } from "../types";
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
@@ -25,9 +25,10 @@ interface Props {
   onTab: (t: Tab) => void;
   onDeleted: () => void;
   onAnalysisStarted?: () => void;
+  onRerun?: (request: RunRequest) => void;
 }
 
-export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysisStarted }: Props) {
+export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysisStarted, onRerun }: Props) {
   const [run, setRun] = useState<Run | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -120,6 +121,11 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
               .{f}
             </Button>
           ))}
+          {onRerun && run.request && (
+            <IconButton onClick={() => onRerun(run.request)} aria-label={t("run.rerun")} title={t("run.rerun")} variant="ghost" size="sm" className="hover:text-ink">
+              <RotateCcw className="size-3.5" />
+            </IconButton>
+          )}
           <IconButton onClick={remove} busy={deleting} aria-label={t("run.delete")} variant="ghost" size="sm" className="hover:text-danger">
             <Trash2 className="size-3.5" />
           </IconButton>
