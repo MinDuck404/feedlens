@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from .base import AIError, AIProvider, Effort, ProviderInfo
+from .base import AIError, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo
 
 
 class AnthropicProvider(AIProvider):
@@ -15,12 +15,12 @@ class AnthropicProvider(AIProvider):
         super().__init__(model, api_key)
         import anthropic
 
-        self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+        self.client = anthropic.Anthropic(api_key=api_key, max_retries=0) if api_key else anthropic.Anthropic(max_retries=0)
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         resp = self.client.beta.messages.create(
             model=self.model,
-            max_tokens=16000,
+            max_tokens=MAX_OUTPUT_TOKENS,
             system=system,
             messages=[{"role": "user", "content": prompt}],
             output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},

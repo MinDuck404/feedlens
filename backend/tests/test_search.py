@@ -264,7 +264,7 @@ def test_ask_edited_filters_skip_parser_and_provider_errors_are_codes(cloud, mon
     response = client.post("/api/ask", headers=headers, json={"question": "React?", "filters": {"q": "React"}})
     assert response.status_code == 200 and response.json()["applied_filters"]["q"] == "React"
     assert len(calls) == 1 and "query_terms" not in calls[0][2]["properties"]
-    def fail(*args, **kwargs): raise RuntimeError("429 quota; secret=DO_NOT_EXPOSE")
+    def fail(*args, **kwargs): raise RuntimeError("429 quota PerDay; secret=DO_NOT_EXPOSE")
     llm.provider.complete_json = fail
     failed = client.post("/api/ask", headers=headers, json={"question": "React?"})
     assert failed.status_code == 502 and failed.json()["code"] == "error.ai_quota"

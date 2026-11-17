@@ -6,8 +6,10 @@ key trong biến môi trường; chế độ cloud thì KHÔNG, để người k
 from __future__ import annotations
 
 import os
+import hashlib
 import re
 import time
+from dataclasses import dataclass, field
 
 from ..config import settings
 from ..crypto import decrypt
@@ -29,18 +31,52 @@ def _env_key(key: str) -> str | None:
     return next((os.getenv(k) for k in [cls.info.env_key, *_EXTRA_ENV.get(key, [])] if os.getenv(k)), None)
 
 
-def user_keys(db, user_id: int) -> dict[str, tuple[str, str]]:
-    """provider -> (api_key, nguồn: 'db' | 'env')."""
-    out: dict[str, tuple[str, str]] = {}
+@dataclass(frozen=True)
+class KeyCredential:
+    id: int | str
+    provider: str
+    api_key: str = field(repr=False)
+    priority: int = 0
+    tier: str = "free"
+    source: str = "db"
+
+
+class KeyList(list):
+    def __init__(self, credentials, db):
+        super().__init__(credentials)
+        self.db = db
+
+
+class UserKeys(dict):
+    """Legacy primary-key mapping plus all enabled keys for scheduled analysis."""
+    def __init__(self, credentials, db):
+        super().__init__()
+        self.credentials, self.db = KeyList(credentials, db), db
+        for key in credentials:
+            self.setdefault(key.provider, (key.api_key, key.source))
+
+
+def user_keys(db, user_id: int) -> UserKeys:
+    credentials = []
     for row in db.list_keys(user_id):
+        if not row.enabled:
+            continue
         val = decrypt(row.ciphertext)
         if val:
-            out[row.provider] = (val, "db")
+            credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier))
     if not settings.is_cloud:
         for k in PROVIDERS:
-            if k not in out and (v := _env_key(k)):
-                out[k] = (v, "env")
-    return out
+            if not any(c.provider == k for c in credentials) and (v := _env_key(k)):
+                identity = hashlib.sha256(v.encode()).hexdigest()
+                credentials.append(KeyCredential(f"env:{user_id}:{k}:{identity}", k, v, source="env"))
+    return UserKeys(credentials, db)
+
+
+def user_key_list(db, user_id: int) -> KeyList:
+    keys = user_keys(db, user_id)
+    if hasattr(keys, "credentials"):
+        return keys.credentials
+    return KeyList([KeyCredential(f"legacy:{user_id}:{p}", p, value[0]) for p, value in keys.items()], db)
 
 
 def resolve_provider_key(requested: str | None, keys: dict[str, tuple[str, str]], preferred: str | None = None) -> str:
@@ -73,7 +109,10 @@ def get_provider(key: str, model: str | None = None, api_key: str | None = None)
 def provider_status(db, user_id: int) -> list[dict]:
     keys = user_keys(db, user_id)
     default = resolve_provider_key("auto", keys, db.get_default_ai(user_id))
-    hints = {r.provider: r.hint for r in db.list_keys(user_id)}
+    hints = {}
+    for row in db.list_keys(user_id):
+        if row.enabled:
+            hints.setdefault(row.provider, row.hint)
     out = []
     for k, cls in PROVIDERS.items():
         i = cls.info
@@ -87,21 +126,24 @@ def provider_status(db, user_id: int) -> list[dict]:
 
 
 # Cache danh sách model 10 phút theo (user, provider) để không gọi API mỗi lần mở form
-_MODEL_CACHE: dict[tuple[int, str], tuple[float, list[str]]] = {}
+_MODEL_CACHE: dict[tuple[int, str, str], tuple[float, list[str]]] = {}
 _TTL = 600
 
 
 def list_models(user_id: int, key: str, api_key: str, refresh: bool = False) -> list[str]:
-    hit = _MODEL_CACHE.get((user_id, key))
+    identity = (user_id, key, hashlib.sha256(api_key.encode()).hexdigest())
+    hit = _MODEL_CACHE.get(identity)
     if hit and not refresh and time.time() - hit[0] < _TTL:
         return hit[1]
     models = get_provider(key, api_key=api_key).list_models()
-    _MODEL_CACHE[(user_id, key)] = (time.time(), models)
+    _MODEL_CACHE[identity] = (time.time(), models)
     return models
 
 
 def forget_models(user_id: int, key: str) -> None:
-    _MODEL_CACHE.pop((user_id, key), None)
+    for identity in list(_MODEL_CACHE):
+        if identity[:2] == (user_id, key):
+            _MODEL_CACHE.pop(identity, None)
 
 
 # Khi user không chọn model:

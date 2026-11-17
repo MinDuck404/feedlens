@@ -9,11 +9,14 @@ import json
 import re
 import threading
 import time
+import copy
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
+from .ai.registry import KeyCredential
+from .ai.scheduler import Candidate, MAX_OUTPUT, QuotaScheduler, scheduler_for
 from .job_profile import matching_context
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
 
@@ -232,43 +235,35 @@ def _is_transient(e: Exception) -> bool:
 
 
 class LLMAnalyzer:
-    def __init__(self, provider: AIProvider, fallback_models: list[str] | None = None):
+    def __init__(self, provider: AIProvider, fallback_models: list[str] | None = None, *, candidates=None, scheduler=None):
         self.provider = provider
         self.fallback_models = list(fallback_models or [])
         self.notify: Callable[[str], None] = lambda msg: None  # pipeline gắn vào để báo trạng thái lên web
         self.language = "vi"  # pipeline đặt theo RunRequest.language
         self._switch_lock = threading.Lock()  # các lô chạy song song: chỉ một lô được đổi model
+        self.scheduler = scheduler or QuotaScheduler()
+        if candidates is None:
+            candidates = [Candidate(f"direct:{id(self)}", provider)]
+            for model in self.fallback_models:
+                client = copy.copy(provider)
+                client.model = model
+                candidates.append(Candidate(candidates[0].key_id, client))
+        self.candidates = candidates
 
     @property
     def label(self) -> str:
         return f"{self.provider.info.name} ({self.provider.model})"
 
     def _json_call(self, prompt: str, schema: dict, effort: str) -> dict:
-        name = self.provider.info.name
-        while True:
-            model = self.provider.model
-            for attempt in range(RETRIES + 1):
-                try:
-                    return self.provider.complete_json(system_prompt(self.language), prompt, schema, effort)
-                except Exception as e:  # noqa: BLE001
-                    if not _is_transient(e):
-                        raise
-                    last = e
-                    if _is_daily_quota(str(e)) or self.provider.model != model:
-                        break  # hết lượt trong ngày, hoặc lô khác đã đổi model: khỏi chờ
-                    if attempt < RETRIES:
-                        wait = _retry_after(str(e)) or RETRY_BASE_SECONDS * 2 ** attempt
-                        self.notify(f"{name} ({model}) đang quá tải, thử lại sau {wait:.0f} giây "
-                                    f"(lần {attempt + 1}/{RETRIES})…")
-                        time.sleep(wait)
-            # Model này vẫn quá tải: chuyển sang model dự phòng nếu user để "Mặc định".
-            # Nhiều lô cùng lỗi một lúc thì chỉ lô đầu tiên đổi model; các lô sau dùng luôn model mới.
+        return self.complete_json(system_prompt(self.language), prompt, schema, effort)
+
+    def complete_json(self, system: str, prompt: str, schema: dict, effort: str = "low") -> dict:
+        """Schedule all AI work, including Ask's task-specific system prompts."""
+        def selected(candidate):
             with self._switch_lock:
-                if self.provider.model == model:
-                    if not self.fallback_models:
-                        raise last
-                    self.provider.model = self.fallback_models.pop(0)
-                    self.notify(f"{model} quá tải, chuyển sang {self.provider.model}…")
+                self.provider = candidate.client
+        return self.scheduler.complete_json(self.candidates, system, prompt, schema, effort,
+                                            self.notify, retry_base=RETRY_BASE_SECONDS, on_selected=selected)
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
                  profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
@@ -356,14 +351,26 @@ class LLMAnalyzer:
             return res
 
         # Các lô độc lập nhau -> gửi song song để nhanh hơn, giữ nguyên thứ tự bài
+        tpms = [self.scheduler.limits(c).tpm for c in self.candidates if not c.disabled and self.scheduler.limits(c).tpm]
+        context_tokens = (len(job_ctx) + len(topic_ctx) + len(system_prompt(self.language))) // 3 + MAX_OUTPUT
         batches = []
         for known_jobs in (False, True):
             indexed = [(i, p) for i, p in enumerate(posts) if (p.job_seed is not None) == known_jobs]
-            batches.extend(indexed[i:i + BATCH_SIZE] for i in range(0, len(indexed), BATCH_SIZE))
+            batch, tokens = [], context_tokens
+            for item in indexed:
+                p = item[1]
+                estimate = (len(p.text[:MAX_POST_CHARS]) + len(p.author) + len(p.source)
+                            + (len(p.job_seed.model_dump_json()) if p.job_seed else 0)) // 3 + 50
+                if batch and (len(batch) >= BATCH_SIZE or tpms and tokens + estimate > min(tpms) // 3):
+                    batches.append(batch)
+                    batch, tokens = [], context_tokens
+                batch.append(item); tokens += estimate
+            if batch:
+                batches.append(batch)
         results: list[AnalyzedPost | None] = [None] * len(posts)
         done = 0
         errors = []
-        with ThreadPoolExecutor(max_workers=min(PARALLEL_BATCHES, len(batches) or 1)) as pool:
+        with ThreadPoolExecutor(max_workers=min(self.scheduler.parallelism(self.candidates), len(batches) or 1)) as pool:
             futures = {pool.submit(run_batch, [p for _, p in b]): b for b in batches}
             for fut in as_completed(futures):
                 try:
@@ -541,10 +548,21 @@ class HeuristicAnalyzer:
         )
 
 
-def get_analyzer(provider: str | None, model: str | None, keys: dict[str, tuple[str, str]], user_id: int = 0):
-    key = resolve_provider_key(provider, keys)
+def get_analyzer(provider: str | None, model: str | None, keys, user_id: int = 0):
+    mapping = keys if isinstance(keys, dict) else {k.provider: (k.api_key, k.source) for k in keys}
+    key = resolve_provider_key(provider, mapping)
     if key == "offline":
         return HeuristicAnalyzer()
-    api_key = keys[key][0]
-    models = resolve_models(user_id, key, api_key, model)
-    return LLMAnalyzer(get_provider(key, models[0], api_key), fallback_models=models[1:])
+    credentials = getattr(keys, "credentials", keys if isinstance(keys, list) else None)
+    if credentials is None:
+        credentials = [KeyCredential(f"legacy:{user_id}:{key}", key, mapping[key][0])]
+    candidates = []
+    for credential in credentials:
+        if credential.provider != key:
+            continue
+        for candidate_model in resolve_models(user_id, key, credential.api_key, model):
+            candidates.append(Candidate(credential.id, get_provider(key, candidate_model, credential.api_key),
+                                        credential.priority, credential.tier))
+    database = getattr(keys, "db", None)
+    scheduler = scheduler_for(database) if database is not None else QuotaScheduler()
+    return LLMAnalyzer(candidates[0].client, candidates=candidates, scheduler=scheduler)

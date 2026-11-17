@@ -141,7 +141,7 @@ def test_checkpoint_retry_preserves_seed_and_does_not_reanalyze_successful_batch
             assert db.get_raw_posts(rid) == raw
             calls.append(prompt)
             if fail[0] and "FAIL_BATCH" in prompt:
-                raise RuntimeError("401 unauthorized")
+                raise RuntimeError("Invalid structured output for this batch")
             return {"items": [{"id": int(i), "summary": "Role", "job": {"match_score": 80}}
                               for i in re.findall(r'<post id="(\d+)"', prompt)]}
         return {"overall": "Jobs summary", "categories": [{"category": "job", "summary": "Jobs", "highlights": []}], "action_items": []}

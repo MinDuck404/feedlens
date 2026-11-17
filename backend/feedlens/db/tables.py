@@ -31,7 +31,6 @@ class UserRow(Base):
 
 class ApiKeyRow(Base):
     __tablename__ = "api_keys"
-    __table_args__ = (UniqueConstraint("user_id", "provider"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -39,6 +38,20 @@ class ApiKeyRow(Base):
     ciphertext: Mapped[str] = mapped_column(Text)
     hint: Mapped[str] = mapped_column(String(16), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    label: Mapped[str] = mapped_column(String(80), default="", server_default="")
+    priority: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    tier: Mapped[str] = mapped_column(String(8), default="free", server_default="free")
+
+
+class AIUsageRow(Base):
+    __tablename__ = "ai_usage"
+    key_id: Mapped[int] = mapped_column(ForeignKey("api_keys.id", ondelete="CASCADE"), primary_key=True)
+    model: Mapped[str] = mapped_column(String(200), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)  # Pacific calendar date, not UTC date.
+    requests: Mapped[int] = mapped_column(Integer, default=0)
+    tokens: Mapped[int] = mapped_column(Integer, default=0)
+    exhausted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
 
 class PlatformSessionRow(Base):

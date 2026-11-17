@@ -16,7 +16,12 @@ PER_DAY = ("429 RESOURCE_EXHAUSTED. Quota exceeded for metric: generate_content_
 
 def test_waits_the_delay_the_provider_asks_for(monkeypatch):
     waits = []
-    monkeypatch.setattr(an.time, "sleep", waits.append)
+    clock = [0.0]
+    def wait(seconds):
+        waits.append(seconds)
+        clock[0] += seconds
+    monkeypatch.setattr(an.time, "sleep", wait)
+    monkeypatch.setattr(an.time, "monotonic", lambda: clock[0])
     calls = []
 
     class Limited(FakeProvider):
@@ -59,7 +64,7 @@ def test_daily_quota_without_fallback_fails_fast_with_clear_message(monkeypatch)
         def complete_json(self, *a, **k):
             raise RuntimeError(PER_DAY)
 
-    with pytest.raises(RuntimeError, match="RESOURCE_EXHAUSTED"):
+    with pytest.raises(RuntimeError, match="quota exhausted"):
         LLMAnalyzer(Daily("lite"))._json_call("<posts>", {"properties": {}}, "low")
 
 

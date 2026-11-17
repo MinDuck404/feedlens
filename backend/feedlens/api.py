@@ -603,6 +603,8 @@ def ingest(body: IngestBody, user: User = Depends(current_user)):
     return {"id": start_ingest(db(), body.request, _clean_posts(body.posts), user.id)}
 
 
+from .ai_keys_api import ai_keys_router
+app.include_router(ai_keys_router(db))  # Fixed /order and numeric IDs must precede legacy /{provider}.
 app.include_router(public)
 app.include_router(private)
 from .profile_api import profile_router

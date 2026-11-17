@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 Effort = Literal["low", "medium", "high"]
+MAX_OUTPUT_TOKENS = 8192  # Shared with quota reservations; provider output must not exceed the estimate.
 
 
 class AIError(RuntimeError):

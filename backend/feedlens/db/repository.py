@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from ..models import AnalyzedPost, Digest, JobInfo, JobSeed, RawPost, RunRequest, Topic
-from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, TopicRow, UserRow
+from .tables import AIUsageRow, JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, TopicRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
 
@@ -46,6 +46,9 @@ class Database:
             "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type},
             "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
             "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''"},
+            "api_keys": {"label": "VARCHAR(80) NOT NULL DEFAULT ''", "priority": "INTEGER NOT NULL DEFAULT 0",
+                         "enabled": "BOOLEAN NOT NULL DEFAULT TRUE", "tier": "VARCHAR(8) NOT NULL DEFAULT 'free'"},
+            "ai_usage": {"exhausted": "BOOLEAN NOT NULL DEFAULT FALSE"},
         }
         insp = inspect(self.engine)
         for table, cols in wanted.items():
@@ -54,6 +57,30 @@ class Database:
                 if col not in have:
                     with self.engine.begin() as conn:
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+        constraints = [c for c in inspect(self.engine).get_unique_constraints("api_keys")
+                       if set(c["column_names"]) == {"user_id", "provider"}]
+        if constraints and self.engine.dialect.name == "sqlite":
+            # SQLite cannot drop a UNIQUE constraint. Rebuild only this table, preserving IDs and usage FKs.
+            with self.engine.connect() as conn:
+                conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+                conn.commit()
+                try:
+                    with conn.begin():
+                        conn.exec_driver_sql("BEGIN IMMEDIATE")
+                        conn.exec_driver_sql("CREATE TABLE api_keys_new (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, provider VARCHAR(20) NOT NULL, ciphertext TEXT NOT NULL, hint VARCHAR(16), created_at DATETIME NOT NULL, label VARCHAR(80) NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, tier VARCHAR(8) NOT NULL DEFAULT 'free')")
+                        cols = "id,user_id,provider,ciphertext,hint,created_at,label,priority,enabled,tier"
+                        conn.exec_driver_sql(f"INSERT INTO api_keys_new ({cols}) SELECT {cols} FROM api_keys")
+                        conn.exec_driver_sql("DROP TABLE api_keys")
+                        conn.exec_driver_sql("ALTER TABLE api_keys_new RENAME TO api_keys")
+                        conn.exec_driver_sql("CREATE INDEX ix_api_keys_user_id ON api_keys(user_id)")
+                finally:
+                    conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+                    conn.commit()
+        elif constraints:
+            quote = self.engine.dialect.identifier_preparer.quote
+            with self.engine.begin() as conn:
+                for constraint in constraints:
+                    conn.execute(text(f"ALTER TABLE api_keys DROP CONSTRAINT IF EXISTS {quote(constraint['name'])}"))
 
     # ---------------------------------------------------------------- users
     def create_user(self, email: str, password_hash: str) -> int:
@@ -117,19 +144,85 @@ class Database:
     # ---------------------------------------------------------------- API keys
     def upsert_key(self, user_id: int, provider: str, ciphertext: str, hint: str) -> None:
         with self.Session.begin() as s:
-            row = s.scalar(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider))
+            row = s.scalar(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider)
+                           .order_by(ApiKeyRow.priority, ApiKeyRow.id).limit(1))
             if row:
-                row.ciphertext, row.hint = ciphertext, hint
+                row.ciphertext, row.hint, row.enabled, row.priority = ciphertext, hint, True, 0
             else:
                 s.add(ApiKeyRow(user_id=user_id, provider=provider, ciphertext=ciphertext, hint=hint))
 
     def delete_key(self, user_id: int, provider: str) -> None:
         with self.Session.begin() as s:
+            ids = list(s.scalars(select(ApiKeyRow.id).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider)))
             s.execute(delete(ApiKeyRow).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider))
+        if hasattr(self, "_quota_scheduler"):
+            for key_id in ids:
+                self._quota_scheduler.forget_key(key_id)
 
     def list_keys(self, user_id: int) -> list[ApiKeyRow]:
         with self.Session() as s:
-            return list(s.scalars(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id)))
+            return list(s.scalars(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id)
+                                  .order_by(ApiKeyRow.priority, ApiKeyRow.id)))
+
+    def add_key(self, user_id, provider, ciphertext, hint, label="", tier="free") -> ApiKeyRow:
+        with self.Session.begin() as s:
+            priority = s.scalar(select(func.max(ApiKeyRow.priority)).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider))
+            row = ApiKeyRow(user_id=user_id, provider=provider, ciphertext=ciphertext, hint=hint,
+                            label=label, tier=tier, priority=0 if priority is None else priority + 1)
+            s.add(row); s.flush()
+            return row
+
+    def update_key(self, user_id, key_id, changes) -> bool:
+        with self.Session.begin() as s:
+            row = s.scalar(select(ApiKeyRow).where(ApiKeyRow.id == key_id, ApiKeyRow.user_id == user_id))
+            if row is None:
+                return False
+            for field in ("label", "enabled", "tier"):
+                if field in changes:
+                    setattr(row, field, changes[field])
+            return True
+
+    def order_keys(self, user_id, provider, ids) -> None:
+        with self.Session.begin() as s:
+            rows = list(s.scalars(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider)))
+            if len(set(ids)) != len(ids) or set(ids) != {r.id for r in rows}:
+                raise ValueError("Key order must contain every key of this provider exactly once")
+            order = {key_id: i for i, key_id in enumerate(ids)}
+            for row in rows:
+                row.priority = order[row.id]
+
+    def delete_key_id(self, user_id, key_id) -> bool:
+        with self.Session.begin() as s:
+            result = s.execute(delete(ApiKeyRow).where(ApiKeyRow.id == key_id, ApiKeyRow.user_id == user_id))
+            deleted = result.rowcount > 0
+        if deleted and hasattr(self, "_quota_scheduler"):
+            self._quota_scheduler.forget_key(key_id)
+        return deleted
+
+    def ai_usage(self, key_id, day) -> dict:
+        with self.Session() as s:
+            rows = s.scalars(select(AIUsageRow).where(AIUsageRow.key_id == key_id, AIUsageRow.day == day))
+            return {r.model: {"requests": r.requests, "tokens": r.tokens, "exhausted": r.exhausted} for r in rows}
+
+    def exhaust_ai_usage(self, key_id, model, day) -> None:
+        from sqlalchemy import update
+        with self.Session.begin() as s:
+            s.execute(update(AIUsageRow).where(AIUsageRow.key_id == key_id, AIUsageRow.model == model,
+                                             AIUsageRow.day == day).values(exhausted=True))
+
+    def reserve_ai_usage(self, key_id, model, day, tokens, limit=None) -> bool:
+        if self.engine.dialect.name == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert
+        else:
+            from sqlalchemy.dialects.postgresql import insert
+        statement = insert(AIUsageRow).values(key_id=key_id, model=model, day=day, requests=1, tokens=tokens)
+        statement = statement.on_conflict_do_update(index_elements=["key_id", "model", "day"],
+            set_={"requests": AIUsageRow.requests + 1, "tokens": AIUsageRow.tokens + tokens},
+            where=(AIUsageRow.exhausted.is_(False) & (AIUsageRow.requests < limit if limit is not None else true())))
+        if limit is not None and limit <= 0:
+            return False
+        with self.Session.begin() as s:
+            return s.execute(statement).rowcount > 0
 
     # ---------------------------------------------------------------- cookie mạng xã hội
     def upsert_session(self, user_id: int, platform: str, ciphertext: str, hint: str) -> None:

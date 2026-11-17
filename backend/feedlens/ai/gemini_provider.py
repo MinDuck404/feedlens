@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 
-from .base import AIError, AIProvider, Effort, ProviderInfo
+from .base import AIError, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo
 
 TIMEOUT_MS = 180_000
 
@@ -21,7 +21,7 @@ class GeminiProvider(AIProvider):
         self.genai = genai
         self.client = genai.Client(
             api_key=api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
-            http_options=genai.types.HttpOptions(timeout=TIMEOUT_MS),  # không để một lời gọi treo vô hạn
+            http_options=genai.types.HttpOptions(timeout=TIMEOUT_MS, retry_options=genai.types.HttpRetryOptions(attempts=1)),
         )
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
@@ -31,6 +31,7 @@ class GeminiProvider(AIProvider):
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system,
+                max_output_tokens=MAX_OUTPUT_TOKENS,
                 response_mime_type="application/json",
                 response_json_schema=schema,
             ),

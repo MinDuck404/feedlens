@@ -17,6 +17,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pypdf>=5",
     "python-multipart>=0.0.20",
+    "tzdata>=2025",  # Pacific-day quota reset also works on Windows without a system tz database.
 ]
 
 [project.optional-dependencies]

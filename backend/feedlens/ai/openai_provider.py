@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from .base import AIError, AIProvider, Effort, ProviderInfo
+from .base import AIError, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo
 
 # Model OpenAI không dùng được cho chat/văn bản
 _SKIP = ("audio", "realtime", "tts", "transcribe", "image", "embedding", "moderation", "search", "whisper", "dall-e")
@@ -18,11 +18,12 @@ class OpenAIProvider(AIProvider):
         super().__init__(model, api_key)
         from openai import OpenAI
 
-        self.client = OpenAI(api_key=api_key) if api_key else OpenAI()
+        self.client = OpenAI(api_key=api_key, max_retries=0) if api_key else OpenAI(max_retries=0)
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         resp = self.client.responses.create(
             model=self.model,
+            max_output_tokens=MAX_OUTPUT_TOKENS,
             instructions=system,
             input=prompt,
             text={"format": {"type": "json_schema", "name": "feedlens_output",

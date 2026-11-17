@@ -4,8 +4,7 @@ import threading
 import traceback
 from typing import Callable
 
-from .ai import user_keys
-from .ai.registry import preferred_provider
+from .ai.registry import preferred_provider, user_key_list
 from .analyzer import get_analyzer
 from .config import settings
 from .db import Database
@@ -112,7 +111,7 @@ def total_target(req: RunRequest) -> int:
 
 
 def _keys(db: Database, user_id: int | None):
-    return user_keys(db, user_id) if user_id is not None else {}
+    return user_key_list(db, user_id) if user_id is not None else []
 
 
 def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None = None) -> None:
