@@ -13,7 +13,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from playwright.sync_api import BrowserContext, sync_playwright
 
@@ -180,7 +180,8 @@ def find_chrome() -> str | None:
     return next((str(p) for p in candidates if p.is_file()), None)
 
 
-def interactive_login(platform: str, timeout_s: int = 600) -> bool:
+def interactive_login(platform: str, timeout_s: int = 600,
+                      on_window_closed: Callable[[], None] | None = None) -> bool:
     """Cho người dùng tự đăng nhập vào profile của FeedLens.
 
     Ưu tiên mở Chrome của máy như một cửa sổ bình thường, KHÔNG gắn Playwright: Google, Apple,
@@ -205,12 +206,16 @@ def interactive_login(platform: str, timeout_s: int = 600) -> bool:
             proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             pass
+    if on_window_closed:
+        on_window_closed()  # để giao diện báo "Đang kiểm tra…" thay vì vẫn "Đăng nhập trong cửa sổ…"
     try:
         clean_cache(platform)
     except Exception:  # noqa: BLE001
         pass
     ok = check_session(platform)
-    if ok is None:  # Chrome có thể chưa kịp nhả khoá profile ngay khi cửa sổ đóng
+    for _ in range(2):  # None = chưa mở được profile (Chrome chưa kịp nhả khoá): thử lại
+        if ok is not None:
+            break
         time.sleep(2)
         ok = check_session(platform)
     return bool(ok)

@@ -75,6 +75,22 @@ def test_login_uses_playwright_when_channel_is_not_chrome(tmp_path, monkeypatch)
     assert launched == []
 
 
+def test_login_signals_window_closed_before_checking(tmp_path, monkeypatch):
+    setup(monkeypatch, tmp_path)
+    events = []
+    monkeypatch.setattr(browser, "check_session", lambda platform: events.append("check") or True)
+    assert browser.interactive_login("linkedin", on_window_closed=lambda: events.append("closed")) is True
+    assert events == ["closed", "check"]
+
+
+def test_login_retries_session_check_while_profile_is_busy(tmp_path, monkeypatch):
+    setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(browser.time, "sleep", lambda s: None)
+    results = iter([None, None, True])
+    monkeypatch.setattr(browser, "check_session", lambda platform: next(results))
+    assert browser.interactive_login("linkedin") is True
+
+
 def test_find_chrome_prefers_env_override(tmp_path, monkeypatch):
     exe = tmp_path / "chrome.exe"
     exe.write_text("")

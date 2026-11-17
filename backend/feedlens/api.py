@@ -405,8 +405,10 @@ def login_platform(p: str, user: User = Depends(current_user)):
             _login_state[p] = "waiting"
             try:
                 with _platform_locks[p]:
-                    _session_cache[p] = browser.interactive_login(p)
+                    _session_cache[p] = browser.interactive_login(
+                        p, on_window_closed=lambda: _session_checks.__setitem__(p, "checking"))
             finally:
+                _session_checks.pop(p, None)
                 _login_state[p] = "idle"
         threading.Thread(target=worker, daemon=True).start()
     return {"status": "waiting"}
