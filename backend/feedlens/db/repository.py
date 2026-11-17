@@ -220,19 +220,21 @@ class Database:
                     status="analyzing", request=req.model_dump(), error=None, digest=None))
             return result.rowcount == 1
 
-    def claim_next_pending(self, user_id: int) -> dict | None:
-        """Agent nhận lượt 'pending' cũ nhất của user và chuyển sang 'scraping'."""
+    def claim_next_pending(self, user_id: int, protocol_version: int = 1) -> dict | None:
+        """Old agents only claim legacy-equivalent requests; never silently run a new mode."""
+        from ..source_modes import legacy_agent_compatible
         with self.Session.begin() as s:
             q = (select(RunRow).where(RunRow.user_id == user_id, RunRow.status == "pending")
-                 .order_by(RunRow.id).limit(1))
+                 .order_by(RunRow.id))
             if self.engine.dialect.name == "postgresql":
                 q = q.with_for_update(skip_locked=True)
-            row = s.scalar(q)
-            if not row:
-                return None
-            row.status = "scraping"
-            s.flush()
-            return _run_dict(row)
+            for row in s.scalars(q).yield_per(20):
+                if protocol_version < 2 and not legacy_agent_compatible(RunRequest(**row.request)):
+                    continue
+                row.status = "scraping"
+                s.flush()
+                return _run_dict(row)
+            return None
 
     # ---------------------------------------------------------------- posts
     def save_raw_posts(self, run_id: int, posts: list[RawPost]) -> None:
@@ -265,11 +267,24 @@ class Database:
                     row = PostRow(run_id=run_id, fingerprint=p.fingerprint)
                     s.add(row)
                     rows[p.fingerprint] = row
-                for key in RawPost.model_fields:
+                for key in RawPost.model_fields.keys() - {"job_seed"}:
                     setattr(row, key, getattr(p, key))
                 row.category, row.summary = p.category, p.summary
                 row.job = p.job.model_dump() if p.job else None
                 row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
+            self._keep_job_seeds(s, run_id, posts)
+
+    def _keep_job_seeds(self, session, run_id: int, posts: list[AnalyzedPost]) -> None:
+        # Seed identity must survive reload even for imports without a raw checkpoint.
+        if not any(p.job_seed for p in posts):
+            return
+        run = session.get(RunRow, run_id)
+        if run:
+            raw = {RawPost(**p).fingerprint: p for p in (run.raw_posts or [])}
+            for p in posts:
+                if p.job_seed:
+                    raw[p.fingerprint] = p.model_dump(include=set(RawPost.model_fields))
+            run.raw_posts = list(raw.values())
 
     def known_fingerprints(self, platform: str, user_id: int | None = None) -> set[str]:
         q = select(PostRow.fingerprint).where(PostRow.platform == platform)
@@ -287,6 +302,7 @@ class Database:
                 summary=p.summary, job=p.job.model_dump() if p.job else None,
                 topic_ids=list(p.topic_ids), topic_reason=p.topic_reason,
             ) for p in posts)
+            self._keep_job_seeds(s, run_id, posts)
 
     def get_posts(self, run_id: int, include_raw: bool = False) -> list[AnalyzedPost]:
         with self.Session() as s:
@@ -298,10 +314,12 @@ class Database:
                 topic_ids=list(r.topic_ids or []), topic_reason=r.topic_reason or "",
             ) for r in rows]
             run = s.get(RunRow, run_id)
-            # The posts table has no sponsored column; the raw snapshot keeps it (older runs: False).
-            sponsored = {RawPost(**p).fingerprint for p in ((run.raw_posts if run else None) or []) if p.get("sponsored")}
-        for p in posts:
-            p.sponsored = p.fingerprint in sponsored
+            # Optional raw metadata is absent on old runs; keep their existing identity.
+            raw_by_fp = {p.fingerprint: p for p in (RawPost(**p) for p in ((run.raw_posts if run else None) or []))}
+            for row, p in zip(rows, posts):
+                raw = raw_by_fp.get(row.fingerprint)
+                if raw:
+                    p.sponsored, p.job_seed = raw.sponsored, raw.job_seed
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
             raw = self.get_raw_posts(run_id)

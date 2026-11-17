@@ -4,10 +4,57 @@ import hashlib
 import re
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Platform = Literal["facebook", "linkedin", "x", "reddit"]
 SourceType = Literal["feed", "group", "search"]
+Mode = Literal["feed", "group", "search", "page", "jobs", "recruiting_posts", "legacy_group",
+               "subreddit", "home", "account", "list"]
+
+
+class EmptyOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_default=True)
+
+
+class FacebookGroupOptions(EmptyOptions):
+    latest: bool = Field(True, strict=True)
+
+
+class LinkedInJobsOptions(EmptyOptions):
+    keywords: str = Field(..., min_length=1, max_length=500)
+    location: str = Field("", max_length=300)
+    work_modes: list[Literal["remote", "hybrid", "onsite"]] = Field(default_factory=list, max_length=3)
+    posted_within: Literal["day", "week", "month"] = "week"
+
+
+class LinkedInPostsOptions(EmptyOptions):
+    posted_within: Literal["day", "week"] | None = "week"
+    hiring: bool = Field(True, strict=True)
+
+
+class RedditSubredditOptions(EmptyOptions):
+    sort: Literal["new", "top_day", "top_week"] = "new"
+
+
+class RedditSearchOptions(EmptyOptions):
+    sort: Literal["new", "top"] = "new"
+
+
+ModeOptions = (EmptyOptions | FacebookGroupOptions | LinkedInJobsOptions | LinkedInPostsOptions
+               | RedditSubredditOptions | RedditSearchOptions)
+
+
+class JobSeed(BaseModel):
+    """Observed job facts, kept separately from the AI's JobInfo assessment."""
+    model_config = ConfigDict(extra="forbid")
+    title: str = ""
+    company: str = ""
+    location: str = ""
+    url: str = ""
+    job_id: str = ""
+    posted_at: str = ""
+    work_mode: Literal["", "remote", "hybrid", "onsite"] = ""
+    salary_text: str = ""
 
 CATEGORIES: dict[str, str] = {
     "job": "Việc làm / Tuyển dụng",
@@ -31,9 +78,12 @@ class RawPost(BaseModel):
     url: str = ""
     posted_at: str = ""
     sponsored: bool = False
+    job_seed: JobSeed | None = None
 
     @property
     def fingerprint(self) -> str:
+        if self.platform == "linkedin" and self.job_seed and self.job_seed.job_id:
+            return hashlib.sha1(f"linkedin|job|{self.job_seed.job_id}".encode()).hexdigest()
         norm = re.sub(r"\s+", " ", self.text.lower()).strip()[:500]
         return hashlib.sha1(f"{self.platform}|{norm}".encode()).hexdigest()
 
@@ -104,6 +154,8 @@ class Digest(BaseModel):
 class RunRequest(BaseModel):
     platform: Platform
     source_type: SourceType = "feed"
+    mode: Mode | None = None
+    options: ModeOptions = Field(default_factory=EmptyOptions)
     sources: list[str] = Field(default_factory=list, description="Group URL/ID, subreddit, từ khóa tìm kiếm...")
     count: int = Field(50, ge=1, le=1000, description="Số bài cho MỖI nguồn (bảng tin / group / từ khóa)")
     speed: Literal["fast", "careful"] = "fast"
@@ -116,3 +168,11 @@ class RunRequest(BaseModel):
     ai_model: str = Field("", description="Bỏ trống => model mặc định của nhà cung cấp")
     only_new: bool = Field(False, description="Bỏ qua bài đã thấy ở các lượt trước")
     headless: bool = False  # mặc định hiện cửa sổ để bạn thấy bot đang làm gì
+
+    @model_validator(mode="before")
+    @classmethod
+    def source_mode(cls, value):
+        if isinstance(value, dict):
+            from .source_modes import prepare_request
+            return prepare_request(value)
+        return value

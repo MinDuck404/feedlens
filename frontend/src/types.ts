@@ -1,5 +1,25 @@
 export type Platform = "facebook" | "linkedin" | "x" | "reddit";
 export type SourceType = "feed" | "group" | "search";
+export type Mode = "feed" | "group" | "search" | "page" | "jobs" | "recruiting_posts" | "legacy_group" | "subreddit" | "home" | "account" | "list";
+export interface LinkedInJobsOptions {
+  keywords: string;
+  location?: string;
+  work_modes?: ("remote" | "hybrid" | "onsite")[];
+  posted_within?: "day" | "week" | "month";
+}
+export type ModeOptions = Record<string, never> | { latest?: boolean } | LinkedInJobsOptions
+  | { posted_within?: "day" | "week" | null; hiring?: boolean }
+  | { sort?: "new" | "top_day" | "top_week" | "top" };
+export interface JobSeed {
+  title: string;
+  company: string;
+  location: string;
+  url: string;
+  job_id: string;
+  posted_at: string;
+  work_mode: "" | "remote" | "hybrid" | "onsite";
+  salary_text: string;
+}
 export type RunStatus = "pending" | "queued" | "scraping" | "analyzing" | "done" | "error" | "analysis_failed";
 
 export interface AIProviderInfo {
@@ -47,6 +67,8 @@ export interface PlatformState {
 export interface RunRequest {
   platform: Platform;
   source_type: SourceType;
+  mode?: Mode | null;
+  options?: ModeOptions;
   sources: string[];
   count: number;
   job_mode: boolean;
@@ -101,6 +123,7 @@ export interface Job {
 }
 
 export interface Post {
+  job_seed?: JobSeed | null;
   topic_ids?: number[];
   topic_reason?: string;
   analyzed?: boolean;
