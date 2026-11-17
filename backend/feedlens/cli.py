@@ -139,6 +139,11 @@ def main(argv: list[str] | None = None) -> None:
 
             threading.Thread(target=open_when_ready, daemon=True).start()
         uvicorn.run("feedlens.api:app", host="127.0.0.1", port=a.port)
+        # Web server đã tắt. Không chờ các lô AI đang thử lại (ThreadPoolExecutor bị Python join lúc thoát,
+        # có thể treo terminal hàng phút). Lô xong đã lưu; lần chạy sau fail_interrupted() mở "Phân tích tiếp".
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
     elif a.cmd == "login":
         from .browser import interactive_login
         print("Đăng nhập trong cửa sổ Chrome vừa mở. FeedLens chỉ lưu cookie phiên, không lưu mật khẩu.")
