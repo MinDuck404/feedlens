@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -203,7 +204,20 @@ def _topic_groups(posts: list[AnalyzedPost], topics: list[Topic]) -> dict[int, l
 
 RETRIES = 3              # mỗi model: 1 lần gọi + 3 lần thử lại (chờ 3s, 6s, 12s)
 RETRY_BASE_SECONDS = 3.0
+MAX_RETRY_WAIT = 60.0    # nhà cung cấp bảo chờ lâu hơn thế này thì coi như model đó hết lượt
 _TRANSIENT_CODES = {408, 429, 500, 502, 503, 504, 529}
+
+
+def _retry_after(message: str) -> float | None:
+    """Số giây nhà cung cấp yêu cầu chờ ("Please retry in 37.4s", "retryDelay: '37s'"), tối đa MAX_RETRY_WAIT.
+    None khi không có, hoặc khi thời gian tính bằng giờ/phút (hạn mức dài: chờ cũng vô ích)."""
+    m = re.search(r"retry in ([\d.]+)\s*s\b", message, re.I) or re.search(r"retryDelay\W+([\d.]+)s", message, re.I)
+    return min(float(m.group(1)), MAX_RETRY_WAIT) if m else None
+
+
+def _is_daily_quota(message: str) -> bool:
+    """Hết hạn mức theo ngày (Gemini free tier): thử lại trong vài giây không bao giờ thành công."""
+    return bool(re.search(r"per\s?day", message, re.I))
 
 
 def _is_transient(e: Exception) -> bool:
@@ -223,6 +237,7 @@ class LLMAnalyzer:
         self.fallback_models = list(fallback_models or [])
         self.notify: Callable[[str], None] = lambda msg: None  # pipeline gắn vào để báo trạng thái lên web
         self.language = "vi"  # pipeline đặt theo RunRequest.language
+        self._switch_lock = threading.Lock()  # các lô chạy song song: chỉ một lô được đổi model
 
     @property
     def label(self) -> str:
@@ -231,6 +246,7 @@ class LLMAnalyzer:
     def _json_call(self, prompt: str, schema: dict, effort: str) -> dict:
         name = self.provider.info.name
         while True:
+            model = self.provider.model
             for attempt in range(RETRIES + 1):
                 try:
                     return self.provider.complete_json(system_prompt(self.language), prompt, schema, effort)
@@ -238,16 +254,21 @@ class LLMAnalyzer:
                     if not _is_transient(e):
                         raise
                     last = e
+                    if _is_daily_quota(str(e)) or self.provider.model != model:
+                        break  # hết lượt trong ngày, hoặc lô khác đã đổi model: khỏi chờ
                     if attempt < RETRIES:
-                        wait = RETRY_BASE_SECONDS * 2 ** attempt
-                        self.notify(f"{name} ({self.provider.model}) đang quá tải, thử lại sau {wait:.0f} giây "
+                        wait = _retry_after(str(e)) or RETRY_BASE_SECONDS * 2 ** attempt
+                        self.notify(f"{name} ({model}) đang quá tải, thử lại sau {wait:.0f} giây "
                                     f"(lần {attempt + 1}/{RETRIES})…")
                         time.sleep(wait)
-            # Model này vẫn quá tải: chuyển sang model dự phòng nếu user để "Mặc định"
-            if not self.fallback_models:
-                raise last
-            old, self.provider.model = self.provider.model, self.fallback_models.pop(0)
-            self.notify(f"{old} quá tải, chuyển sang {self.provider.model}…")
+            # Model này vẫn quá tải: chuyển sang model dự phòng nếu user để "Mặc định".
+            # Nhiều lô cùng lỗi một lúc thì chỉ lô đầu tiên đổi model; các lô sau dùng luôn model mới.
+            with self._switch_lock:
+                if self.provider.model == model:
+                    if not self.fallback_models:
+                        raise last
+                    self.provider.model = self.fallback_models.pop(0)
+                    self.notify(f"{model} quá tải, chuyển sang {self.provider.model}…")
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
                  profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
