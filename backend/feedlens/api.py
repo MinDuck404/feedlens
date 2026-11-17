@@ -473,11 +473,20 @@ def runs(user: User = Depends(current_user)):
 
 
 @private.get("/runs/{run_id}")
-def run_detail(run_id: int, user: User = Depends(current_user)):
+def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = True):
+    from sqlalchemy import func, select
+    from .db.tables import PostRow
+
     r = _own_run(run_id, user)
-    return {**r, "progress": progress_message(PROGRESS.get(run_id)),
-            "can_continue_analysis": db().can_continue_analysis(run_id),
-            "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None, "posts": [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]}
+    with db().Session() as session:
+        version = session.scalar(select(func.count()).select_from(PostRow).where(PostRow.run_id == run_id))
+    active = r["status"] in {"pending", "queued", "scraping", "analyzing"}
+    result = {**r, "progress": progress_message(PROGRESS.get(run_id)), "posts_version": version,
+              "can_continue_analysis": False if active else db().can_continue_analysis(run_id),
+              "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None}
+    if posts:
+        result["posts"] = [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]
+    return result
 
 
 class AnalysisBody(BaseModel):

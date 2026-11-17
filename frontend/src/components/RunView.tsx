@@ -52,22 +52,37 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
     let alive = true;
     let timer: number;
     let failures = 0;
+    let current: Run | null = null;
+    let loadedVersion = -1;
+    let lastFullLoad = -Infinity;
     setMissing(false);
     setLoadError(false);
     const load = async () => {
       try {
-        const r = await api.run(runId);
+        let r = await api.run(runId, false);
         if (!alive) return;
+        const active = !["done", "error", "analysis_failed"].includes(r.status);
+        const changed = current?.status !== r.status;
+        const newerPosts = r.posts_version !== undefined && r.posts_version > loadedVersion;
+        if (!r.posts && (!current || changed || !active || newerPosts && Date.now() - lastFullLoad >= 10000)) {
+          r = await api.run(runId);
+          if (!alive) return;
+          loadedVersion = r.posts_version ?? loadedVersion;
+          lastFullLoad = Date.now();
+        } else if (!r.posts && current?.posts) {
+          r = { ...r, posts: current.posts };
+        }
+        current = r;
         setRun(r);
         setLoadError(false);
         failures = 0;
-        if (!["done", "error", "analysis_failed"].includes(r.status)) timer = window.setTimeout(load, 1500);
+        if (!["done", "error", "analysis_failed"].includes(r.status)) timer = window.setTimeout(load, document.hidden ? 10000 : 1500);
       } catch (e) {
         if (!alive) return;
         if (e instanceof ApiError && e.status === 404) { setMissing(true); return; }
         if (e instanceof ApiError && e.status === 401) return;
         setLoadError(true);
-        timer = window.setTimeout(load, Math.min(30000, 1500 * 2 ** Math.min(failures++, 5)));
+        timer = window.setTimeout(load, Math.max(document.hidden ? 10000 : 0, Math.min(30000, 1500 * 2 ** Math.min(failures++, 5))));
       }
     };
     load();

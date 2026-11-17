@@ -113,6 +113,10 @@ export default function App() {
   );
 }
 
+export function workspacePollDelay(busy: boolean, waitingLogin: boolean, hidden: boolean): number {
+  return waitingLogin ? 2000 : hidden || !busy ? 15000 : 5000;
+}
+
 function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
   const [platforms, setPlatforms] = useState<PlatformState[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -221,15 +225,18 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
 
   useEffect(() => {
     if (!busy && !waitingLogin && !cloud) return;
-    const t = setInterval(
-      () => {
+    let timer: ReturnType<typeof setInterval>;
+    const schedule = () => {
+      clearInterval(timer);
+      timer = setInterval(() => {
         if (busy || cloud) refreshRuns();
         if (cloud) refreshMe();
         if (waitingLogin) refreshPlatforms();
-      },
-      busy || waitingLogin ? 2000 : 15000
-    );
-    return () => clearInterval(t);
+      }, workspacePollDelay(busy, waitingLogin, document.hidden));
+    };
+    schedule();
+    document.addEventListener("visibilitychange", schedule);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", schedule); };
   }, [busy, waitingLogin, cloud, refreshRuns, refreshPlatforms, refreshMe]);
 
   return (

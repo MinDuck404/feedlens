@@ -229,6 +229,30 @@ export function serializeDraft(base: RunRequest, mode: Mode, draft: ModeDraft): 
     count: draft.count, job_mode: mode === "jobs" || base.job_mode };
 }
 
+export function distributeQuotas(requested: number[], cap: number): number[] {
+  const quotas = requested.map(() => 0);
+  let remaining = Math.max(0, Math.floor(cap));
+  let active = requested.map((_, index) => index).filter((index) => requested[index] > 0);
+  while (remaining > 0 && active.length) {
+    const share = Math.floor(remaining / active.length);
+    const saturated = active.filter((index) => requested[index] - quotas[index] <= share);
+    if (saturated.length) {
+      for (const index of saturated) {
+        const amount = requested[index] - quotas[index];
+        quotas[index] += amount;
+        remaining -= amount;
+      }
+      active = active.filter((index) => !saturated.includes(index));
+      continue;
+    }
+    active.forEach((index) => { quotas[index] += share; });
+    remaining -= share * active.length;
+    active.slice(0, remaining).forEach((index) => { quotas[index]++; });
+    remaining = 0;
+  }
+  return quotas;
+}
+
 export function countPlan(platform: Platform, mode: Mode, draft: ModeDraft, maxPosts: number) {
   const definition = modeDefinition(platform, mode), identities = new Set<string>();
   if (mode === "jobs" || definition.sourceType === "feed") identities.add("single");
@@ -236,7 +260,9 @@ export function countPlan(platform: Platform, mode: Mode, draft: ModeDraft, maxP
     try { identities.add(draftIdentity(platform, mode, draft, source)); } catch { identities.add(source); }
   }
   const cap = Math.min(maxPosts, platform === "reddit" ? 100 : platform === "x" && mode === "search" ? 60 : maxPosts);
-  return { label: definition.countLabel, sources: identities.size, total: Math.min(draft.count * identities.size, cap), cap };
+  const quotas = distributeQuotas(Array.from(identities, () => draft.count), cap);
+  return { label: definition.countLabel, sources: identities.size, total: quotas.reduce((sum, quota) => sum + quota, 0), cap,
+    quotas, minPerSource: quotas.length ? Math.min(...quotas) : 0, maxPerSource: quotas.length ? Math.max(...quotas) : 0 };
 }
 
 /** Add the new draft format once, preserving old preference fields and unknown legacy sources. */

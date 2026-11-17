@@ -89,7 +89,7 @@ test("source validation refuses foreign hosts, credentials, unsupported paths an
 
 test("counts dedupe canonical sources and follow platform and global caps", () => {
   const plan = (platform, mode, sourceText, count, max = 500, options) => modes.countPlan(platform, mode, { ...modes.defaultDraft(platform, mode), sourceText, count, ...(options ? { options } : {}) }, max);
-  assert.deepEqual(plan("reddit", "subreddit", "r/a\nr/b\nr/c", 40), { label: "cmp.countPerSubredditLabel", sources: 3, total: 100, cap: 100 });
+  assert.deepEqual(plan("reddit", "subreddit", "r/a\nr/b\nr/c", 40), { label: "cmp.countPerSubredditLabel", sources: 3, total: 100, cap: 100, quotas: [34, 33, 33], minPerSource: 33, maxPerSource: 34 });
   assert.equal(plan("reddit", "home", "", 150).total, 100);
   assert.equal(plan("x", "search", "one\ntwo\nthree", 25).total, 60);
   assert.equal(plan("facebook", "page", "NASA\nhttps://www.facebook.com/NASA/", 40).total, 40);
@@ -99,6 +99,21 @@ test("counts dedupe canonical sources and follow platform and global caps", () =
   assert.equal(plan("x", "account", "@sama", 20).label, "cmp.countPerAccountLabel");
   assert.equal(plan("x", "list", "123", 20).label, "cmp.countPerListLabel");
   assert.equal(plan("facebook", "feed", "", 40).label, "cmp.countLabel");
+});
+
+test("water filling saturates small sources and gives odd posts to earlier sources", () => {
+  assert.deepEqual(modes.distributeQuotas(Array(13).fill(120), 500), [...Array(6).fill(39), ...Array(7).fill(38)]);
+  assert.deepEqual(modes.distributeQuotas([10, 600], 500), [10, 490]);
+  assert.deepEqual(modes.distributeQuotas([2, 100, 100], 10), [2, 4, 4]);
+  assert.deepEqual(modes.distributeQuotas([0, 1, 120, 120], 100), [0, 1, 50, 49]);
+  assert.deepEqual(modes.distributeQuotas([2, 3, 4], 100), [2, 3, 4]);
+  assert.deepEqual(modes.distributeQuotas([10, 10, 10], 2), [1, 1, 0]);
+  assert.deepEqual(modes.distributeQuotas([], 100), []);
+  assert.deepEqual(modes.distributeQuotas([10, 10], 0), [0, 0]);
+  const plan = modes.countPlan("facebook", "group", { ...modes.defaultDraft("facebook", "group"), count: 120,
+    sourceText: Array.from({ length: 13 }, (_, i) => `group${i}`).join("\n") }, 500);
+  assert.deepEqual(plan.quotas, [...Array(6).fill(39), ...Array(7).fill(38)]);
+  assert.equal(plan.minPerSource, 38); assert.equal(plan.maxPerSource, 39);
 });
 
 test("migration preserves old data, disabled sources, and unknown legacy X groups, and is idempotent", () => {

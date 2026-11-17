@@ -400,6 +400,10 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <p className="mt-1 text-sm text-ink-soft">
                 {t("cmp.total", { total, n: nSources })}
                 {f.count * nSources > plan.cap && t("cmp.cap", { max: plan.cap })}.
+                {f.count * nSources > plan.cap && <span className="mt-1 block">{t("cmp.effectivePerSource", {
+                  max: plan.cap, range: plan.minPerSource === plan.maxPerSource ? formatNumber(plan.minPerSource, lang)
+                    : `${formatNumber(plan.minPerSource, lang)}–${formatNumber(plan.maxPerSource, lang)}`,
+                })}</span>}
               </p>
             )}
           </Group>

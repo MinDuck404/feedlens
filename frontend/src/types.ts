@@ -156,6 +156,7 @@ export interface Progress {
 }
 
 export interface Run {
+  posts_version?: number;
   can_continue_analysis?: boolean;
   id: number;
   created_at: string;

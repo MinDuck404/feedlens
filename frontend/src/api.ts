@@ -101,7 +101,7 @@ export const api = {
   platformAction: (p: string, act: "login" | "check" | "logout") =>
     call(`/api/platforms/${p}/${act}`, { method: "POST" }),
   runs: () => call<Run[]>("/api/runs"),
-  run: (id: number) => call<Run>(`/api/runs/${id}`),
+  run: (id: number, posts = true) => call<Run>(`/api/runs/${id}${posts ? "" : "?posts=0"}`),
   createRun: (req: RunRequest) =>
     call<{ id: number; agent?: AgentInfo }>("/api/runs", { method: "POST", body: JSON.stringify(req) }),
   deleteRun: (id: number) => call(`/api/runs/${id}`, { method: "DELETE" }),

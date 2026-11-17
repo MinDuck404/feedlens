@@ -279,6 +279,62 @@ test("run polling backs off after transient errors, recovers, and only 404 means
   } finally { harness.close(); React.useContext = originalContext; api.run = original; window.setTimeout = oldTimer; global.clearTimeout = oldClear; }
 });
 
+test("API run detail supports metadata polling without changing default requests", async () => {
+  const original = global.fetch, requests = [];
+  global.fetch = async (url) => { requests.push(url); return new Response("{}"); };
+  try {
+    await api.run(42); await api.run(42, false);
+    assert.deepEqual(requests, ["/api/runs/42", "/api/runs/42?posts=0"]);
+  } finally { global.fetch = original; }
+});
+
+test("active run polling keeps posts, throttles full refreshes, and loads final results", async () => {
+  const RunView = require("../src/components/RunView.tsx").default;
+  const original = api.run, originalContext = React.useContext, oldTimer = window.setTimeout, oldClear = global.clearTimeout, oldNow = Date.now;
+  const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value; context.close();
+  const timers = [], calls = []; let now = 0, version = 0, status = "scraping";
+  const oldHidden = document.hidden;
+  Date.now = () => now; document.hidden = false;
+  React.useContext = () => value;
+  window.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
+  global.clearTimeout = () => {};
+  const post = { id: 1, category: "news", analyzed: true, text: "Previously loaded post", source: "feed", platform: "facebook", posted_at: "", url: "", summary: "News", author: "Author", job: null };
+  api.run = async (id, posts = true) => {
+    calls.push({ posts, now });
+    return { id, status, posts_version: version, request: { platform: "facebook", source_type: "feed", ai_provider: "offline", ai_model: "" },
+      created_at: "2026-11-14T12:00:00Z", ...(posts ? { posts: [post] } : {}) };
+  };
+  const harness = hooks(RunView), props = { runId: 1, tab: "posts", meta: {}, onTab() {}, onDeleted() {} };
+  const poll = async (time) => { now = time; await timers.shift().callback(); await tick(); };
+  try {
+    harness.render(props); await tick();
+    assert.deepEqual(calls.map((call) => call.posts), [false, true]);
+    await poll(1500); assert.equal(calls.at(-1).posts, false);
+    status = "analyzing"; version = 20; await poll(3000);
+    assert.deepEqual(calls.slice(-2).map((call) => call.posts), [false, true]);
+    version = 40; await poll(4500);
+    assert.equal(calls.at(-1).posts, false);
+    assert.ok(JSON.stringify(harness.render(props)).includes("Previously loaded post"));
+    await poll(13000); assert.equal(calls.at(-1).posts, true);
+    document.hidden = true; await poll(14500); assert.equal(timers.at(-1).delay, 10000);
+    status = "done"; version = 500; await poll(24500);
+    assert.deepEqual(calls.slice(-2).map((call) => call.posts), [false, true]);
+    assert.equal(timers.length, 0);
+  } finally {
+    harness.close(); api.run = original; React.useContext = originalContext; window.setTimeout = oldTimer;
+    global.clearTimeout = oldClear; Date.now = oldNow; document.hidden = oldHidden;
+  }
+});
+
+test("workspace polling uses 5s active, 15s hidden, and 2s login checks", () => {
+  const { workspacePollDelay } = require("../src/App.tsx");
+  assert.equal(workspacePollDelay(true, false, false), 5000);
+  assert.equal(workspacePollDelay(true, false, true), 15000);
+  assert.equal(workspacePollDelay(false, false, false), 15000);
+  assert.equal(workspacePollDelay(true, true, false), 2000);
+  assert.equal(workspacePollDelay(true, true, true), 2000);
+});
+
 
 test("saved sessions remain unchecked until verification and offer login only when needed", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
