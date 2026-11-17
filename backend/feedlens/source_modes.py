@@ -36,6 +36,26 @@ class SourceTarget(NamedTuple):
     per_target_count: int
 
 
+def allocate_targets(targets: list[SourceTarget], max_posts: int) -> list[SourceTarget]:
+    """Water-fill quotas; preserve source order and give remainders to earlier sources."""
+    budget = min(max(0, max_posts), sum(t.per_target_count for t in targets))
+    quotas = [0] * len(targets)
+    pending = list(range(len(targets)))
+    while pending:
+        share, remainder = divmod(budget, len(pending))
+        small = [i for i in pending if targets[i].per_target_count <= share]
+        if small:
+            for i in small:
+                quotas[i] = targets[i].per_target_count
+                budget -= quotas[i]
+            pending = [i for i in pending if targets[i].per_target_count > share]
+        else:
+            for rank, i in enumerate(pending):
+                quotas[i] = share + (rank < remainder)
+            break
+    return [t._replace(per_target_count=quota) for t, quota in zip(targets, quotas)]
+
+
 def _path(value: str, platform: str) -> tuple[str, dict]:
     """Only approved hosts and public web URLs, never credentials or custom ports."""
     if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", value) or value.startswith("//"):
@@ -123,12 +143,13 @@ def effective_mode(req: RunRequest) -> str:
     return req.mode or prepare_request(req.model_dump())["mode"]
 
 
-def normalize(req: RunRequest) -> list[SourceTarget]:
+def normalize(req: RunRequest, max_posts: int = 500) -> list[SourceTarget]:
     """Return [(label, url, chronological, per_target_count)], validating every source.
 
     Validates model_copy updates too. Empty source lists are accepted only for
     feed/home (Jobs creates its one query source from options). Removes duplicate
-    canonical URLs, preserves order, caps Reddit at 100 and X search at 60.
+    canonical URLs, preserves order and shares the cap fairly across all sources.
+    Reddit is additionally capped at 100, X search at 60.
     Raises ValueError/Pydantic ValidationError before any browser side effect.
     """
     req = RunRequest.model_validate(req.model_dump())
@@ -136,13 +157,13 @@ def normalize(req: RunRequest) -> list[SourceTarget]:
     bases = {"facebook": "https://www.facebook.com", "linkedin": "https://www.linkedin.com",
              "reddit": "https://www.reddit.com", "x": "https://x.com"}
     base = bases[platform]
+    cap = min(max_posts, 100) if platform == "reddit" else min(max_posts, 60) if platform == "x" and mode == "search" else max_posts
     if mode in {"feed", "home"}:
         suffix = {"facebook": "/", "linkedin": "/feed/", "reddit": "/", "x": "/home"}[platform]
-        return [SourceTarget(platform, base + suffix, False, min(req.count, 100) if platform == "reddit" else req.count)]
+        return allocate_targets([SourceTarget(platform, base + suffix, False, req.count)], cap)
     if not req.sources:
         raise ValueError("At least one source is required")
     result, seen = [], set()
-    cap = 100 if platform == "reddit" else 60 if platform == "x" and mode == "search" else None
     for value in req.sources:
         source = value.strip()
         if not source or len(source) > 2000:
@@ -236,18 +257,13 @@ def normalize(req: RunRequest) -> list[SourceTarget]:
         if url in seen:
             continue
         seen.add(url)
-        count = min(req.count, cap) if cap is not None else req.count
-        if count <= 0:
-            continue
-        result.append(SourceTarget(source, url, chronological, count))
-        if cap is not None:
-            cap -= count
-    return result
+        result.append(SourceTarget(source, url, chronological, req.count))
+    return allocate_targets(result, cap)
 
 
 def total_target(req: RunRequest, max_posts: int = 500) -> int:
     """Effective total after duplicate-source, per-platform and global caps."""
-    return min(max_posts, sum(t.per_target_count for t in normalize(req)))
+    return sum(t.per_target_count for t in normalize(req, max_posts))
 
 
 def legacy_agent_compatible(req: RunRequest) -> bool:

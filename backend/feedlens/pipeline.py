@@ -24,7 +24,7 @@ def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], No
     """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
     from .browser import open_context  # chỉ cần Playwright khi thật sự lướt
 
-    normalize(req)  # Reject invalid sources before opening a profile.
+    normalize(req, settings.max_posts)  # Reject invalid sources before opening a profile.
     with open_context(req.platform, headless=req.headless) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         return collect_all(page, req, seen, on_progress, interactive=not req.headless, report=report)
@@ -35,7 +35,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
-    targets = normalize(req)
+    targets = normalize(req, settings.max_posts)
     scraper = LinkedInJobsScraper() if req.platform == "linkedin" and req.mode == "jobs" else SCRAPERS[req.platform]()
     total_cap = total_target(req)
     posts: list[RawPost] = []

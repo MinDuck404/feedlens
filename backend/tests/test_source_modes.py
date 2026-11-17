@@ -137,9 +137,9 @@ def test_target_dedupe_platform_and_global_caps():
     assert [p.per_target_count for p in normalize(req)] == [40, 40]
     assert total_target(req) == 80 and total_target(req, max_posts=60) == 60
     reddit = RunRequest(platform="reddit", mode="subreddit", count=40, sources=["a", "b", "c", "d"])
-    assert [p.per_target_count for p in normalize(reddit)] == [40, 40, 20]
+    assert [p.per_target_count for p in normalize(reddit)] == [25, 25, 25, 25]
     x = RunRequest(platform="x", mode="search", count=40, sources=["a & b", "a & b", "c"])
-    assert [p.per_target_count for p in normalize(x)] == [40, 20]
+    assert [p.per_target_count for p in normalize(x)] == [30, 30]
     assert parse_qs(urlsplit(normalize(x)[0].url).query)["q"] == ["a & b"]
     assert not legacy_agent_compatible(reddit)
     assert not legacy_agent_compatible(x)

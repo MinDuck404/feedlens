@@ -10,11 +10,11 @@ import unicodedata
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import create_engine, delete, event, inspect, select, text
+from sqlalchemy import JSON, Text, cast, create_engine, delete, event, func, inspect, or_, select, text, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from ..models import AnalyzedPost, Digest, JobInfo, RawPost, RunRequest, Topic
+from ..models import AnalyzedPost, Digest, JobInfo, JobSeed, RawPost, RunRequest, Topic
 from .tables import JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, TopicRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
@@ -287,11 +287,36 @@ class Database:
             run.raw_posts = list(raw.values())
 
     def known_fingerprints(self, platform: str, user_id: int | None = None) -> set[str]:
-        q = select(PostRow.fingerprint).where(PostRow.platform == platform)
-        if user_id is not None:
-            q = q.join(RunRow).where(RunRow.user_id == user_id)
+        q = (select(PostRow.fingerprint).join(RunRow)
+             .where(PostRow.platform == platform, RunRow.user_id == user_id))
+        sqlite = self.engine.dialect.name == "sqlite"
+        array_type = func.json_type(RunRow.raw_posts) if sqlite else func.json_typeof(RunRow.raw_posts)
+        unfinished = (select(RunRow.raw_posts).where(
+            RunRow.user_id == user_id, RunRow.request["platform"].as_string() == platform,
+            array_type == "array",
+            or_(RunRow.status.in_(("analyzing", "analysis_failed")), RunRow.digest.is_(None),
+                cast(RunRow.digest, Text).in_(("null", "{}", "[]", ""))),
+        ).subquery())
+        entries = (func.json_each(unfinished.c.raw_posts) if sqlite else
+                   func.json_array_elements(unfinished.c.raw_posts)).table_valued("value")
+        if sqlite:
+            raw_platform = func.json_extract(entries.c.value, "$.platform")
+            raw_text = func.json_extract(entries.c.value, "$.text")
+            job_id = func.json_extract(entries.c.value, "$.job_seed.job_id")
+        else:
+            value = cast(entries.c.value, JSON)
+            raw_platform, raw_text = value["platform"].as_string(), value["text"].as_string()
+            job_id = value["job_seed"]["job_id"].as_string()
+        # Legacy raw JSON has no stored hash. Project only its hash inputs, not whole run payloads.
+        raw_query = (select(raw_text, job_id).select_from(unfinished.join(entries, true()))
+                     .where(raw_platform == platform))
         with self.Session() as s:
-            return set(s.scalars(q))
+            known = set(s.scalars(q))
+            for body, external_id in s.execute(raw_query).yield_per(100):
+                if isinstance(body, str):
+                    seed = JobSeed(job_id=external_id) if external_id else None
+                    known.add(RawPost(platform=platform, source="", text=body, job_seed=seed).fingerprint)
+            return known
 
     def save_posts(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         with self.Session.begin() as s:
