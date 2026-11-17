@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
+import sys
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -163,7 +165,58 @@ def _verification_pending(ctx: BrowserContext, platform: str) -> bool:
     return any(is_blocked_url(platform, p.url) for p in ctx.pages)
 
 
+def find_chrome() -> str | None:
+    """Đường dẫn Chrome cài trên máy (FEEDLENS_CHROME_PATH ghi đè), hoặc None."""
+    override = os.getenv("FEEDLENS_CHROME_PATH")
+    if override and Path(override).is_file():
+        return override
+    if sys.platform == "win32":
+        roots = [os.getenv(k) for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        candidates = [Path(r) / "Google/Chrome/Application/chrome.exe" for r in roots if r]
+    elif sys.platform == "darwin":
+        candidates = [Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")]
+    else:
+        candidates = [Path(p) for p in map(shutil.which, ("google-chrome", "google-chrome-stable")) if p]
+    return next((str(p) for p in candidates if p.is_file()), None)
+
+
 def interactive_login(platform: str, timeout_s: int = 600) -> bool:
+    """Cho người dùng tự đăng nhập vào profile của FeedLens.
+
+    Ưu tiên mở Chrome của máy như một cửa sổ bình thường, KHÔNG gắn Playwright: Google, Apple,
+    Microsoft từ chối "Đăng nhập bằng ..." trong trình duyệt đang bị điều khiển tự động.
+    Người dùng đăng nhập xong thì đóng cửa sổ; FeedLens kiểm tra phiên sau đó.
+    Chỉ dùng được khi lướt bằng Chrome (channel "chrome") để profile dùng chung được;
+    không có Chrome thì quay về cửa sổ Playwright như trước."""
+    chrome = find_chrome() if settings.browser_channel == "chrome" else None
+    if not chrome:
+        return _playwright_login(platform, timeout_s)
+    pdir = profile_dir(platform)
+    pdir.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.Popen([
+        chrome, f"--user-data-dir={pdir}", "--no-first-run", "--no-default-browser-check",
+        f"--disk-cache-size={DISK_CACHE_BYTES}", "--new-window", PLATFORMS[platform].login_url,
+    ])
+    try:
+        proc.wait(timeout=timeout_s)
+    except subprocess.TimeoutExpired:
+        proc.terminate()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            pass
+    try:
+        clean_cache(platform)
+    except Exception:  # noqa: BLE001
+        pass
+    ok = check_session(platform)
+    if ok is None:  # Chrome có thể chưa kịp nhả khoá profile ngay khi cửa sổ đóng
+        time.sleep(2)
+        ok = check_session(platform)
+    return bool(ok)
+
+
+def _playwright_login(platform: str, timeout_s: int = 600) -> bool:
     """Mở cửa sổ Chrome để người dùng tự đăng nhập (và tự hoàn tất xác minh 2 bước nếu có).
 
     Chỉ coi là xong khi đã có cookie phiên VÀ không còn tab nào ở trang xác minh: Facebook đặt
