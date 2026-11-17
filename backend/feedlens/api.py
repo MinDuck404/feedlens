@@ -13,7 +13,7 @@ import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
@@ -439,8 +439,11 @@ def _own_run(run_id: int, user: User) -> dict:
 
 @private.post("/runs")
 def create_run(req: RunRequest, user: User = Depends(current_user)):
-    if req.source_type != "feed" and not req.sources:
-        raise HTTPException(400, "Nhập ít nhất một group hoặc từ khóa.")
+    from .source_modes import normalize
+    try:
+        normalize(req)
+    except ValueError as exc:
+        raise HTTPException(422, f"Invalid source mode/options: {exc}") from exc
     req = req.model_copy(update={"count": min(req.count, settings.max_posts)})
     _check_ai(req, user.id)
     if settings.is_cloud and req.runner == "server":
@@ -456,7 +459,8 @@ def create_run(req: RunRequest, user: User = Depends(current_user)):
         return {"id": run_id}
     if settings.is_cloud:
         run_id = db().create_run(req, user.id, status="pending")
-        PROGRESS[run_id] = {"phase": "pending", "done": 0, "target": req.count, "message": "Đang chờ agent nhận việc…"}
+        from .pipeline import total_target
+        PROGRESS[run_id] = {"phase": "pending", "done": 0, "target": total_target(req), "message": "Đang chờ agent nhận việc…"}
         return {"id": run_id, "agent": _agent_info(user.id)}
     return {"id": start_run(db(), req, user.id)}
 
@@ -489,6 +493,8 @@ def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current
     _check_ai(req, user.id)
     if not db().claim_analysis(run_id, req):
         raise HTTPException(409, "Lượt này đang được phân tích.")
+    if "scrape_report" in r["request"]:
+        db().update_run(run_id, request={**req.model_dump(), "scrape_report": r["request"]["scrape_report"]})
     db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
     start_analysis(db(), run_id, req, raw, user.id)
     return {"ok": True}
@@ -526,13 +532,14 @@ def _clean_posts(posts: list[RawPost]) -> list[RawPost]:
 
 
 @private.get("/agent/next")
-def agent_next(user: User = Depends(agent_user)):
+def agent_next(user: User = Depends(agent_user), protocol_version: int = Query(1, ge=1, le=2)):
     """Agent hỏi việc mỗi vài giây; đồng thời là tín hiệu 'agent đang bật'."""
     db().touch_agent(user.id)
-    job = db().claim_next_pending(user.id)
+    job = db().claim_next_pending(user.id, protocol_version=protocol_version)
     if not job:
         return {"job": None}
-    PROGRESS[job["id"]] = {"phase": "scraping", "done": 0, "target": job["request"]["count"],
+    from .pipeline import total_target
+    PROGRESS[job["id"]] = {"phase": "scraping", "done": 0, "target": total_target(RunRequest(**job["request"])),
                            "message": "Agent đã nhận việc, đang mở trình duyệt…"}
     return {"job": {"id": job["id"], "request": job["request"]}}
 

@@ -90,4 +90,4 @@ def test_collect_all_transfers_at_most_ten_graphql_debug_samples(monkeypatch):
     report={};req=RunRequest(platform='facebook',source_type='group',sources=['one','two'],count=1)
     pipeline.collect_all(None,req,set(),lambda *args:None,False,report)
     assert len(report['missing_graphql_samples'])==10
-    assert report['missing_graphql_samples'][-1]['author']=='source two'
+    assert report['missing_graphql_samples'][-1]['author']=='two'

@@ -11,7 +11,8 @@ from .config import settings
 from .db import Database
 from .models import RawPost, RunRequest
 from .job_profile import load_profile
-from .scrapers import SCRAPERS
+from .scrapers import SCRAPERS, LinkedInJobsScraper
+from .source_modes import normalize, total_target as planned_total_target
 
 # Tiến độ trực tiếp cho UI: run_id -> {"phase", "message", "done", "target"}
 PROGRESS: dict[int, dict] = {}
@@ -23,6 +24,7 @@ def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], No
     """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
     from .browser import open_context  # chỉ cần Playwright khi thật sự lướt
 
+    normalize(req)  # Reject invalid sources before opening a profile.
     with open_context(req.platform, headless=req.headless) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         return collect_all(page, req, seen, on_progress, interactive=not req.headless, report=report)
@@ -33,23 +35,24 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
-    scraper = SCRAPERS[req.platform]()
-    targets = scraper.urls(req.source_type, req.sources)
+    targets = normalize(req)
+    scraper = LinkedInJobsScraper() if req.platform == "linkedin" and req.mode == "jobs" else SCRAPERS[req.platform]()
     total_cap = total_target(req)
     posts: list[RawPost] = []
     skipped: list[str] = []
-    for i, (label, url) in enumerate(targets):
+    for i, (label, url, chronological, per_target_count) in enumerate(targets):
         remaining = total_cap - len(posts)
         if remaining <= 0:
             break
-        quota = min(req.count, remaining)  # số bài là "mỗi nguồn"
+        quota = min(per_target_count, remaining)
         base = len(posts)
         prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
         try:
             try:
                 posts += scraper.collect(page, url, label, quota, seen,
                                          lambda n, msg: on_progress(base + n, prefix + msg),
-                                         speed=req.speed, interactive=interactive)
+                                         speed=req.speed, interactive=interactive, chronological=chronological,
+                                         leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0)
             finally:
                 if report is not None and getattr(scraper, "last_report", None):
                     report.setdefault("sources", []).append({"label": label, **scraper.last_report})
@@ -105,8 +108,7 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
 
 
 def total_target(req: RunRequest) -> int:
-    n = 1 if req.source_type == "feed" else max(1, len(req.sources))
-    return min(req.count * n, settings.max_posts)
+    return planned_total_target(req, settings.max_posts)
 
 
 def _keys(db: Database, user_id: int | None):

@@ -55,7 +55,9 @@ def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
                         on_progress: Callable[[int, str], None], report: dict | None = None) -> list[RawPost]:
     from .pipeline import collect_all
     from .scrapers import NeedsVerification
+    from .source_modes import normalize
 
+    normalize(req)  # Validate before launching a cookie browser too.
     with cookie_page(cookies) as page:
         try:
             return collect_all(page, req, seen, on_progress, interactive=False, report=report)

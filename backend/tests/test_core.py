@@ -223,7 +223,7 @@ def test_api_smoke(db, monkeypatch):
     assert m["mode"] == "local" and not m["auth_required"]
     assert {p["key"] for p in c.get("/api/ai/providers").json()} == {"anthropic", "openai", "gemini", "offline"}
     assert {p["key"] for p in c.get("/api/platforms").json()} == {"facebook", "linkedin", "x", "reddit"}
-    assert c.post("/api/runs", json={"platform": "facebook", "source_type": "group"}).status_code == 400
+    assert c.post("/api/runs", json={"platform": "facebook", "source_type": "group"}).status_code == 422
     r = c.post("/api/runs", json={"platform": "facebook", "ai_provider": "gemini"})
     assert r.status_code == 400 and "Gemini" in r.json()["detail"]
     api.app.state.db = original_db
@@ -281,7 +281,8 @@ def test_count_is_per_source():
     from feedlens.pipeline import total_target
     assert total_target(RunRequest(platform="facebook", count=40)) == 40
     assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a", "b", "c"], count=40)) == 120
-    assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a"] * 30, count=100)) == 500
+    assert total_target(RunRequest(platform="facebook", source_type="group", sources=[str(i) for i in range(30)], count=100)) == 500
+    assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a"] * 30, count=100)) == 100
 
 
 def test_ai_writes_in_requested_language(db, monkeypatch):

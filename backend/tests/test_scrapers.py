@@ -231,7 +231,7 @@ def test_collect_all_records_report_per_source(monkeypatch):
         def urls(self, source_type, sources):
             return [("Feed", "https://www.facebook.com/")]
 
-        def collect(self, page, url, label, quota, seen, progress, speed, interactive):
+        def collect(self, page, url, label, quota, seen, progress, speed, interactive, **kwargs):
             self.last_report = dict(target=quota, collected=1, skipped_old=3, examined=4, stop_reason="no_more_posts")
             self.missing_headers = ["<div>x</div>"]
             return [scrapers.RawPost(platform="facebook", source=label, text="Some new post body text")]

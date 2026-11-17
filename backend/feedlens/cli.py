@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import webbrowser
@@ -10,9 +11,13 @@ import webbrowser
 def _request_from_args(a):
     from .models import RunRequest
 
-    return RunRequest(platform=a.platform, source_type=a.source_type, sources=a.sources, count=a.count,
+    req = RunRequest(platform=a.platform, source_type=a.source_type, sources=a.sources, count=a.count,
+                      mode=getattr(a, "mode", None), options=getattr(a, "options", {}),
                       job_mode=a.jobs, keywords=a.keywords, profile=a.profile, only_new=a.only_new,
                       headless=a.headless, ai_provider=a.ai, ai_model=a.model)
+    from .source_modes import normalize
+    normalize(req)
+    return req
 
 
 def _push(a) -> None:
@@ -82,6 +87,8 @@ def main(argv: list[str] | None = None) -> None:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("platform", choices=["facebook", "linkedin", "x", "reddit"])
     common.add_argument("--type", dest="source_type", default="feed", choices=["feed", "group", "search"])
+    common.add_argument("--mode", help="Platform mode (jobs, page, subreddit, account, list…)")
+    common.add_argument("--options", type=json.loads, default={}, help='Mode options JSON, e.g. {"keywords":"Python"}')
     common.add_argument("--source", dest="sources", action="append", default=[])
     common.add_argument("-n", "--count", type=int, default=30)
     common.add_argument("--jobs", action="store_true", help="Chế độ tìm việc")
@@ -174,7 +181,7 @@ def main(argv: list[str] | None = None) -> None:
         from .models import RunRequest
 
         db = Database(settings.database_url)
-        req = RunRequest(platform="facebook", source_type="group", sources=[DEMO_POSTS[0].source],
+        req = RunRequest(platform="facebook", source_type="group", sources=["https://www.facebook.com/groups/demo"],
                          count=len(DEMO_POSTS), job_mode=True, keywords=["python", "remote"], ai_provider="offline")
         pipeline.scrape = lambda *_: list(DEMO_POSTS)
         uid = db.local_user_id()

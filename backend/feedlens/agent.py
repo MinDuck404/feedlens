@@ -53,7 +53,7 @@ class Agent:
         backoff = POLL_SECONDS
         while True:
             try:
-                r = self.http.get("/api/agent/next")
+                r = self.http.get("/api/agent/next", params={"protocol_version": 2})
                 r.raise_for_status()
                 job = r.json()["job"]
                 backoff = POLL_SECONDS
@@ -67,7 +67,9 @@ class Agent:
             time.sleep(backoff)
 
     def handle(self, run_id: int, req: RunRequest) -> None:
-        print(f"\nLượt #{run_id}: lướt {req.platform} ({req.source_type}), {req.count} bài")
+        from .pipeline import total_target
+        target = total_target(req)
+        print(f"\nLượt #{run_id}: lướt {req.platform} ({req.mode}), {target} bài")
         last = 0.0
 
         def progress(n: int, msg: str) -> None:
@@ -77,7 +79,7 @@ class Agent:
                 last = time.time()
                 try:
                     self.http.post(f"/api/agent/runs/{run_id}/progress",
-                                   json={"done": n, "target": req.count, "message": msg})
+                                   json={"done": n, "target": target, "message": msg})
                 except httpx.HTTPError:
                     pass
 

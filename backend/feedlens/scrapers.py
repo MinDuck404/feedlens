@@ -638,6 +638,7 @@ def is_chronological_url(url: str) -> bool:
     if parts.path in ("", "/"):
         return False  # Home feeds are ranked, even if an unrelated sort flag exists.
     return (query.get("sorting_setting", "").upper() == "CHRONOLOGICAL"
+            or bool(re.fullmatch(r"/r/[^/]+/new/?", parts.path))
             or query.get("sort", "").strip('"').lower() in {"new", "latest", "date_posted"}
             or query.get("f") == "live")
 
@@ -668,9 +669,21 @@ class Scraper:
         """Trả về [(label, url)] cần lướt."""
         raise NotImplementedError
 
+    def extract_items(self, page: Page, stories: dict) -> list[dict]:
+        if self.platform == "facebook":
+            return _facebook_items(page, stories) if stories else _facebook_items(page)
+        return page.evaluate(self.extract_js)
+
+    def scroll(self, page: Page, distance: int) -> None:
+        page.mouse.wheel(0, distance)
+
+    def next_page(self, url: str) -> str | None:
+        return None
+
     # -- vòng lặp cuộn chung --
     def collect(self, page: Page, url: str, label: str, target: int,
-                seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True) -> list[RawPost]:
+                seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True,
+                chronological: bool | None = None, leading_old_grace: int = 0) -> list[RawPost]:
         pace = PACE.get(speed, PACE["fast"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
@@ -680,7 +693,10 @@ class Scraper:
         # Scale with the quota so large runs are not cut short; old-post streaks still end within minutes.
         deadline = time.monotonic() + (max(300, 8 * target) if speed == "careful" else max(180, 4 * target))
         max_examined = max(20, 4 * target)
-        chronological = is_chronological_url(url)
+        chronological = is_chronological_url(url) if chronological is None else chronological
+        leading_old = 0
+        leading = True
+        page_start = empty_pages = 0
         self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_ads=0, examined=0, stop_reason=None)
         self.missing_headers: list[str] = []
         self.missing_graphql_samples: list[dict] = []
@@ -708,7 +724,7 @@ class Scraper:
                     page.evaluate(self.expand_js)
                     _human_pause(*pace["expand"])
                 before = len(encountered)
-                items = (_facebook_items(page, stories) if stories else _facebook_items(page)) if self.platform == "facebook" else page.evaluate(self.extract_js)
+                items = self.extract_items(page, stories)
                 for item in items:
                     header = item.pop("_missing_header", "")
                     p = RawPost(platform=self.platform, source=label, **item)
@@ -739,8 +755,12 @@ class Scraper:
                     elif fp in seen:
                         if fp in prior:
                             self.last_report["skipped_old"] += 1
-                            consecutive_old += 1
+                            if leading and leading_old < leading_old_grace:
+                                leading_old += 1
+                            else:
+                                consecutive_old += 1
                     else:
+                        leading = False
                         consecutive_old = 0
                         seen.add(fp)
                         collected[fp] = p
@@ -753,13 +773,27 @@ class Scraper:
                     if len(encountered) >= max_examined or time.monotonic() >= deadline:
                         reason = "budget_exhausted"; break
                 stale_rounds = stale_rounds + 1 if len(encountered) == before else 0
+                moved_page = False
                 if stale_rounds >= pace["stale"]:
-                    reason = "no_more_posts"
+                    next_url = self.next_page(url) if reason is None else None
+                    empty_pages = empty_pages + 1 if len(encountered) == page_start else 0
+                    if next_url and empty_pages < 2:
+                        url = next_url
+                        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                        self.ensure_access(page, url, progress, interactive)
+                        _human_pause(*pace["settle"])
+                        page_start = len(encountered)
+                        stale_rounds = 0
+                        moved_page = True
+                    elif reason is None:
+                        reason = "no_more_posts"
                 self.last_report["stop_reason"] = reason
                 progress(len(posts), collection_message(self.last_report))
                 if reason:
                     break
-                page.mouse.wheel(0, random.randint(*pace["scroll"]))
+                if moved_page:
+                    continue  # Read the top cards before scrolling a newly loaded page.
+                self.scroll(page, random.randint(*pace["scroll"]))
                 _human_pause(*pace["pause"])
                 if random.random() < pace["long_chance"]:
                     _human_pause(*pace["long"])
@@ -873,6 +907,29 @@ class FacebookScraper(Scraper):
             else:
                 out.append((f"Tìm: {s}", f"https://www.facebook.com/search/posts/?q={quote_plus(s)}"))
         return out
+
+
+class LinkedInJobsScraper(Scraper):
+    """Read result cards only; use the common budget, deduplication and reporting loop."""
+    def __init__(self):
+        super().__init__("linkedin", "")
+
+    def extract_items(self, page: Page, stories: dict) -> list[dict]:
+        from .scrapers_linkedin_jobs import extract_job_cards
+        return extract_job_cards(page)
+
+    def next_page(self, url: str) -> str:
+        from .scrapers_linkedin_jobs import next_jobs_page_url
+        return next_jobs_page_url(url)
+
+    def scroll(self, page: Page, distance: int) -> None:
+        scrolled = page.evaluate("""distance => {
+          const list = document.querySelector('.jobs-search-results-list, .scaffold-layout__list, .jobs-search-results');
+          if (!list) return false;
+          list.scrollBy(0, distance); return true;
+        }""", distance)
+        if not scrolled:
+            super().scroll(page, distance)
 
 
 class LinkedInScraper(Scraper):
