@@ -1,5 +1,5 @@
 import type { Key } from "./i18n";
-import type { Mode, ModeOptions, Platform, Preferences, RunRequest, SavedGroup, SourceType } from "./types";
+import type { JobProfile, Mode, ModeOptions, Platform, Preferences, RunRequest, SavedGroup, SourceType } from "./types";
 
 type OptionValue = string | boolean | string[] | null;
 export interface ModeDraft { sourceText: string; sourceEntry?: string; count: number; options: Record<string, OptionValue> }
@@ -88,6 +88,21 @@ export function defaultDraft(platform: Platform, mode: Mode): ModeDraft {
   return { sourceText: "", count: definition.count, options: structuredClone(definition.defaults ?? {}) };
 }
 export const sourceLines = (text: string): string[] => [...new Set(text.split("\n").map((v) => v.trim()).filter(Boolean))];
+
+export function jobProfileSuggestions(profile: JobProfile): string[] {
+  return [...new Set([...profile.primary_roles, ...profile.adjacent_roles.filter((role) => role.enabled).map((role) => role.role)]
+    .map((role) => role.trim()).filter(Boolean))];
+}
+
+export function applyJobProfileDefaults(draft: ModeDraft, profile: JobProfile): ModeDraft {
+  return { ...draft, options: {
+    ...draft.options,
+    keywords: String(draft.options.keywords ?? "").trim() ? draft.options.keywords : (profile.primary_roles[0] ?? ""),
+    location: String(draft.options.location ?? "").trim() ? draft.options.location : (profile.criteria.locations[0] ?? ""),
+    work_modes: Array.isArray(draft.options.work_modes) && draft.options.work_modes.length
+      ? draft.options.work_modes : [...profile.criteria.work_modes],
+  } };
+}
 
 function sourcePath(value: string, platform: Platform): { path: string; query: URLSearchParams } {
   const hosts = { facebook: ["facebook.com", "www.facebook.com", "m.facebook.com"], linkedin: ["linkedin.com", "www.linkedin.com"],

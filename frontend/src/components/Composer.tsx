@@ -5,7 +5,7 @@ import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, useI18n, type Key } from "../i18n";
 import { Sheet, Button, IconButton, Skeleton, Select, SegmentedControl } from "./ui";
-import { PLATFORM_MODES, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode,
+import { PLATFORM_MODES, applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode, jobProfileSuggestions,
   migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../platformModes";
 import type {
   AIProviderInfo, JobProfile, Me, Meta, Mode, ModeOptions, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup,
@@ -54,6 +54,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const { t, lang } = useI18n();
   const [topicCount, setTopicCount] = useState<number | null>(null);
   const [jobProfile, setJobProfile] = useState<JobProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [providers, setProviders] = useState<AIProviderInfo[] | null>(null);
   const [sessions, setSessions] = useState<PlatformSession[]>([]);
   const [f, setF] = useState<RunRequest>({ ...DEFAULTS, ...saved, platform: initialPlatform, mode: initialMode,
@@ -136,7 +137,20 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                      ai_model: selected === saved.ai_provider ? saved.ai_model ?? "" : "" }));
     }).catch((e) => { setProviders([]); setLoadError(e.message); });
   };
-  useEffect(() => { api.topics().then((data) => setTopicCount(data.topics.filter((topic) => topic.enabled).length)).catch((e) => setLoadError(e.message)); loadProviders(); api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)); }, []);
+  useEffect(() => { api.topics().then((data) => setTopicCount(data.topics.filter((topic) => topic.enabled).length)).catch((e) => setLoadError(e.message)); loadProviders();
+    api.profile().then(setJobProfile).catch((e) => setLoadError(e.message)).finally(() => setProfileLoaded(true)); }, []);
+  const autoFilledProfile = useRef(false);
+  useEffect(() => {
+    if (!profileLoaded || !jobProfile || initialRequest || mode !== "jobs" || autoFilledProfile.current) return;
+    autoFilledProfile.current = true;
+    const next = applyJobProfileDefaults({ count: f.count, sourceText, options: (f.options ?? {}) as ModeDraft["options"] }, jobProfile);
+    const currentOptions = (f.options ?? {}) as ModeDraft["options"];
+    if (next.options.keywords !== currentOptions.keywords || next.options.location !== currentOptions.location
+        || next.options.work_modes !== currentOptions.work_modes) {
+      setF((current) => ({ ...current, options: next.options as ModeOptions }));
+      setDrafts((old) => ({ ...old, [key]: next }));
+    }
+  }, [profileLoaded, jobProfile, initialRequest, mode, key, f.count, f.options, sourceText]);
 
   const snapshot = (next: Partial<ModePreferences> = {}): ModePreferences => ({
     ...stored,
@@ -348,12 +362,17 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 return <label key={choice.value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-line px-3 text-sm"><input type="checkbox" checked={checked}
                   onChange={() => setOption(field.name, checked ? (value as string[]).filter((item) => item !== choice.value) : [...(Array.isArray(value) ? value : []), choice.value])} />{t(choice.label)}</label>;
               })}</div></fieldset>;
-              return <label key={field.name} className="mt-4 block"><span className="mb-1.5 block text-sm">{t(field.label)}</span>
+              return <div key={field.name} className="mt-4"><label className="block"><span className="mb-1.5 block text-sm">{t(field.label)}</span>
                 {field.type === "select" ? <Select aria-label={t(field.label)} value={value === null ? "" : String(value ?? "")} onChange={(event) => setOption(field.name, event.target.value || null)}>
                   {value === null && <option value="">{t("cmp.input.time.any")}</option>}{field.choices?.map((choice) => <option key={choice.value} value={choice.value}>{t(choice.label)}</option>)}
                 </Select> : <input className="field" value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
-                  placeholder={field.placeholder ? t(field.placeholder) : undefined} onChange={(event) => setOption(field.name, event.target.value)} />}
-              </label>;
+                  placeholder={field.placeholder ? t(field.placeholder) : undefined} onChange={(event) => setOption(field.name, event.target.value)} />}</label>
+                {mode === "jobs" && field.name === "keywords" && jobProfile && <div className="mt-2 flex flex-wrap gap-2">
+                  {jobProfileSuggestions(jobProfile).map((role) => <button key={role} type="button"
+                    className="min-h-10 max-w-full truncate rounded-full border border-line px-3 text-xs text-ink-soft hover:border-ink hover:text-ink"
+                    title={role} onClick={() => setOption("keywords", role)}>{role}</button>)}
+                </div>}
+              </div>;
             })}
           </Group>
 
@@ -417,7 +436,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          <section className={`rounded-card border p-4 transition-colors duration-[var(--duration-fast)] ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
+          {mode !== "jobs" && <section className={`rounded-card border p-4 transition-colors duration-[var(--duration-fast)] ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
             <label className="flex cursor-pointer items-start gap-3">
               <span className={`grid size-9 shrink-0 place-items-center rounded-full ${f.job_mode ? "bg-primary text-primary-ink" : "bg-sunken text-ink-soft"}`}>
                 <Briefcase className="size-4" />
@@ -426,7 +445,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 <span className="block font-semibold">{t("cmp.jobs")}</span>
                 <span className="block text-sm text-ink-soft">{t("cmp.jobsHint")}</span>
               </span>
-              <input type="checkbox" className="peer sr-only" checked={f.job_mode} disabled={mode === "jobs"} onChange={(e) => set("job_mode", e.target.checked)} />
+              <input type="checkbox" className="peer sr-only" checked={f.job_mode} onChange={(e) => set("job_mode", e.target.checked)} />
               <span aria-hidden className="relative mt-1 h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
                 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform after:duration-[var(--duration-fast)] motion-reduce:after:transition-none peer-checked:after:translate-x-4" />
             </label>
@@ -470,7 +489,21 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 </label>
               </div>
             )}
-          </section>
+          </section>}
+          {mode === "jobs" && <section className="rounded-card border border-line p-4">
+            {jobProfile ? <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-3 text-sm">
+              <span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span>
+              <button type="button" onClick={() => onOpenSettings("profile")} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button>
+            </p> : <p className="mb-4 flex flex-wrap items-center gap-2 border-b border-line pb-3 text-sm text-ink-soft">
+              <span>{t("cmp.jobsProfileHint")}</span>
+              <button type="button" onClick={() => onOpenSettings("profile")} className="font-medium text-link underline underline-offset-4">{t("profile.upload")}</button>
+            </p>}
+            <label className="block"><span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
+              <textarea aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="field resize-y" rows={2} value={f.profile} onChange={(e) => set("profile", e.target.value)}
+                placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
+              <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
+            </label>
+          </section>}
 
           <Group label={t("cmp.options")}>
             <Toggle checked={f.only_new} onChange={(v) => set("only_new", v)}>{t("cmp.onlyNew")}</Toggle>

@@ -20,6 +20,27 @@ test("catalog has exactly the public modes and LinkedIn defaults to job search",
   assert.equal(Object.values(modes.PLATFORM_MODES).flat().some((mode) => mode.mode === "legacy_group"), false);
 });
 
+test("job profile suggestions prioritize primary roles and include only enabled adjacent roles", () => {
+  const profile = { primary_roles: ["Python Engineer", "Data Engineer", "Python Engineer"],
+    adjacent_roles: [{ role: "QA Engineer", enabled: true }, { role: "Product Manager", enabled: false }, { role: "Data Engineer", enabled: true }],
+    criteria: { locations: ["Hà Nội"], work_modes: ["remote"], min_salary: null, currency: "VND", level: "" },
+    markdown: "", allow_adjacent: true };
+  assert.deepEqual(modes.jobProfileSuggestions(profile), ["Python Engineer", "Data Engineer", "QA Engineer"]);
+});
+
+test("job profile autofill fills only empty fields and preserves current choices", () => {
+  const profile = { primary_roles: ["Python Engineer"], adjacent_roles: [{ role: "QA Engineer", enabled: true }],
+    criteria: { locations: ["Hà Nội"], work_modes: ["remote", "hybrid"], min_salary: null, currency: "VND", level: "" },
+    markdown: "", allow_adjacent: true };
+  assert.deepEqual(modes.applyJobProfileDefaults({ count: 25, sourceText: "", options: { keywords: "", location: "", work_modes: [] } }, profile),
+    { count: 25, sourceText: "", options: { keywords: "Python Engineer", location: "Hà Nội", work_modes: ["remote", "hybrid"] } });
+  assert.deepEqual(modes.applyJobProfileDefaults({ count: 25, sourceText: "", options: { keywords: "Custom query", location: "Da Nang", work_modes: ["onsite"] } }, profile).options,
+    { keywords: "Custom query", location: "Da Nang", work_modes: ["onsite"] });
+  assert.deepEqual(modes.applyJobProfileDefaults({ count: 25, sourceText: "", options: { keywords: "", location: "", work_modes: [] } },
+    { ...profile, primary_roles: [], criteria: { ...profile.criteria, locations: [], work_modes: [] } }).options,
+    { keywords: "", location: "", work_modes: [] });
+});
+
 const cases = [
   ["facebook", "feed", "", {}, "feed", []],
   ["facebook", "group", "demo\nhttps://www.facebook.com/groups/demo/", { latest: true }, "group", ["demo"]],
@@ -122,7 +143,9 @@ function hooks(component) {
   let index = 0, effects = []; const cells = [];
   React.useState = (initial) => { const at = index++; cells[at] ??= { value: typeof initial === "function" ? initial() : initial }; return [cells[at].value, (value) => { cells[at].value = typeof value === "function" ? value(cells[at].value) : value; }]; };
   React.useRef = (initial) => cells[index++] ??= { current: initial };
-  React.useEffect = (effect) => { const at = index++; if (!cells[at]) { cells[at] = {}; effects.push(() => { cells[at].cleanup = effect(); }); } };
+  React.useEffect = (effect, deps) => { const at = index++, previous = cells[at]; if (!previous || deps.some((value, i) => value !== previous.deps[i])) {
+    effects.push(() => { previous?.cleanup?.(); cells[at] = { deps, cleanup: effect() }; });
+  } };
   React.useContext = () => ({ t: (key) => key, lang: "en" }); React.useCallback = (fn) => fn;
   return { render(props) { index = 0; const tree = component(props); const pending = effects; effects = []; pending.forEach((fn) => fn()); return tree; }, close() { cells.forEach((cell) => cell.cleanup?.()); Object.assign(React, original); } };
 }
@@ -182,4 +205,74 @@ test("Composer can reopen a legacy request without deleting other saved sources"
     assert.equal(requests[0].mode, "legacy_group"); assert.deepEqual(requests[0].sources, ["rerun-group"]);
   } finally { harness.close(); Object.assign(api, original); }
   assert.deepEqual(saved.at(-1).saved_sources["linkedin:legacy_group"], [{ url: "old-group", enabled: false }, { url: "rerun-group", enabled: true }]);
+});
+
+const sampleProfile = { primary_roles: ["Python Engineer", "Data Engineer"],
+  adjacent_roles: [{ role: "QA Engineer", enabled: true }, { role: "Product Manager", enabled: false }],
+  criteria: { locations: ["Hà Nội"], work_modes: ["remote", "hybrid"], min_salary: null, currency: "VND", level: "" },
+  markdown: "Python and APIs", allow_adjacent: true };
+
+test("Jobs hides the redundant toggle, autofills from CV and chip click replaces the query", async () => {
+  global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
+  const { api } = require("../src/api.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const original = { ...api }, settings = [];
+  api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => sampleProfile; api.topics = async () => ({ topics: [] });
+  const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
+    prefs: { composer: { platform: "linkedin", mode: "jobs", options: { keywords: "" } } }, onPrefsChange() {}, onClose() {}, onCreated() {}, onOpenSettings: (tab) => settings.push(tab) };
+  try {
+    harness.render(props); await new Promise(setImmediate); harness.render(props);
+    let tree = harness.render(props);
+    assert.equal(find(tree, (n) => n.props?.children === "cmp.jobs"), null);
+    assert.ok(find(tree, (n) => n.props?.children === "profile.using"));
+    assert.ok(find(tree, (n) => n.type === "textarea" && n.props["aria-label"] === "profile.notes"));
+    assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, "Python Engineer");
+    assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.locationPh").props.value, "Hà Nội");
+    find(tree, (n) => n.type === "button" && n.props.children === "QA Engineer").props.onClick(); tree = harness.render(props);
+    assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, "QA Engineer");
+    assert.equal(find(tree, (n) => n.type === "button" && n.props.children === "Product Manager"), null);
+    find(tree, (n) => n.type === "button" && n.props.children === "profile.edit").props.onClick();
+    assert.deepEqual(settings, ["profile"]);
+    find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.onChange({ target: { value: "" } }); harness.render(props); tree = harness.render(props);
+    assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, "");
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("profile arriving late preserves user input, and rerun skips all CV autofill", async () => {
+  global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
+  const { api } = require("../src/api.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const original = { ...api };
+  api.providers = async () => [{ key: "offline", configured: true }]; api.topics = async () => ({ topics: [] });
+  try {
+    for (const rerun of [false, true]) {
+      let resolveProfile;
+      api.profile = () => new Promise((resolve) => { resolveProfile = resolve; });
+      const request = { ...base, platform: "linkedin", mode: "jobs", options: { keywords: "", location: "", work_modes: [], posted_within: "week" } };
+      const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
+        prefs: { composer: request }, ...(rerun ? { initialRequest: request } : {}), onPrefsChange() {}, onClose() {}, onCreated() {}, onOpenSettings() {} };
+      try {
+        let tree = harness.render(props);
+        if (!rerun) find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.onChange({ target: { value: "User query" } });
+        resolveProfile(sampleProfile); await new Promise(setImmediate); harness.render(props); tree = harness.render(props);
+        assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, rerun ? "" : "User query");
+        assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.locationPh").props.value, rerun ? "" : "Hà Nội");
+      } finally { harness.close(); }
+    }
+  } finally { Object.assign(api, original); }
+});
+
+test("Jobs without a CV links to profile settings and other modes retain the toggle", async () => {
+  global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
+  const { api } = require("../src/api.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const original = { ...api }, settings = [];
+  api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
+  const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
+    prefs: { composer: { platform: "linkedin", mode: "jobs", options: { keywords: "Python" } } }, onPrefsChange() {}, onClose() {}, onCreated() {}, onOpenSettings: (tab) => settings.push(tab) };
+  try {
+    harness.render(props); await new Promise(setImmediate); let tree = harness.render(props);
+    assert.ok(find(tree, (n) => n.props?.children === "cmp.jobsProfileHint"));
+    find(tree, (n) => n.type === "button" && n.props.children === "profile.upload").props.onClick();
+    assert.deepEqual(settings, ["profile"]);
+    find(tree, (n) => n.props?.label === "cmp.where" && n.props.onChange).props.onChange("recruiting_posts"); tree = harness.render(props);
+    assert.ok(find(tree, (n) => n.props?.children === "cmp.jobs"));
+  } finally { harness.close(); Object.assign(api, original); }
 });
