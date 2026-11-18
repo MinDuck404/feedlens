@@ -216,6 +216,7 @@ class FacebookStoryCache(dict):
         self.by_id: dict[str, dict] = {}
         self.link_resolve_s: float = 0.0
         self.track_timings: bool = False
+        self.skip_keys: set[str] | None = None
 
 
 def _extract_facebook_post_id(url: str) -> str:
@@ -635,12 +636,28 @@ FB_HEADER_SNAPSHOT_JS = r"""
 
 def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
     items = page.evaluate(FB_JS)
-    if stories:
+    skip_keys = getattr(stories, "skip_keys", None) if stories is not None else None
+    if stories or skip_keys:
         for item in items:
-            network = match_facebook_story(RawPost(platform="facebook", source="", **item), stories)
-            if network:
-                item["_network_url"] = network["url"]
-                item["sponsored"] |= network["sponsored"]
+            raw = RawPost(
+                platform="facebook",
+                source="",
+                author=item.get("author", ""),
+                text=item.get("text", ""),
+                url=item.get("url", ""),
+                posted_at=item.get("posted_at", ""),
+                sponsored=bool(item.get("sponsored", False)),
+            )
+            if skip_keys and f"fp:{raw.fingerprint}" in skip_keys:
+                item["_skip_link_resolve"] = True
+            if stories:
+                network = match_facebook_story(raw, stories)
+                if network:
+                    item["_network_url"] = network["url"]
+                    item["sponsored"] |= network["sponsored"]
+                    pid = network.get("_post_id") or _extract_facebook_post_id(network.get("url") or "")
+                    if is_facebook_content_url(network["url"]) or (pid and skip_keys and f"id:{pid}" in skip_keys):
+                        item["_skip_link_resolve"] = True
     scroll_y = page.evaluate("() => window.scrollY")
     try:
         t_res0 = time.monotonic() if getattr(stories, "track_timings", False) else 0.0
@@ -670,8 +687,9 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
         item["sponsored"] = bool(item.get("sponsored") or any(facebook_ad_link(href) for href, _ in links))
         network_url = item.pop("_network_url", "")
         author_url = item.pop("_author_url", "")
+        skip_resolve = bool(item.pop("_skip_link_resolve", False))
         item["url"] = network_url or facebook_dom_permalink(links, author_url)
-        if node_index is None:
+        if node_index is None or skip_resolve:
             continue
         selector = f'[data-feedlens-node="{marker}"]' if str(marker).isdigit() else None
         node = page.locator(selector) if selector else page.locator(FB_NODE_SELECTOR).nth(node_index)
@@ -882,7 +900,8 @@ class Scraper:
     def _expand(self, page: Page, stories: dict, url: str, label: str) -> int:
         if not self.expand_js:
             return 0
-        if self.platform == "facebook" and stories:
+        skip_keys = getattr(stories, "skip_keys", None) if stories is not None else None
+        if self.platform == "facebook" and (stories or skip_keys):
             candidates = page.evaluate(FB_EXPAND_CANDIDATES_JS) or []
             if not candidates:
                 return 0
@@ -891,9 +910,13 @@ class Scraper:
                 text = cand.get("text") or ""
                 author = clean_facebook_author(cand.get("author") or "")
                 probe = RawPost(platform="facebook", source=label, author=author, text=text)
-                network = match_facebook_story(probe, stories)
-                if network and _should_use_story_text(text, network, url):
+                if skip_keys and f"fp:{probe.fingerprint}" in skip_keys:
                     continue
+                network = match_facebook_story(probe, stories) if stories else None
+                if network:
+                    pid = network.get("_post_id") or _extract_facebook_post_id(network.get("url") or "")
+                    if (pid and skip_keys and f"id:{pid}" in skip_keys) or _should_use_story_text(text, network, url):
+                        continue
                 click_ids.append(cand["idx"])
             return int(page.evaluate(FB_EXPAND_CLICK_JS, click_ids) or 0)
         return int(page.evaluate(self.expand_js) or 0)
@@ -933,6 +956,7 @@ class Scraper:
         reason = None
         stories = FacebookStoryCache()
         stories.track_timings = timings is not None
+        stories.skip_keys = encountered
 
         def record_post(p: RawPost, post_id: str = "", *, from_story: bool = False,
                         replaced_full_text: bool = False, header: str = "") -> None:

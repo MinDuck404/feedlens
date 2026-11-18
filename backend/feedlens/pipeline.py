@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import threading
 import traceback
+from contextvars import ContextVar
 from typing import Callable
 
 from .ai.registry import preferred_provider, user_key_list
@@ -17,6 +18,7 @@ from .source_modes import allocate_targets, normalize, total_target as planned_t
 # Tiến độ trực tiếp cho UI: run_id -> {"phase", "message", "done", "target"}
 PROGRESS: dict[int, dict] = {}
 _platform_locks: dict[str, threading.Lock] = {p: threading.Lock() for p in SCRAPERS}
+_REPORT_FLUSH: ContextVar[Callable[[dict], None] | None] = ContextVar("_report_flush", default=None)
 
 
 def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
@@ -31,13 +33,29 @@ def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], No
 
 
 def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
-                interactive: bool, report: dict | None = None) -> list[RawPost]:
+                interactive: bool, report: dict | None = None,
+                on_report: Callable[[dict], None] | None = None) -> list[RawPost]:
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
     targets = normalize(req, run_cap(req))
     scraper = LinkedInJobsScraper() if req.platform == "linkedin" and req.mode == "jobs" else SCRAPERS[req.platform]()
     total_cap = total_target(req)
+    flush = on_report or _REPORT_FLUSH.get()
+    if report is not None:
+        report["sources"] = [
+            {
+                "label": t.label,
+                "target": t.per_target_count,
+                "collected": 0,
+                "skipped_old": 0,
+                "skipped_ads": 0,
+                "examined": 0,
+                "stop_reason": None,
+                "status": "pending",
+            }
+            for t in targets
+        ]
     posts: list[RawPost] = []
     skipped: list[str] = []
     for i, (label, url, chronological, per_target_count) in enumerate(targets):
@@ -50,20 +68,44 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
         quota = min(allocate_targets(requested, remaining)[0].per_target_count, remaining)
         base = len(posts)
         prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
+        if report is not None:
+            report["sources"][i].update(target=quota, stop_reason=None, status="running")
+            if flush:
+                flush(report)
+        last_flushed = 0
+
+        def group_progress(n: int, msg: str) -> None:
+            nonlocal last_flushed
+            on_progress(base + n, prefix + msg)
+            if report is not None:
+                last = getattr(scraper, "last_report", None)
+                if last:
+                    report["sources"][i] = {"label": label, **last, "stop_reason": None, "status": "running"}
+                    cur = int(last.get("collected", 0))
+                    if flush and cur - last_flushed >= 10:
+                        last_flushed = cur
+                        flush(report)
+
         try:
             try:
                 posts += scraper.collect(page, url, label, quota, seen,
-                                         lambda n, msg: on_progress(base + n, prefix + msg),
+                                         group_progress,
                                          speed=req.speed, interactive=interactive, chronological=chronological,
                                          leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0,
                                          report=report,
                                          old_streak_limit=getattr(req.options, "old_streak", 8))
             finally:
-                if report is not None and getattr(scraper, "last_report", None):
-                    report.setdefault("sources", []).append({"label": label, **scraper.last_report})
-                    report.setdefault("missing_link_samples", []).extend(getattr(scraper, "missing_headers", []))
-                    samples = report.setdefault("missing_graphql_samples", [])
-                    samples.extend(getattr(scraper, "missing_graphql_samples", [])[:max(0, 10 - len(samples))])
+                if report is not None:
+                    last = getattr(scraper, "last_report", None)
+                    if last:
+                        report["sources"][i] = {"label": label, **last, "status": "done"}
+                        report.setdefault("missing_link_samples", []).extend(getattr(scraper, "missing_headers", []))
+                        samples = report.setdefault("missing_graphql_samples", [])
+                        samples.extend(getattr(scraper, "missing_graphql_samples", [])[:max(0, 10 - len(samples))])
+                    else:
+                        report["sources"][i] = {**report["sources"][i], "status": "done"}
+                    if flush:
+                        flush(report)
         except NeedsVerification:
             raise
         except Exception as e:  # noqa: BLE001 — một nhóm lỗi (link sai, bị chặn) không làm hỏng cả lượt
@@ -93,19 +135,21 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
     """Keep why scraping stopped next to the run request (JSON, no migration); diagnostics stay local."""
     sources = report.get("sources") or []
     if sources:
-        summary = {"target": sum(s.get("target", 0) for s in sources),
+        summary = {"target": min(sum(s.get("target", 0) for s in sources), total_target(req)),
                    "collected": sum(s.get("collected", 0) for s in sources),
                    "skipped_old": sum(s.get("skipped_old", 0) for s in sources),
                    "skipped_ads": sum(s.get("skipped_ads", 0) for s in sources),
                    "stop_reason": sources[-1].get("stop_reason") if len(sources) == 1 else None,
-                   "sources": sources}
+                   "sources": [dict(s) for s in sources]}
     else:
         summary = {}
     # Số đo thời gian (giây) và số bài lấy được toàn văn từ Story: scrapers.py ghi, pipeline thêm scrape_total.
     if report.get("timings"):
         summary["timings"] = dict(report["timings"])
-    if report.get("full_text_from_story"):
+    if "full_text_from_story" in report:
         summary["full_text_from_story"] = report["full_text_from_story"]
+    if "from_story" in report:
+        summary["from_story"] = report["from_story"]
     if summary:
         db.update_run(run_id, request={**req.model_dump(), "scrape_report": summary})
     samples = report.get("missing_link_samples") or []
@@ -135,7 +179,7 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
 
 def run_cap(req: RunRequest) -> int:
     """Trần bài của lượt: lựa chọn trong Cài đặt (500/1000/2000), không có thì dùng FEEDLENS_MAX_POSTS."""
-    return req.max_posts or settings.max_posts
+    return req.max_posts or getattr(settings, "max_posts", 500)
 
 
 def total_target(req: RunRequest) -> int:
@@ -166,9 +210,11 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
             scrape_report: dict = {}
             started = time.monotonic()
+            flush_token = _REPORT_FLUSH.set(lambda r: save_scrape_report(db, run_id, req, r))
             try:
                 raw = scrape(req, seen, report("scraping"), scrape_report)
             finally:
+                _REPORT_FLUSH.reset(flush_token)
                 scrape_report.setdefault("timings", {})["scrape_total"] = round(time.monotonic() - started, 3)
                 save_scrape_report(db, run_id, req, scrape_report)
         _analyze(db, run_id, req, raw, analyzer, report)
@@ -286,9 +332,11 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
             scrape_report: dict = {}
             started = time.monotonic()
+            flush_token = _REPORT_FLUSH.set(lambda r: save_scrape_report(db, run_id, req, r))
             try:
                 raw = scrape_with_cookies(req, cookies, seen, report("scraping"), scrape_report)
             finally:
+                _REPORT_FLUSH.reset(flush_token)
                 scrape_report.setdefault("timings", {})["scrape_total"] = round(time.monotonic() - started, 3)
                 save_scrape_report(db, run_id, req, scrape_report)
         finally:
