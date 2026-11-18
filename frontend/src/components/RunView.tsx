@@ -221,7 +221,7 @@ function InProgress({ run }: { run: Run }) {
       <div role="progressbar" aria-label={phase} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="mt-4 h-1.5 overflow-hidden rounded-full bg-sunken">
         <div className="h-full w-full origin-left rounded-full bg-accent transition-transform duration-[var(--duration-normal)] ease-[var(--ease-micro)] motion-reduce:transition-none" style={{ transform: `scaleX(${pct / 100})` }} />
       </div>
-      <p className="mt-2 text-sm text-ink-soft">{p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>
+      <p className="mt-2 text-sm text-ink-soft">{p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>
     </div>
   );
 }

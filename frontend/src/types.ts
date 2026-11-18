@@ -165,6 +165,8 @@ export interface Progress {
   target: number;
   message: string;
   message_code?: string;
+  /** Tham số cho message_code, ví dụ chờ hạn mức AI: provider, model, seconds */
+  message_vars?: Record<string, string | number>;
 }
 
 export interface Run {

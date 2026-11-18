@@ -1,4 +1,5 @@
 """Stable UI codes alongside legacy human-readable diagnostics."""
+import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
@@ -48,7 +49,14 @@ def progress_message(progress: dict | None) -> dict | None:
     phase = progress.get("phase", "preparing")
     if phase not in {"pending", "queued", "scraping", "analyzing", "summarizing", "done"}:
         phase = "preparing"
-    message = progress.get("message", "").lower()
+    raw = progress.get("message", "")
+    # Thông báo của bộ điều phối AI (ai/scheduler.py): mã riêng để giao diện hiện đúng thay vì "Đang phân tích bài".
+    if m := re.search(r"chờ hạn mức phút của (.+?) \((.+?)\): (\d+) giây", raw):
+        return {**progress, "message_code": "progress.quota_wait",
+                "message_vars": {"provider": m[1], "model": m[2], "seconds": int(m[3])}}
+    if m := re.search(r"(\S+) không còn dùng được, chuyển sang (.+?)…?$", raw):
+        return {**progress, "message_code": "progress.model_switch", "message_vars": {"model": m[1], "next": m[2]}}
+    message = raw.lower()
     if "chờ" in message and ("xác minh" in message or "đăng nhập" in message):
         phase = "verification"
     return {**progress, "message_code": f"progress.{phase}"}
