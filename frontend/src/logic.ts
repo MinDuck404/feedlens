@@ -112,17 +112,21 @@ export function formatDuration(seconds: number, lang: "vi" | "en" | "zh"): strin
 
 export function scrapeSourceRows(sources: ScrapeSourceReport[] = [], groups: SavedGroup[] = []) {
   const normalizeUrl = (url: string) => url.trim().replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "").toLowerCase();
-  return sources.map((source) => {
+  return sources.map((source, order) => {
     const saved = groups.find((group) => normalizeUrl(group.url) === normalizeUrl(source.label));
     return {
-      name: saved?.name?.trim() || groupName(source.label),
-      target: source.target ?? null,
-      collected: source.collected ?? 0,
-      skipped_old: source.skipped_old ?? 0,
-      stop_reason: source.stop_reason ?? null as StopReason | null,
-      status: source.status === "pending" || source.status === "running" ? source.status : "done" as const,
+      order,
+      row: {
+        name: saved?.name?.trim() || groupName(source.label),
+        target: source.target ?? null,
+        collected: source.collected ?? 0,
+        skipped_old: source.skipped_old ?? 0,
+        stop_reason: source.stop_reason ?? null as StopReason | null,
+        status: source.status === "pending" || source.status === "running" || source.status === "error" ? source.status : "done" as const,
+      },
     };
-  });
+  }).sort((left, right) => Number(right.row.status === "running") - Number(left.row.status === "running") || left.order - right.order)
+    .map(({ row }) => row);
 }
 
 const MAIN_PHASES = ["scrape_total", "analysis", "summary"] as const;

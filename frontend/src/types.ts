@@ -121,7 +121,7 @@ export interface ScrapeSourceReport {
   collected?: number;
   skipped_old?: number;
   stop_reason?: StopReason | null;
-  status?: "pending" | "running" | "done";
+  status?: "pending" | "running" | "done" | "error";
 }
 
 export interface SavedGroup {

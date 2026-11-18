@@ -68,15 +68,15 @@ test("malformed and Unicode saved group names render without crashing", () => {
 test("source scrape rows use saved names and treat missing status as complete", () => {
   const { scrapeSourceRows } = require("../src/logic.ts");
   const rows = scrapeSourceRows([
+    { label: "https://facebook.com/groups/tech/", target: 5, collected: 4, skipped_old: 0, stop_reason: "target_reached" },
     { label: "https://facebook.com/groups/123/", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
-    { label: "https://facebook.com/groups/viec-lam/", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached" },
-    { label: "https://facebook.com/groups/tech/", target: 5 },
+    { label: "https://facebook.com/groups/viec-lam/", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached", status: "pending" },
   ], [{ url: "https://facebook.com/groups/123", name: "Engineering jobs" }]);
 
   assert.deepEqual(rows, [
     { name: "Engineering jobs", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
-    { name: "viec lam", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached", status: "done" },
-    { name: "tech", target: 5, collected: 0, skipped_old: 0, stop_reason: null, status: "done" },
+    { name: "tech", target: 5, collected: 4, skipped_old: 0, stop_reason: "target_reached", status: "done" },
+    { name: "viec lam", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached", status: "pending" },
   ]);
 });
 
