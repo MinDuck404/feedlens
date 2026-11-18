@@ -18,6 +18,7 @@ import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from html import escape
 from typing import Callable
 from urllib.parse import parse_qsl, quote_plus, urlencode, urljoin, urlsplit, urlunsplit
@@ -208,6 +209,8 @@ class FacebookStoryCache(dict):
     def __init__(self):
         super().__init__()
         self.author_keys: dict[str, list[dict]] = {}
+        self.link_resolve_s: float = 0.0
+        self.track_timings: bool = False
 
 
 def facebook_graphql_debug(post: RawPost, cache: dict) -> dict:
@@ -231,7 +234,7 @@ def facebook_stories(payload: object, group_url: str = "", author_keys: dict | N
             stack.extend(node); continue
         if not isinstance(node, dict):
             continue
-        stack.extend(value for value in node.values() if isinstance(value, (dict, list)))
+        stack.extend(value for k, value in node.items() if k != "attached_story" and isinstance(value, (dict, list)))
         if node.get("__typename") != "Story":
             continue
         comet = node.get("comet_sections")
@@ -301,9 +304,16 @@ def facebook_stories(payload: object, group_url: str = "", author_keys: dict | N
             posted_at = datetime.fromtimestamp(int(created), timezone.utc).isoformat() if created else ""
         except (ValueError, TypeError, OverflowError, OSError):
             posted_at = ""
+        group_id = ""
+        for view in views:
+            target = view.get("to")
+            if isinstance(target, dict) and target.get("__typename") == "Group" and target.get("id"):
+                group_id = str(target["id"])
+                break
         record = dict(text=text[:20000], author=clean_facebook_author(str(actor.get("name") or "")), url=url,
                       posted_at=posted_at,
-                      sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)))
+                      sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)),
+                      _group_id=group_id)
         record["_debug_story"] = sanitize_facebook_debug(node)
         fp = RawPost(platform="facebook", source="", **record).fingerprint
         previous = found.get(fp)
@@ -353,6 +363,47 @@ def match_facebook_story(post: RawPost, cache: dict) -> dict | None:
                 author == clean_facebook_author(story["author"]).casefold() and
                 prefix.startswith(story["_text_key"] + " ")))]
     return matches[0] if len(matches) == 1 else None
+
+
+def _normalize_fb_prefix(text: str) -> str:
+    cleaned = re.sub(r"[\u200b\u2060\ufeff]", "", text)
+    norm = re.sub(r"\s+", " ", cleaned).strip()
+    norm = re.sub(r"(?:…|\.\.\.)?\s*(?:see more|xem thêm|查看更多)$", "", norm, flags=re.IGNORECASE).strip()
+    return re.sub(r"(?:…|\.\.\.)+$", "", norm).strip()
+
+
+def _is_other_facebook_group(source_url: str, story: dict) -> bool:
+    src_match = re.search(r"/groups/([\w.-]+)", source_url)
+    if not src_match:
+        return False
+    src_slug = src_match.group(1)
+    story_url = story.get("url") or ""
+    st_match = re.search(r"/groups/([\w.-]+)", story_url)
+    st_slug = st_match.group(1) if st_match else (story.get("_group_id") or "")
+    if not st_slug:
+        return False
+    if src_slug.isdigit() and st_slug.isdigit():
+        return src_slug != st_slug
+    if not src_slug.isdigit() and not st_slug.isdigit():
+        return src_slug.casefold() != st_slug.casefold()
+    return False
+
+
+def _should_use_story_text(dom_text: str, story: dict, source_url: str = "") -> bool:
+    story_text = story.get("text") or ""
+    if not story_text or _is_other_facebook_group(source_url, story):
+        return False
+    if len(story_text.strip()) <= len(dom_text.strip()):
+        return False
+    dom_norm = _normalize_fb_prefix(dom_text).casefold()
+    story_norm = re.sub(r"[\u200b\u2060\ufeff]", "", re.sub(r"\s+", " ", story_text)).strip().casefold()
+    if len(story_norm) <= len(dom_norm) or not dom_norm:
+        return False
+    if story_norm.startswith(dom_norm):
+        return True
+    if len(dom_norm) >= 80:
+        return SequenceMatcher(None, dom_norm, story_norm[:len(dom_norm)]).ratio() >= 0.9
+    return False
 
 
 def capture_facebook_response(response, cache: dict, group_url: str = "") -> None:
@@ -493,7 +544,12 @@ def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
                 item["sponsored"] |= network["sponsored"]
     scroll_y = page.evaluate("() => window.scrollY")
     try:
-        return _resolve_facebook_items(page, items)
+        t_res0 = time.monotonic() if getattr(stories, "track_timings", False) else 0.0
+        try:
+            return _resolve_facebook_items(page, items)
+        finally:
+            if getattr(stories, "track_timings", False):
+                stories.link_resolve_s += max(0.0, time.monotonic() - t_res0)
     finally:
         page.evaluate("() => document.querySelectorAll('[data-feedlens-node]').forEach(n => n.removeAttribute('data-feedlens-node'))")
         page.evaluate("y => window.scrollTo(0, y)", scroll_y)
@@ -590,9 +646,47 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
 FB_EXPAND_JS = r"""
 () => {
   const labels = ['See more', 'Xem thêm'];
+  let clicked = 0;
   document.querySelectorAll('div[role="button"]').forEach(b => {
-    if (labels.includes((b.innerText || '').trim())) { try { b.click(); } catch (e) {} }
+    if (labels.includes((b.innerText || '').trim())) { try { b.click(); clicked++; } catch (e) {} }
   });
+  return clicked;
+}
+"""
+
+FB_EXPAND_CANDIDATES_JS = r"""
+() => {
+  const labels = ['See more', 'Xem thêm'];
+  const out = [];
+  document.querySelectorAll('[data-feedlens-expand]').forEach(b => b.removeAttribute('data-feedlens-expand'));
+  document.querySelectorAll('div[role="button"]').forEach((b, idx) => {
+    if (!labels.includes((b.innerText || '').trim())) return;
+    const n = b.closest('[role="article"], [aria-posinset], div[role="feed"] > div');
+    if (!n) return;
+    const msg = n.querySelector('[data-ad-preview="message"], [data-ad-comet-preview="message"]');
+    let text = msg ? msg.innerText : '';
+    if (!text) {
+      const blocks = [...n.querySelectorAll('div[dir="auto"]')].map(d => d.innerText).filter(t => t && t.length > 20);
+      text = blocks.sort((a, b) => b.length - a.length)[0] || '';
+    }
+    const authorEl = n.querySelector('h2 a, h3 a, h4 a, strong a, h2, h3, h4');
+    b.setAttribute('data-feedlens-expand', String(idx));
+    out.push({ idx, author: authorEl ? authorEl.innerText.split('\n')[0] : '', text });
+  });
+  return out;
+}
+"""
+
+FB_EXPAND_CLICK_JS = r"""
+(indices) => {
+  const wanted = new Set(indices || []);
+  let clicked = 0;
+  document.querySelectorAll('[data-feedlens-expand]').forEach(b => {
+    const id = Number(b.getAttribute('data-feedlens-expand'));
+    b.removeAttribute('data-feedlens-expand');
+    if (wanted.has(id)) { try { b.click(); clicked++; } catch (e) {} }
+  });
+  return clicked;
 }
 """
 
@@ -607,7 +701,13 @@ LINKEDIN_JS = r"""
 """
 
 LINKEDIN_EXPAND_JS = r"""
-() => document.querySelectorAll('button.feed-shared-inline-show-more-text__see-more-less-toggle, .see-more').forEach(b => { try { b.click(); } catch (e) {} })
+() => {
+  let clicked = 0;
+  document.querySelectorAll('button.feed-shared-inline-show-more-text__see-more-less-toggle, .see-more').forEach(b => {
+    try { b.click(); clicked++; } catch (e) {}
+  });
+  return clicked;
+}
 """
 
 X_JS = r"""
@@ -680,10 +780,30 @@ class Scraper:
     def next_page(self, url: str) -> str | None:
         return None
 
+    def _expand(self, page: Page, stories: dict, url: str, label: str) -> int:
+        if not self.expand_js:
+            return 0
+        if self.platform == "facebook" and stories:
+            candidates = page.evaluate(FB_EXPAND_CANDIDATES_JS) or []
+            if not candidates:
+                return 0
+            click_ids = []
+            for cand in candidates:
+                text = cand.get("text") or ""
+                author = clean_facebook_author(cand.get("author") or "")
+                probe = RawPost(platform="facebook", source=label, author=author, text=text)
+                network = match_facebook_story(probe, stories)
+                if network and _should_use_story_text(text, network, url):
+                    continue
+                click_ids.append(cand["idx"])
+            return int(page.evaluate(FB_EXPAND_CLICK_JS, click_ids) or 0)
+        return int(page.evaluate(self.expand_js) or 0)
+
     # -- vòng lặp cuộn chung --
     def collect(self, page: Page, url: str, label: str, target: int,
                 seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True,
-                chronological: bool | None = None, leading_old_grace: int = 0) -> list[RawPost]:
+                chronological: bool | None = None, leading_old_grace: int = 0,
+                report: dict | None = None) -> list[RawPost]:
         pace = PACE.get(speed, PACE["fast"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
@@ -700,18 +820,30 @@ class Scraper:
         self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_ads=0, examined=0, stop_reason=None)
         self.missing_headers: list[str] = []
         self.missing_graphql_samples: list[dict] = []
+        timings: dict[str, float] | None = None
+        if report is not None:
+            timings = report.setdefault("timings", {})
+            for key in ("navigation", "scroll_wait", "expand", "link_resolve", "extract"):
+                timings[key] = float(timings.get(key, 0.0))
+            report["full_text_from_story"] = int(report.get("full_text_from_story", 0))
         debug_posts: dict[str, RawPost] = {}
         reason = None
         stories = FacebookStoryCache()
+        stories.track_timings = timings is not None
         listening = self.platform == "facebook" and hasattr(page, "on")
         def on_response(response):
             capture_facebook_response(response, stories, url)
         if listening:
             page.on("response", on_response)
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-            self.ensure_access(page, url, progress, interactive)
-            _human_pause(*pace["settle"])
+            t_nav0 = time.monotonic() if timings is not None else 0.0
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                self.ensure_access(page, url, progress, interactive)
+                _human_pause(*pace["settle"])
+            finally:
+                if timings is not None:
+                    timings["navigation"] += max(0.0, time.monotonic() - t_nav0)
             if listening:
                 for body in page.evaluate("() => [...document.querySelectorAll('script[type=\"application/json\"], script[data-sjs]')].slice(0, 40).map(s => s.textContent).filter(t => t && t.length <= 8000000)"):
                     cache_facebook_stories(body, stories, url)
@@ -720,16 +852,25 @@ class Scraper:
                     reason = "budget_exhausted"; break
                 if self.ensure_access(page, url, progress, interactive):
                     stale_rounds = 0
-                if self.expand_js:
-                    page.evaluate(self.expand_js)
+                t_exp0 = time.monotonic() if timings is not None else 0.0
+                if self._expand(page, stories, url, label) > 0:
                     _human_pause(*pace["expand"])
+                if timings is not None:
+                    timings["expand"] += max(0.0, time.monotonic() - t_exp0)
                 before = len(encountered)
+                prev_lr = stories.link_resolve_s
+                t_ext0 = time.monotonic() if timings is not None else 0.0
                 items = self.extract_items(page, stories)
+                if timings is not None:
+                    ext_dt = max(0.0, time.monotonic() - t_ext0)
+                    lr_dt = max(0.0, stories.link_resolve_s - prev_lr)
+                    timings["link_resolve"] += lr_dt
+                    timings["extract"] += max(0.0, ext_dt - lr_dt)
                 for item in items:
                     header = item.pop("_missing_header", "")
                     p = RawPost(platform=self.platform, source=label, **item)
-                    fp = p.fingerprint
-                    network = match_facebook_story(p, stories)
+                    replaced_full_text = False
+                    network = match_facebook_story(p, stories) if self.platform == "facebook" else None
                     if network:
                         p.sponsored |= network["sponsored"]
                         if network["url"]:
@@ -737,6 +878,10 @@ class Scraper:
                             header = ""  # Network enrichment resolved the missing DOM permalink.
                         if not p.posted_at:
                             p.posted_at = network["posted_at"]
+                        if _should_use_story_text(p.text, network, url):
+                            p.text = network["text"]
+                            replaced_full_text = True
+                    fp = p.fingerprint
                     if fp in collected and not collected[fp].url and p.url:
                         collected[fp].url = p.url
                     if self.platform == "facebook":
@@ -747,6 +892,8 @@ class Scraper:
                     if fp in encountered:
                         continue
                     encountered.add(fp)
+                    if replaced_full_text and report is not None:
+                        report["full_text_from_story"] += 1
                     if header and not p.sponsored and not facebook_ad_link(p.url) and len(self.missing_headers) < 10:
                         self.missing_headers.append(header)
                     if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
@@ -779,9 +926,14 @@ class Scraper:
                     empty_pages = empty_pages + 1 if len(encountered) == page_start else 0
                     if next_url and empty_pages < 2:
                         url = next_url
-                        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-                        self.ensure_access(page, url, progress, interactive)
-                        _human_pause(*pace["settle"])
+                        t_nav1 = time.monotonic() if timings is not None else 0.0
+                        try:
+                            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                            self.ensure_access(page, url, progress, interactive)
+                            _human_pause(*pace["settle"])
+                        finally:
+                            if timings is not None:
+                                timings["navigation"] += max(0.0, time.monotonic() - t_nav1)
                         page_start = len(encountered)
                         stale_rounds = 0
                         moved_page = True
@@ -793,10 +945,13 @@ class Scraper:
                     break
                 if moved_page:
                     continue  # Read the top cards before scrolling a newly loaded page.
+                t_scr0 = time.monotonic() if timings is not None else 0.0
                 self.scroll(page, random.randint(*pace["scroll"]))
                 _human_pause(*pace["pause"])
                 if random.random() < pace["long_chance"]:
                     _human_pause(*pace["long"])
+                if timings is not None:
+                    timings["scroll_wait"] += max(0.0, time.monotonic() - t_scr0)
         finally:
             if listening:
                 page.remove_listener("response", on_response)

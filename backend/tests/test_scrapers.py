@@ -719,3 +719,233 @@ def test_facebook_organic_labelled_timestamp_is_not_sponsored(facebook_page):
       <div><a aria-labelledby="_r_1_" href="?__cft__[0]=x" role="link"><span id="_r_1_">1 giờ</span></a></div>
       <div data-ad-preview="message">An ordinary page post with a normal timestamp link.</div></div></div>''')
     assert scrapers._facebook_items(facebook_page)[0]["sponsored"] is False
+
+
+def test_story_graphql_replaces_truncated_dom_with_full_text(facebook_page, monkeypatch):
+    import json
+    prefix = "Tuyển dụng kỹ sư Python Backend làm việc tại Hà Nội với mức lương hấp dẫn và chế độ đãi ngộ tốt cho ứng viên có kinh nghiệm"
+    full_text = prefix + " trên 3 năm về FastAPI, PostgreSQL, Redis và hệ thống phân tán quy mô lớn. Quyền lợi bảo hiểm đầy đủ."
+    story = {
+        "__typename": "Story",
+        "post_id": "101",
+        "actors": [{"name": "HR Tech"}],
+        "to": {"__typename": "Group", "id": "demo"},
+        "message": {"text": full_text},
+    }
+    facebook_page.set_content(f'''<div role="feed"><div role="article">
+      <h3>HR Tech</h3>
+      <div data-ad-preview="message">{prefix}… Xem thêm</div>
+      <div role="button" onclick="window.expandClicks=(window.expandClicks||0)+1">Xem thêm</div>
+      <a href="/groups/demo/posts/101/">1 h</a>
+      <script type="application/json">{json.dumps({"data": story})}</script>
+    </div></div>''')
+    facebook_page.evaluate("window.expandClicks = 0")
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    posts = scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report=report)
+    assert len(posts) == 1
+    assert posts[0].text == full_text
+    assert report["full_text_from_story"] == 1
+    assert facebook_page.evaluate("window.expandClicks") == 0
+
+
+def test_two_authors_same_short_caption_do_not_merge_wrong_story(facebook_page, monkeypatch):
+    import json
+    short_caption = "Tuyển dev Python gấp"
+    stories = [
+        {"__typename": "Story", "post_id": "1", "actors": [{"name": "Alice"}],
+         "message": {"text": short_caption + " lương 3000 USD tại Quận 1."}},
+        {"__typename": "Story", "post_id": "2", "actors": [{"name": "Bob"}],
+         "message": {"text": short_caption + " làm remote toàn thời gian."}},
+    ]
+    facebook_page.set_content(f'''<div role="feed"><div role="article">
+      <h3>Alice</h3>
+      <div data-ad-preview="message">{short_caption}… Xem thêm</div>
+      <a href="/groups/demo/posts/1/">1 h</a>
+      <script type="application/json">{json.dumps({"data": stories})}</script>
+    </div></div>''')
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    posts = scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report=report)
+    assert len(posts) == 1
+    assert posts[0].text == f"{short_caption}… Xem thêm"
+    assert report["full_text_from_story"] == 0
+
+
+def test_shared_or_other_group_story_is_not_used_for_full_text(facebook_page, monkeypatch):
+    import json
+    shared_prefix = "Bài viết gốc rất dài về kinh nghiệm phỏng vấn kỹ sư phần mềm tại các công ty công nghệ lớn"
+    shared_full = shared_prefix + " và cách chuẩn bị thuật toán, thiết kế hệ thống trong 3 tháng."
+    other_group_prefix = "Thông báo tuyển dụng lập trình viên ReactJS và TypeScript cho dự án thương mại điện tử"
+    other_group_full = other_group_prefix + " tại thành phố Hồ Chí Minh, phúc lợi đầy đủ và thưởng tháng 13."
+    payload = {
+        "data": [
+            {
+                "__typename": "Story",
+                "post_id": "10",
+                "actors": [{"name": "Sharer"}],
+                "message": {"text": "Mọi người tham khảo bài viết hay này nhé!"},
+                "attached_story": {
+                    "__typename": "Story",
+                    "post_id": "11",
+                    "actors": [{"name": "Original Author"}],
+                    "message": {"text": shared_full},
+                },
+            },
+            {
+                "__typename": "Story",
+                "post_id": "20",
+                "actors": [{"name": "Other Group Author"}],
+                "to": {"__typename": "Group", "id": "999"},
+                "permalink_url": "https://www.facebook.com/groups/999/posts/20/",
+                "message": {"text": other_group_full},
+            },
+        ]
+    }
+    facebook_page.set_content(f'''<div role="feed">
+      <div role="article">
+        <h3>Sharer</h3>
+        <div data-ad-preview="message">{shared_prefix}… Xem thêm</div>
+        <a href="/groups/111/posts/10/">1 h</a>
+      </div>
+      <div role="article">
+        <h3>Other Group Author</h3>
+        <div data-ad-preview="message">{other_group_prefix}… Xem thêm</div>
+        <a href="/groups/111/posts/20/">2 h</a>
+      </div>
+      <script type="application/json">{json.dumps(payload)}</script>
+    </div>''')
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    posts = scraper.collect(facebook_page, "https://www.facebook.com/groups/111/", "111", 2, set(), lambda *args: None, report=report)
+    assert len(posts) == 2
+    assert posts[0].text == f"{shared_prefix}… Xem thêm"
+    assert posts[1].text == f"{other_group_prefix}… Xem thêm"
+    assert report["full_text_from_story"] == 0
+
+
+def test_shorter_story_never_replaces_longer_dom_text(facebook_page, monkeypatch):
+    import json
+    short_story = "Tuyển kỹ sư phần mềm"
+    dom_text = short_story + " làm việc tại Hà Nội với nhiều quyền lợi hấp dẫn, mô tả chi tiết công việc rất dài ở phần xem trước liên kết."
+    story = {
+        "__typename": "Story",
+        "post_id": "30",
+        "actors": [{"name": "Page Author"}],
+        "message": {"text": short_story},
+    }
+    facebook_page.set_content(f'''<div role="feed"><div role="article">
+      <h3>Page Author</h3>
+      <div data-ad-preview="message">{dom_text}</div>
+      <a href="/PageAuthor/posts/30/">1 h</a>
+      <script type="application/json">{json.dumps({"data": story})}</script>
+    </div></div>''')
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    posts = scraper.collect(facebook_page, "https://www.facebook.com/", "feed", 1, set(), lambda *args: None, report=report)
+    assert len(posts) == 1
+    assert posts[0].text == dom_text
+    assert report["full_text_from_story"] == 0
+
+
+def test_round_without_expand_button_skips_expand_wait_using_fake_clock(facebook_page, monkeypatch):
+    now = [0.0]
+    pauses = []
+    def fake_monotonic():
+        now[0] += 0.01
+        return now[0]
+    def fake_pause(lo, hi):
+        pauses.append((lo, hi))
+        now[0] += lo
+    monkeypatch.setattr(scrapers.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(scrapers, "_human_pause", fake_pause)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+
+    # Case 1: no "Xem thêm" / "See more" button -> no expand pause
+    facebook_page.set_content('''<div role="feed"><div role="article">
+      <h3>Author</h3>
+      <div data-ad-preview="message">A normal post without any expand button on the page.</div>
+      <a href="/groups/demo/posts/40/">1 h</a>
+    </div></div>''')
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report=report)
+    expand_range = scrapers.PACE["fast"]["expand"]
+    assert expand_range not in pauses
+
+    # Case 2: has "Xem thêm" button and NO Story -> clicks and waits expand pause
+    pauses.clear()
+    facebook_page.set_content('''<div role="feed"><div role="article">
+      <h3>Author</h3>
+      <div data-ad-preview="message">A post without Story that actually needs expand button click.</div>
+      <div role="button" onclick="window.clicked=(window.clicked||0)+1">Xem thêm</div>
+      <a href="/groups/demo/posts/41/">1 h</a>
+    </div></div>''')
+    facebook_page.evaluate("window.clicked = 0")
+    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report={})
+    assert facebook_page.evaluate("window.clicked") == 1
+    assert expand_range in pauses
+
+
+def test_report_contains_all_five_timing_keys_and_accumulates_without_secrets(facebook_page, monkeypatch):
+    import json
+    now = [100.0]
+    def fake_monotonic():
+        now[0] += 0.05
+        return now[0]
+    def fake_pause(lo, hi):
+        now[0] += lo
+    monkeypatch.setattr(scrapers.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(scrapers, "_human_pause", fake_pause)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+
+    prefix = "Bài viết thứ nhất có nội dung đủ dài để khớp duy nhất với Story trong bộ nhớ đệm GraphQL"
+    full_text = prefix + " và phần nội dung mở rộng đầy đủ phía sau không cần bấm nút xem thêm."
+    story = {
+        "__typename": "Story",
+        "post_id": "50",
+        "actors": [{"name": "Author"}],
+        "to": {"__typename": "Group", "id": "demo"},
+        "message": {"text": full_text},
+    }
+    facebook_page.set_content(f'''<div role="feed"><div role="article">
+      <h3>Author</h3>
+      <div data-ad-preview="message">{prefix}… Xem thêm</div>
+      <a href="/groups/demo/posts/50/">1 h</a>
+      <script type="application/json">{json.dumps({"data": story})}</script>
+    </div></div>''')
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
+    report = {}
+    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo1", 1, set(), lambda *args: None, report=report)
+    first_nav = report["timings"]["navigation"]
+    assert set(report["timings"].keys()) == {"navigation", "scroll_wait", "expand", "link_resolve", "extract"}
+    assert all(isinstance(v, float) and v >= 0.0 for v in report["timings"].values())
+    assert report["full_text_from_story"] == 1
+
+    # Second source accumulates on the same report dict
+    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo2", 1, set(), lambda *args: None, report=report)
+    assert report["timings"]["navigation"] > first_nav
+    assert report["full_text_from_story"] == 2
+    serialized = json.dumps(report, ensure_ascii=False)
+    assert full_text not in serialized
+    assert "cookie" not in serialized.lower()
