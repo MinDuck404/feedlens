@@ -476,14 +476,12 @@ def runs(user: User = Depends(current_user)):
 
 @private.get("/runs/{run_id}")
 def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = True):
-    from sqlalchemy import func, select
-    from .db.tables import PostRow
-
     r = _own_run(run_id, user)
-    with db().Session() as session:
-        version = session.scalar(select(func.count()).select_from(PostRow).where(PostRow.run_id == run_id))
+    counts = db().analysis_counts(run_id)
     active = r["status"] in {"pending", "queued", "scraping", "analyzing"}
-    result = {**r, "progress": progress_message(PROGRESS.get(run_id)), "posts_version": version,
+    result = {**r, "progress": progress_message(PROGRESS.get(run_id)),
+              "posts_version": counts["offline"] + 2 * counts["ai"],
+              "analysis_counts": counts,
               "can_continue_analysis": False if active else db().can_continue_analysis(run_id),
               "can_reanalyze_ai": not active and r["status"] == "done" and r.get("ai_label") == HeuristicAnalyzer.label and r.get("collected", 0) > 0,
               "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None}

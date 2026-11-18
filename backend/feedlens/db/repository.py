@@ -45,7 +45,8 @@ class Database:
         wanted = {
             "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type},
             "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
-            "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''"},
+            "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''",
+                      "analyzed_by": "VARCHAR(120) NOT NULL DEFAULT ''"},
             "api_keys": {"label": "VARCHAR(80) NOT NULL DEFAULT ''", "priority": "INTEGER NOT NULL DEFAULT 0",
                          "enabled": "BOOLEAN NOT NULL DEFAULT TRUE", "tier": "VARCHAR(8) NOT NULL DEFAULT 'free'"},
             "ai_usage": {"exhausted": "BOOLEAN NOT NULL DEFAULT FALSE"},
@@ -57,6 +58,11 @@ class Database:
                 if col not in have:
                     with self.engine.begin() as conn:
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+                        if table == "posts" and col == "analyzed_by":
+                            conn.execute(text("""UPDATE posts SET analyzed_by = COALESCE(
+                                (SELECT CASE WHEN ai_label = '' OR ai_label = :offline_label THEN 'offline'
+                                             ELSE ai_label END FROM runs WHERE runs.id = posts.run_id), 'offline')"""),
+                                         {"offline_label": "bộ lọc từ khóa offline"})
         constraints = [c for c in inspect(self.engine).get_unique_constraints("api_keys")
                        if set(c["column_names"]) == {"user_id", "provider"}]
         if constraints and self.engine.dialect.name == "sqlite":
@@ -349,8 +355,21 @@ class Database:
         raw = self.get_analysis_posts(run_id)
         if reanalyze_all:
             return bool(raw)
-        completed = {p.fingerprint for p in self.get_posts(run_id)}
+        needs_ai = run["request"].get("ai_provider") != "offline" and not (
+            run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline")
+        completed = {p.fingerprint for p in self.get_posts(run_id)
+                     if not needs_ai or p.analyzed_by not in {"", "offline"}}
         return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))
+
+    def analysis_counts(self, run_id: int) -> dict[str, int]:
+        with self.Session() as s:
+            labels = s.execute(select(PostRow.analyzed_by, func.count()).where(PostRow.run_id == run_id)
+                               .group_by(PostRow.analyzed_by)).all()
+            collected = s.scalar(select(RunRow.collected).where(RunRow.id == run_id)) or 0
+        saved = sum(count for _, count in labels)
+        ai = sum(count for label, count in labels if label not in {"", "offline"})
+        total = max(collected, saved)
+        return {"ai": ai, "offline": saved - ai, "pending": total - saved, "total": total}
 
     def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         """Checkpoint completed batches without replacing IDs used by applied-job markers."""
@@ -365,8 +384,13 @@ class Database:
                 for key in RawPost.model_fields.keys() - {"job_seed"}:
                     setattr(row, key, getattr(p, key))
                 row.category, row.summary = p.category, p.summary
+                row.analyzed_by = "offline" if p.analyzed_by in {"", "bộ lọc từ khóa offline"} else p.analyzed_by
                 row.job = p.job.model_dump() if p.job else None
                 row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
+            run = s.get(RunRow, run_id)
+            if run and rows:
+                run.ai_label = " + ".join(sorted({r.analyzed_by if r.analyzed_by != "offline" else "bộ lọc từ khóa offline"
+                                                 for r in rows.values()}))
             self._keep_job_seeds(s, run_id, posts)
 
     def _keep_job_seeds(self, session, run_id: int, posts: list[AnalyzedPost]) -> None:
@@ -420,6 +444,7 @@ class Database:
                 run_id=run_id, platform=p.platform, source=p.source, author=p.author, text=p.text,
                 url=p.url, posted_at=p.posted_at, fingerprint=p.fingerprint, category=p.category,
                 summary=p.summary, job=p.job.model_dump() if p.job else None,
+                analyzed_by="offline" if p.analyzed_by in {"", "bộ lọc từ khóa offline"} else p.analyzed_by,
                 topic_ids=list(p.topic_ids), topic_reason=p.topic_reason,
             ) for p in posts)
             self._keep_job_seeds(s, run_id, posts)
@@ -430,6 +455,7 @@ class Database:
             posts = [AnalyzedPost(
                 id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text, url=r.url,
                 posted_at=r.posted_at, category=r.category, summary=r.summary,
+                analyzed_by=r.analyzed_by or "offline",
                 job=JobInfo(**r.job) if r.job else None,
                 topic_ids=list(r.topic_ids or []), topic_reason=r.topic_reason or "",
             ) for r in rows]

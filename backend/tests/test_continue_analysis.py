@@ -120,3 +120,133 @@ def test_only_offline_completed_runs_allow_full_reanalysis(cloud):
     response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
                            json={"ai_provider": "openai", "mode": "reanalyze_all"})
     assert response.status_code == 409
+
+
+@pytest.mark.parametrize("retry_exhausted", [False, True])
+def test_interrupted_ai_upgrade_continues_only_offline_posts(cloud, monkeypatch, retry_exhausted):
+    client = cloud(); headers = _signup(client)
+    database = api.db()
+    user_id = database.get_user_by_email("a@x.io").id
+    rid = database.create_run(RunRequest(platform="facebook", ai_provider="offline"), user_id)
+    raw = [RawPost(platform="facebook", source="feed", text=f"Tuyển Python developer {i}") for i in range(3)]
+    offline = HeuristicAnalyzer()
+    database.save_raw_posts(rid, raw)
+    database.save_batch(rid, offline.classify(raw, True, [], "", lambda *a: None))
+    database.update_run(rid, status="done", ai_label=offline.label,
+                        digest=offline.digest(database.get_posts(rid), True))
+
+    class FakeAI(HeuristicAnalyzer):
+        label = "Fake AI"
+        calls = 0
+        seen = []
+
+        def classify(self, posts, *args):
+            self.calls += 1
+            self.seen.append([p.text for p in posts])
+            if self.calls == 1:
+                batch = super().classify(posts[:1], *args)
+                batch[0].summary = "AI checkpoint"
+                self.on_batch(batch)
+                raise RuntimeError("429 quota exceeded")
+            if retry_exhausted:
+                raise RuntimeError("429 quota exceeded")
+            return super().classify(posts, *args)
+
+    fake = FakeAI()
+    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake)
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+    monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Continue must not browse"))
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                           json={"ai_provider": "openai", "mode": "reanalyze_all"})
+    assert response.status_code == 200
+    checkpoint = database.get_posts(rid)[0]
+    assert database.get_run(rid)["status"] == "analysis_failed"
+    partial = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert partial["analysis_counts"] == {"ai": 1, "offline": 2, "pending": 0, "total": 3}
+    assert partial["can_continue_analysis"] is True
+    assert partial["ai_label"] != fake.label
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "openai"})
+    assert response.status_code == 200
+    assert fake.seen == [[p.text for p in raw], [p.text for p in raw[1:]]]
+    saved = database.get_posts(rid)
+    assert saved[0].id == checkpoint.id and saved[0].summary == "AI checkpoint"
+    detail = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert detail["analysis_counts"] == {"ai": 1 if retry_exhausted else 3,
+                                          "offline": 2 if retry_exhausted else 0, "pending": 0, "total": 3}
+    assert [p.analyzed_by for p in saved] == ([fake.label, "offline", "offline"] if retry_exhausted else [fake.label] * 3)
+    assert detail["status"] == ("analysis_failed" if retry_exhausted else "done")
+    assert (detail["ai_label"] == fake.label) is not retry_exhausted
+    assert detail["can_continue_analysis"] is retry_exhausted
+    assert (detail["error_code"] == "error.ai_quota") is retry_exhausted
+
+
+def test_ai_upgrade_with_no_results_cannot_complete_or_relabel_offline_rows(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    database = api.db()
+    user_id = database.get_user_by_email("a@x.io").id
+    rid = database.create_run(RunRequest(platform="facebook", ai_provider="offline"), user_id)
+    raw = [RawPost(platform="facebook", source="feed", text="Tuyển Python developer")]
+    offline = HeuristicAnalyzer()
+    database.save_raw_posts(rid, raw)
+    database.save_batch(rid, offline.classify(raw, True, [], "", lambda *a: None))
+    database.update_run(rid, status="done", digest=offline.digest(database.get_posts(rid), True))
+
+    class EmptyAI(HeuristicAnalyzer):
+        label = "Empty AI"
+
+        def classify(self, *args):
+            return []
+
+        def digest(self, *args):
+            pytest.fail("Offline rows cannot become an AI digest without AI classification")
+
+    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: EmptyAI())
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+    for mode in ("reanalyze_all", "continue"):
+        response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                               json={"ai_provider": "openai", "mode": mode})
+        assert response.status_code == 200
+        result = client.get(f"/api/runs/{rid}", headers=headers).json()
+        assert result["status"] == "analysis_failed" and result["digest"] is None
+        assert result["ai_label"] == offline.label
+        assert result["analysis_counts"] == {"ai": 0, "offline": 1, "pending": 0, "total": 1}
+        assert result["can_continue_analysis"] is True
+
+
+def test_analysis_provenance_migrates_legacy_labels_without_losing_rows(tmp_path):
+    from sqlalchemy import text
+    from feedlens.db import Database
+
+    url = f"sqlite:///{tmp_path / 'provenance.db'}"
+    database = Database(url)
+    offline = HeuristicAnalyzer()
+    ids = []
+    for label in (offline.label, "Fake AI", ""):
+        rid = database.create_run(RunRequest(platform="facebook", ai_provider="offline"))
+        posts = offline.classify([RawPost(platform="facebook", source="feed", text=f"Legacy {label}")],
+                                 False, [], "", lambda *a: None)
+        database.save_batch(rid, posts)
+        database.update_run(rid, ai_label=label, status="done")
+        ids.append((rid, database.get_posts(rid)[0].id))
+    with database.engine.begin() as connection:
+        connection.execute(text("ALTER TABLE posts DROP COLUMN analyzed_by"))
+    database.engine.dispose()
+    upgraded = Database(url)
+    for (rid, post_id), label in zip(ids, ("offline", "Fake AI", "offline")):
+        saved = upgraded.get_posts(rid)
+        assert len(saved) == 1 and saved[0].id == post_id
+        assert saved[0].analyzed_by == label
+    upgraded.engine.dispose()
+    reopened = Database(url)
+    assert reopened.get_posts(ids[1][0])[0].analyzed_by == "Fake AI"
+
+
+def test_offline_matching_ignores_stopwords_short_tokens_and_partial_words():
+    raw = [RawPost(platform="facebook", source="feed", text="Tuyển dụng vị trí các ứng viên cận HCM hoặc nơi khác. Python, React! Lương salary.")]
+    result = HeuristicAnalyzer().classify(raw, True, ["các", "hoặc", "cận", "và", "a", "py", "act", "Python", "React"],
+                                         "các hoặc cận", lambda *a: None)
+    assert result[0].job.match_reason == "Khớp từ khóa: python, react"
+    assert result[0].job.match_score == 66  # "act" must not match "React".
+    assert result[0].analyzed_by == "offline"

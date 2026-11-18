@@ -7,7 +7,7 @@ from contextvars import ContextVar
 from typing import Callable
 
 from .ai.registry import preferred_provider, user_key_list
-from .analyzer import get_analyzer
+from .analyzer import HeuristicAnalyzer, get_analyzer
 from .config import settings
 from .db import Database
 from .models import RawPost, RunRequest
@@ -242,7 +242,9 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if req.job_mode:
         analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
-    completed = [] if reanalyze_all else db.get_posts(run_id)
+    needs_ai = analyzer.label != HeuristicAnalyzer.label
+    completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
+                                         if not needs_ai or p.analyzed_by not in {"", "offline"}]
     known = {p.fingerprint for p in completed}
     pending = [p for p in raw if p.fingerprint not in known]
     analyzer.on_batch = lambda batch: db.save_batch(run_id, batch)
@@ -254,11 +256,14 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
             add_timings(db, run_id, analysis=time.monotonic() - started)
     analyzed = db.get_posts(run_id)
+    completed = {p.fingerprint for p in analyzed if not needs_ai or p.analyzed_by not in {"", "offline"}}
+    if any(p.fingerprint not in completed for p in raw):
+        raise RuntimeError("AI chưa đọc hết các bài đã lưu. Bấm gửi tiếp để chỉ gửi những bài AI chưa đọc.")
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
     started = time.monotonic()
     digest = analyzer.digest(analyzed, req.job_mode)
     add_timings(db, run_id, summary=time.monotonic() - started)
-    db.update_run(run_id, status="done", error=None, digest=digest, ai_label=analyzer.label)  # model có thể đã đổi
+    db.update_run(run_id, status="done", error=None, digest=digest)
     prog.update(phase="done", message="Hoàn tất")
 
 
@@ -290,7 +295,6 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
                 raw = [p for p in raw if p.fingerprint not in known]
             db.save_raw_posts(run_id, raw)
         analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
-        db.update_run(run_id, ai_label=analyzer.label)
         _analyze(db, run_id, req, raw, analyzer, report, reanalyze_all=reanalyze_all)
     except Exception as e:  # noqa: BLE001
         _fail(db, run_id, e)

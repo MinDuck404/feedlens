@@ -159,6 +159,7 @@ export interface Post {
   topic_ids?: number[];
   topic_reason?: string;
   analyzed?: boolean;
+  analyzed_by?: string;
   id: number;
   platform: string;
   source: string;
@@ -190,6 +191,7 @@ export interface Progress {
 }
 
 export interface Run {
+  analysis_counts?: { ai: number; offline: number; pending: number; total: number };
   posts_version?: number;
   can_continue_analysis?: boolean;
   can_reanalyze_ai?: boolean;

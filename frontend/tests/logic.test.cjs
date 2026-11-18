@@ -419,6 +419,39 @@ test("analysis failures stop polling and keep saved posts available", async () =
   } finally { harness.close(); React.useContext = originalContext; api.run = original; window.setTimeout = oldTimer; }
 });
 
+test("interrupted AI upgrades show real coverage and offer only remaining posts", async () => {
+  const RunView = require("../src/components/RunView.tsx").default;
+  const originalRun = api.run, originalProviders = api.providers, originalContext = React.useContext;
+  const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value;
+  context.close(); React.useContext = () => value;
+  api.providers = async () => [];
+  api.run = async () => ({ id: 14, status: "analysis_failed", can_continue_analysis: true,
+    request: { platform: "facebook", source_type: "feed", ai_provider: "openai", ai_model: "fake" },
+    analysis_counts: { ai: 20, offline: 1180, pending: 0, total: 1200 },
+    created_at: "2026-11-14T12:00:00Z", error_code: "error.ai_quota", posts: [] });
+  const harness = hooks(RunView), props = { runId: 14, tab: "posts", meta: {}, onTab() {}, onDeleted() {} };
+  try {
+    harness.render(props); await tick();
+    const result = harness.render(props), rendered = JSON.stringify(result);
+    assert.ok(rendered.includes(i18n.translate("run.analysisCounts", { ai: 20, offline: 1180, total: 1200 })));
+    assert.ok(rendered.includes(i18n.translate("run.aiQuotaSaved", { total: 1200, ai: 20 })));
+    let retry;
+    const visit = (node) => {
+      if (!React.isValidElement(node)) return;
+      if (node.type.name === "RetryAnalysis") retry = node;
+      React.Children.forEach(node.props.children, visit);
+    };
+    visit(result); assert.ok(retry);
+    const retryHarness = hooks(retry.type);
+    try {
+      const content = JSON.stringify(retryHarness.render(retry.props));
+      assert.ok(content.includes(i18n.translate("run.retryAIHint", { n: 1180 })));
+      assert.ok(content.includes(i18n.translate("run.sendRemainingAI")));
+      await tick();
+    } finally { retryHarness.close(); }
+  } finally { harness.close(); React.useContext = originalContext; api.run = originalRun; api.providers = originalProviders; }
+});
+
 test("theme preference applies explicit overrides and restores system styling before render", () => {
   const vm = require("node:vm");
   const html = fs.readFileSync(require.resolve("../index.html"), "utf8");

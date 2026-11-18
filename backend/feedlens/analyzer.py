@@ -327,7 +327,7 @@ class LLMAnalyzer:
                 if not it:
                     fallback = {"category": "job", "job": _seeded_job(p),
                                 "topic_ids": heuristic_topics(p.text, topics)} if known_jobs else {}
-                    res.append(AnalyzedPost(**p.model_dump(), summary=_first_sentence(p.text), **fallback))
+                    res.append(AnalyzedPost(**p.model_dump(), analyzed_by=self.label, summary=_first_sentence(p.text), **fallback))
                     continue
                 job_data = dict(it.get("job") or {}) if known_jobs else (dict(it["job"]) if it["is_job"] else None)
                 if job_data is not None:
@@ -345,6 +345,7 @@ class LLMAnalyzer:
                         job.match_score = min(max(0, 100 - 35 * len(job.constraint_flags)), job.match_score)
                 tids = _clean_topic_ids(it.get("topic_ids"), allowed_topics)
                 res.append(AnalyzedPost(**p.model_dump(), category="job" if known_jobs or it["is_job"] else it["category"],
+                                        analyzed_by=self.label,
                                         summary=(it.get("summary") or _first_sentence(p.text)) if known_jobs else it["summary"],
                                         job=job, topic_ids=tids,
                                         topic_reason=(it.get("topic_reason") or "")[:100] if tids else ""))
@@ -470,6 +471,13 @@ KEYWORDS: dict[str, list[str]] = {
     "entertainment": ["haha", "meme", "phim", "nhạc", "game", "😂", "🤣"],
 }
 
+MATCH_STOPWORDS = set("""
+    các hoặc cận của cho với trong ngoài những một và hay là có không được cần tìm mong muốn về
+    từ đến tại theo như này đó khi thì nếu cũng việc làm công mức thể hơn nhất vào trên dưới
+    the and for with from that this have has are was were will can not but your you our their
+    experience skills role work years year job jobs hcm tphcm
+""".split())
+
 
 def _first_sentence(text: str, limit: int = 160) -> str:
     s = re.split(r"(?<=[.!?\n])\s", text.strip(), maxsplit=1)[0]
@@ -495,6 +503,7 @@ class HeuristicAnalyzer:
             kws = sorted(set(kws + [w for w in re.findall(r"[\w+#.]+", cv_profile.markdown.lower()) if len(w) > 2]))
         elif profile:
             kws = sorted(set(kws + [w for w in re.findall(r"[\w+#.]+", profile.lower()) if len(w) > 2]))
+        kws = sorted({k.strip() for k in kws if len(k.strip()) > 2 and k.strip() not in MATCH_STOPWORDS})
         for p in posts:
             match_text = p.text
             if p.job_seed is not None:
@@ -503,7 +512,7 @@ class HeuristicAnalyzer:
             cat = "job" if p.job_seed is not None else heuristic_category(p.text)
             job = None
             if cat == "job":
-                hits = [k for k in kws if k in match_text.lower()]
+                hits = [k for k in kws if re.search(r"(?<!\w)" + re.escape(k) + r"(?!\w)", match_text.lower())]
                 score = int(100 * len(hits) / len(kws)) if kws else 50
                 contact = re.search(r"[\w.+-]+@[\w-]+\.[\w.]+|0\d{9,10}", p.text)
                 job = JobInfo(title=_first_sentence(p.text, 80), match_score=score,
@@ -514,6 +523,7 @@ class HeuristicAnalyzer:
                     job = _seeded_job(p, job.model_dump())
             tids = heuristic_topics(match_text, topics)
             out.append(AnalyzedPost(**p.model_dump(), category=cat, summary=_first_sentence(p.text), job=job,
+                                    analyzed_by="offline" if self.label == HeuristicAnalyzer.label else self.label,
                                     topic_ids=tids))
         progress(len(out), f"Đã phân loại {len(out)}/{len(posts)} (offline)")
         return out

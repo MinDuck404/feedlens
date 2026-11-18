@@ -112,6 +112,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
   const canContinue = canContinueAnalysis(run);
   const canReanalyze = canReanalyzeOffline(run);
   const failed = run.status === "error" || run.status === "analysis_failed";
+  const counts = run.analysis_counts;
 
   const remove = async () => {
     if (!confirm(t("run.confirmDelete"))) return;
@@ -131,6 +132,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
           {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
           {run.ai_label && t("run.readBy", { ai: run.ai_label })}
         </p>
+        {!!counts?.total && <p role="status" className="mt-2 text-sm text-ink-soft">{t("run.analysisCounts", counts)}{counts.pending > 0 && ` ${t("run.analysisPending", { n: counts.pending })}`}</p>}
         {run.request?.scrape_report && <ScrapeReportLine report={run.request.scrape_report} groups={savedGroupsFor(prefs, run.request)} />}
         <div className="mt-2 flex items-center justify-center gap-1 text-ink-soft">
           {!!run.posts?.length && (["md", "csv", "json"] as const).map((f) => (
@@ -156,10 +158,11 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
+          {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
-        {!!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
+        {run.status === "done" && run.digest ? <Done run={run} meta={meta} tab={tab} setTab={setTab} /> : !!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
         </>
       ) : run.status !== "done" || !run.digest ? (
         <InProgress run={run} />
@@ -269,6 +272,7 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
   const [model, setModel] = useState(run.request.ai_model || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const resumeAI = !reanalyzeAll && run.request.ai_provider !== "offline";
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
   const submit = async () => {
     setBusy(true); setError("");
@@ -277,7 +281,7 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
     finally { setBusy(false); }
   };
   return <div className="mt-4 border-t border-line pt-4">
-    <p className="text-sm text-ink-soft">{t("run.retryAnalysisHint")}</p>
+    <p className="text-sm text-ink-soft">{resumeAI && run.analysis_counts ? t("run.retryAIHint", { n: run.analysis_counts.total - run.analysis_counts.ai }) : t("run.retryAnalysisHint")}</p>
     <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
       <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
         <option value="auto">{t("profile.auto")}</option>
@@ -287,7 +291,7 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
       </Select></label>
       {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <Button busy={busy} onClick={submit}>{t(reanalyzeAll ? "run.sendToAI" : "run.continueAnalysis")}</Button>
+      <Button busy={busy} onClick={submit}>{t(reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
     </fieldset>
   </div>;
 }

@@ -103,6 +103,7 @@ class PostRow(Base):
     fingerprint: Mapped[str] = mapped_column(String(40), index=True)
     category: Mapped[str] = mapped_column(String(30), default="other", index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
+    analyzed_by: Mapped[str] = mapped_column(String(120), default="")
     job: Mapped[Optional[dict]] = mapped_column(JSON)
     topic_ids: Mapped[Optional[list]] = mapped_column(JSON)  # id các chủ đề của user mà bài khớp
     topic_reason: Mapped[str] = mapped_column(Text, default="")
