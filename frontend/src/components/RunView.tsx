@@ -215,7 +215,7 @@ function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) 
   return <div className="mt-4 border-t border-line pt-4">
     <p className="text-sm text-ink-soft">{t("run.retryAnalysisHint")}</p>
     <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
-      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
+      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} wrapperClassName="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
         <option value="auto">{t("profile.auto")}</option>
         {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
         {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider}</option>}
@@ -539,14 +539,14 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
           <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
             value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
         </div>
-        <select className="field min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
+        <Select className="min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
           {["all", "primary", "adjacent", "stretch", "none"].map((type) => <option key={type} value={type}>{t(`profile.match.${type}` as Key)}</option>)}
-        </select>
-        <select className="field min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
+        </Select>
+        <Select className="min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
           <option value="score">{t("job.sortScore")}</option>
           <option value="salary">{t("job.sortSalary")}</option>
           <option value="source">{t("job.sortSource")}</option>
-        </select>
+        </Select>
         </div>
       </div>
 
