@@ -106,6 +106,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
     }
     if (event.key === "Escape" && open) {
       event.preventDefault();
+      event.stopPropagation(); // Esc chỉ đóng danh sách, không đóng Dialog/Sheet cha
       closeMenu(true);
       return;
     }

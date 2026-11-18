@@ -110,6 +110,7 @@ export function Dialog({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (e.defaultPrevented) return; // control con (vd. Select đang mở) đã xử lý Esc
         e.preventDefault();
         e.stopPropagation();
         onCloseRef.current();
