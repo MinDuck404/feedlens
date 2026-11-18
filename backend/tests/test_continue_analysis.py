@@ -61,3 +61,62 @@ def test_active_runs_cannot_launch_parallel_analysis(cloud, status):
     api.db().save_raw_posts(rid, [RawPost(platform="facebook", source="feed", text="Saved post")])
     assert client.get(f"/api/runs/{rid}", headers=headers).json()["can_continue_analysis"] is False
     assert client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "offline"}).status_code == 409
+
+
+def test_offline_completed_run_can_reanalyze_every_post_with_fake_ai(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    user_id = api.db().get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook", ai_provider="offline", keywords=["python"])
+    rid = api.db().create_run(req, user_id)
+    raw = [RawPost(platform="facebook", source="group", text=f"Offline post number {i}") for i in range(3)]
+    offline = HeuristicAnalyzer()
+    api.db().save_raw_posts(rid, raw)
+    api.db().save_batch(rid, offline.classify(raw, False, [], "", lambda *a: None))
+    api.db().update_run(rid, status="done", digest=offline.digest(api.db().get_posts(rid), False), ai_label=offline.label)
+
+    class FakeAI(HeuristicAnalyzer):
+        label = "Fake AI provider"
+
+    fake = FakeAI(); classified = []
+    classify = fake.classify
+    def record(posts, *args):
+        classified.extend(post.text for post in posts)
+        return classify(posts, *args)
+    monkeypatch.setattr(fake, "classify", record)
+    monkeypatch.setattr(api, "_check_ai", lambda *args: None)
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake)
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+
+    assert client.get(f"/api/runs/{rid}", headers=headers).json()["can_reanalyze_ai"] is True
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                           json={"ai_provider": "openai", "ai_model": "fake-model", "mode": "reanalyze_all"})
+    assert response.status_code == 200, response.text
+    assert classified == [post.text for post in raw]
+    assert api.db().get_run(rid)["ai_label"] == fake.label
+    assert api.db().get_run(rid)["digest"]["overall"]
+
+
+def test_offline_full_reanalysis_reports_missing_ai_key(cloud):
+    client = cloud(); headers = _signup(client)
+    user_id = api.db().get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook", ai_provider="offline")
+    rid = api.db().create_run(req, user_id, status="done")
+    api.db().save_raw_posts(rid, [RawPost(platform="facebook", source="feed", text="Saved offline post")])
+    api.db().update_run(rid, ai_label=HeuristicAnalyzer.label)
+
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                           json={"ai_provider": "openai", "mode": "reanalyze_all"})
+    assert response.status_code == 400
+    assert response.json()["code"] == "error.key_missing"
+
+
+def test_only_offline_completed_runs_allow_full_reanalysis(cloud):
+    client = cloud(); headers = _signup(client)
+    user_id = api.db().get_user_by_email("a@x.io").id
+    rid = api.db().create_run(RunRequest(platform="facebook", ai_provider="openai"), user_id, status="done")
+    api.db().save_raw_posts(rid, [RawPost(platform="facebook", source="feed", text="Already AI analyzed")])
+    api.db().update_run(rid, ai_label="OpenAI")
+
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                           json={"ai_provider": "openai", "mode": "reanalyze_all"})
+    assert response.status_code == 409

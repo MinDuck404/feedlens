@@ -74,10 +74,18 @@ test("source scrape rows use saved names and treat missing status as complete", 
   ], [{ url: "https://facebook.com/groups/123", name: "Engineering jobs" }]);
 
   assert.deepEqual(rows, [
-    { name: "Engineering jobs", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
-    { name: "tech", target: 5, collected: 4, skipped_old: 0, stop_reason: "target_reached", status: "done" },
-    { name: "viec lam", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached", status: "pending" },
+    { name: "Engineering jobs", target: 20, collected: 0, skipped_old: 7, skipped_dup: 0, stop_reason: "caught_up", status: "running" },
+    { name: "viec lam", target: 10, collected: 10, skipped_old: 0, skipped_dup: 0, stop_reason: "target_reached", status: "pending" },
+    { name: "tech", target: 5, collected: 4, skipped_old: 0, skipped_dup: 0, stop_reason: "target_reached", status: "done" },
   ]);
+});
+
+test("offline completed run can offer full AI reanalysis", () => {
+  const { canReanalyzeOffline } = require("../src/logic.ts");
+  assert.equal(canReanalyzeOffline({ status: "done", ai_label: "bộ lọc từ khóa offline", posts: [{}] }), true);
+  assert.equal(canReanalyzeOffline({ status: "analyzing", ai_label: "bộ lọc từ khóa offline", posts: [{}] }), false);
+  assert.equal(canReanalyzeOffline({ status: "done", ai_label: "OpenAI", posts: [{}] }), false);
+  assert.equal(canReanalyzeOffline({ status: "done", ai_label: "offline", can_reanalyze_ai: true }), true);
 });
 
 test("run source descriptions localize new modes and retain legacy surface labels", () => {

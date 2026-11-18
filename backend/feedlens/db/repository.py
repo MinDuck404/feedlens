@@ -342,11 +342,13 @@ class Database:
         # Older runs may have analyzed rows but no raw_posts snapshot; their original text is still usable.
         return self.get_raw_posts(run_id) or [RawPost.model_validate(p.model_dump()) for p in self.get_posts(run_id)]
 
-    def can_continue_analysis(self, run_id: int) -> bool:
+    def can_continue_analysis(self, run_id: int, reanalyze_all: bool = False) -> bool:
         run = self.get_run(run_id)
         if not run or run["status"] in {"pending", "queued", "scraping", "analyzing"}:
             return False
         raw = self.get_analysis_posts(run_id)
+        if reanalyze_all:
+            return bool(raw)
         completed = {p.fingerprint for p in self.get_posts(run_id)}
         return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))
 

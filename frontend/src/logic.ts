@@ -110,22 +110,28 @@ export function formatDuration(seconds: number, lang: "vi" | "en" | "zh"): strin
   return parts.filter(Boolean).join(u.sep);
 }
 
-export function scrapeSourceRows(sources: ScrapeSourceReport[] = [], groups: SavedGroup[] = []) {
+export function canReanalyzeOffline(run: { status: string; ai_label?: string; can_reanalyze_ai?: boolean; posts?: unknown[] }): boolean {
+  return run.can_reanalyze_ai ?? (run.status === "done" && run.ai_label === "bộ lọc từ khóa offline" && !!run.posts?.length);
+}
+
+export function scrapeSourceRows(sources: ScrapeSourceReport[] = [], groups: SavedGroup[] = [], prioritizeActive = true) {
   const normalizeUrl = (url: string) => url.trim().replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "").toLowerCase();
   return sources.map((source, order) => {
     const saved = groups.find((group) => normalizeUrl(group.url) === normalizeUrl(source.label));
     return {
       order,
+      orderStatus: source.status === "running" ? 0 : source.status === "pending" ? 1 : 2,
       row: {
         name: saved?.name?.trim() || groupName(source.label),
         target: source.target ?? null,
         collected: source.collected ?? 0,
-        skipped_old: source.skipped_old ?? 0,
+      skipped_old: source.skipped_old ?? 0,
+      skipped_dup: source.skipped_dup ?? 0,
         stop_reason: source.stop_reason ?? null as StopReason | null,
         status: source.status === "pending" || source.status === "running" || source.status === "error" ? source.status : "done" as const,
       },
     };
-  }).sort((left, right) => Number(right.row.status === "running") - Number(left.row.status === "running") || left.order - right.order)
+  }).sort((left, right) => (prioritizeActive ? left.orderStatus - right.orderStatus : 0) || left.order - right.order)
     .map(({ row }) => row);
 }
 

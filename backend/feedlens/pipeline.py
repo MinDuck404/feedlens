@@ -226,7 +226,8 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
         _fail(db, run_id, e)
 
 
-def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer, report) -> None:
+def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer, report,
+             reanalyze_all: bool = False) -> None:
     prog = PROGRESS.setdefault(run_id, {})
     db.save_raw_posts(run_id, raw)
     db.update_run(run_id, status="analyzing", collected=len(raw))
@@ -241,7 +242,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if req.job_mode:
         analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
-    completed = db.get_posts(run_id)
+    completed = [] if reanalyze_all else db.get_posts(run_id)
     known = {p.fingerprint for p in completed}
     pending = [p for p in raw if p.fingerprint not in known]
     analyzer.on_batch = lambda batch: db.save_batch(run_id, batch)
@@ -272,7 +273,8 @@ def fail_run(db: Database, run_id: int, message: str) -> None:
     PROGRESS.setdefault(run_id, {}).update(phase=status, message=message[:300])
 
 
-def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None) -> None:
+def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None,
+                     reanalyze_all: bool = False) -> None:
     """Bài đã được agent trên máy người dùng lướt sẵn; server chỉ phân tích."""
     prog = PROGRESS.setdefault(run_id, {})
 
@@ -289,7 +291,7 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
             db.save_raw_posts(run_id, raw)
         analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
         db.update_run(run_id, ai_label=analyzer.label)
-        _analyze(db, run_id, req, raw, analyzer, report)
+        _analyze(db, run_id, req, raw, analyzer, report, reanalyze_all=reanalyze_all)
     except Exception as e:  # noqa: BLE001
         _fail(db, run_id, e)
 
@@ -360,14 +362,15 @@ def start_server_run(db: Database, req: RunRequest, user_id: int) -> int:
     return run_id
 
 
-def start_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None) -> None:
+def start_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None,
+                   reanalyze_all: bool = False) -> None:
     if not db.get_raw_posts(run_id):
         if req.only_new:
             known = db.known_fingerprints(req.platform, user_id)
             raw = [p for p in raw if p.fingerprint not in known]
         db.save_raw_posts(run_id, raw)
     db.update_run(run_id, status="analyzing", collected=len(raw))
-    _spawn(execute_analysis, run_id, db, run_id, req, raw, user_id)
+    _spawn(execute_analysis, run_id, db, run_id, req, raw, user_id, reanalyze_all)
 
 
 def start_ingest(db: Database, req: RunRequest, raw: list[RawPost], user_id: int | None = None) -> int:

@@ -12,6 +12,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -24,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import browser
+from .analyzer import HeuristicAnalyzer
 from .ai import (PROVIDERS, forget_models, list_models, pick_default, provider_status, resolve_provider_key,
                  user_keys)
 from .auth import CurrentUser, agent_user, current_user, issue_token, misconfigured
@@ -427,7 +429,7 @@ def logout_platform(p: str, user: User = Depends(current_user)):
 # ================================================================== runs
 def _check_ai(req: RunRequest, user_id: int):
     try:
-        resolve_provider_key(preferred_provider(db(), user_id, req.ai_provider), user_keys(db(), user_id))
+        return resolve_provider_key(preferred_provider(db(), user_id, req.ai_provider), user_keys(db(), user_id))
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -483,6 +485,7 @@ def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = Tr
     active = r["status"] in {"pending", "queued", "scraping", "analyzing"}
     result = {**r, "progress": progress_message(PROGRESS.get(run_id)), "posts_version": version,
               "can_continue_analysis": False if active else db().can_continue_analysis(run_id),
+              "can_reanalyze_ai": not active and r["status"] == "done" and r.get("ai_label") == HeuristicAnalyzer.label and r.get("collected", 0) > 0,
               "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None}
     if posts:
         result["posts"] = [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]
@@ -492,22 +495,31 @@ def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = Tr
 class AnalysisBody(BaseModel):
     ai_provider: str = Field("auto", max_length=40)
     ai_model: str = Field("", max_length=200)
+    mode: Literal["continue", "reanalyze_all"] = "continue"
 
 
 @private.post("/runs/{run_id}/analysis")
 def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current_user)):
     r = _own_run(run_id, user)
     raw = db().get_analysis_posts(run_id)
-    if not db().can_continue_analysis(run_id):
+    reanalyze_all = body.mode == "reanalyze_all"
+    if reanalyze_all and (r["status"] != "done" or r.get("ai_label") != HeuristicAnalyzer.label):
+        raise HTTPException(409, "Chỉ lượt đã hoàn tất bằng bộ lọc offline mới có thể gửi lại toàn bộ bài cho AI.")
+    if not db().can_continue_analysis(run_id, reanalyze_all=reanalyze_all):
         raise HTTPException(409, "Lượt này không có bài chờ phân tích lại.")
-    req = RunRequest(**{**r["request"], **body.model_dump()})
-    _check_ai(req, user.id)
+    req = RunRequest(**{**r["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model})
+    resolved_provider = _check_ai(req, user.id)
+    if reanalyze_all and resolved_provider == "offline":
+        raise HTTPException(400, "Chưa có API key AI. Thêm key trong phần Cài đặt để phân tích bằng AI.")
     if not db().claim_analysis(run_id, req):
         raise HTTPException(409, "Lượt này đang được phân tích.")
     if "scrape_report" in r["request"]:
         db().update_run(run_id, request={**req.model_dump(), "scrape_report": r["request"]["scrape_report"]})
     db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
-    start_analysis(db(), run_id, req, raw, user.id)
+    if reanalyze_all:
+        start_analysis(db(), run_id, req, raw, user.id, reanalyze_all=True)
+    else:
+        start_analysis(db(), run_id, req, raw, user.id)
     return {"ok": True}
 
 

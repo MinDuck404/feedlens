@@ -106,6 +106,7 @@ export interface ScrapeReport {
   target?: number;
   collected?: number;
   skipped_old?: number;
+  skipped_dup?: number;
   skipped_ads?: number;
   stop_reason?: StopReason | null;
   sources?: ScrapeSourceReport[];
@@ -120,6 +121,7 @@ export interface ScrapeSourceReport {
   target?: number;
   collected?: number;
   skipped_old?: number;
+  skipped_dup?: number;
   stop_reason?: StopReason | null;
   status?: "pending" | "running" | "done" | "error";
 }
@@ -190,6 +192,7 @@ export interface Progress {
 export interface Run {
   posts_version?: number;
   can_continue_analysis?: boolean;
+  can_reanalyze_ai?: boolean;
   id: number;
   created_at: string;
   request: RunRequest;

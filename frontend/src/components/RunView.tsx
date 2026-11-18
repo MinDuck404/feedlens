@@ -7,7 +7,7 @@ import type { AIProviderInfo, Meta, Post, Preferences, Run, RunRequest, SavedGro
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
-import { canContinueAnalysis, defaultRunTab, describeRunSource, formatDuration, isRemoteText, jobPresentation, matchesJobType, parseTimestamp, runTimingSummary, scrapeSourceRows, type TimingKey } from "../logic";
+import { canContinueAnalysis, canReanalyzeOffline, defaultRunTab, describeRunSource, formatDuration, isRemoteText, jobPresentation, matchesJobType, parseTimestamp, runTimingSummary, scrapeSourceRows, type TimingKey } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
@@ -110,6 +110,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
   const title = describeRunSource(q, t);
   const when = parseTimestamp(run.created_at);
   const canContinue = canContinueAnalysis(run);
+  const canReanalyze = canReanalyzeOffline(run);
   const failed = run.status === "error" || run.status === "analysis_failed";
 
   const remove = async () => {
@@ -150,13 +151,14 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
       <hr className="rule-double mt-4" />
       {(q.platform === "reddit" || q.platform === "x") && <p className="mt-3 text-xs leading-relaxed text-ink-soft" role="note">{t(q.platform === "reddit" ? "cmp.warning.redditPolicy" : "cmp.warning.xPolicy")}</p>}
 
-      {failed || canContinue ? (
+      {failed || canContinue || canReanalyze ? (
         <>
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
+        {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {!!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
         </>
       ) : run.status !== "done" || !run.digest ? (
@@ -177,7 +179,7 @@ function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: Sa
   const { t, lang } = useI18n();
   const reason = report.stop_reason && report.stop_reason !== "target_reached" ? t(`run.stop.${report.stop_reason}` as Key) : "";
   const timing = runTimingSummary(report.timings);
-  const sources = scrapeSourceRows(report.sources, groups);
+  const sources = scrapeSourceRows(report.sources, groups, report.sources?.some((source) => source.status === "running" || source.status === "pending"));
   const [expanded, setExpanded] = useState<boolean | null>(null);
   const detailsOpen = expanded ?? sources.length <= 5;
   const withPosts = sources.filter((source) => source.collected > 0).length;
@@ -200,7 +202,7 @@ function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: Sa
             <span className="sr-only">{t("run.sources.details", { n: sources.length })}</span>
           </summary>
           <div className="mt-2 overflow-hidden rounded-xl border border-line bg-surface">
-            <div className="hidden grid-cols-[minmax(0,1fr)_minmax(150px,200px)_minmax(64px,90px)_auto] gap-x-4 border-b border-line px-3 py-1.5 text-xs text-ink-faint sm:grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_200px_100px_128px] gap-x-4 border-b border-line px-3 py-1.5 text-xs text-ink-faint sm:grid">
               <span>{t("run.sources.group")}</span><span>{t("run.sources.posts")}</span><span className="text-right">{t("run.sources.skippedOld")}</span><span>{t("run.sources.status")}</span>
             </div>
             <ul className="divide-y divide-line">
@@ -221,18 +223,19 @@ function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: Sa
                     : source.collected === 0 && source.status === "done" ? "border-warning/30 bg-warning/10 text-warning"
                       : "border-line bg-sunken text-ink-soft";
                 const skippedLabel = t("run.sources.skippedOldCount", { n: source.skipped_old });
-                return <li key={`${source.name}-${index}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-x-2 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(150px,200px)_minmax(64px,90px)_auto] sm:gap-x-4">
+                const duplicatesLabel = t("run.sources.skippedDupCount", { n: source.skipped_dup });
+                return <li key={`${source.name}-${index}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_112px_56px_88px] items-center gap-x-1 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_200px_100px_128px] sm:gap-x-4">
                   <span className="min-w-0 truncate text-sm font-medium text-ink" title={source.name}>{source.name}</span>
-                  <span className={`inline-flex min-w-0 items-center gap-1.5 font-mono text-xs tabular-nums ${source.collected === 0 && source.status === "done" ? "text-warning" : "text-ink"}`}>
-                    <span className="shrink-0">{formatNumber(source.collected, lang)} / {source.target == null ? "—" : formatNumber(source.target, lang)}</span>
-                    {source.target != null && <span role="progressbar" aria-label={t("run.sources.progress", { name: source.name, got: source.collected, target: source.target })} aria-valuemin={0} aria-valuemax={max} aria-valuenow={source.collected} className="h-1 w-8 shrink-0 overflow-hidden rounded-full bg-line sm:w-16">
+                  <span className="grid min-w-0 grid-cols-[9ch_minmax(0,1fr)] items-center gap-1.5 font-mono text-xs tabular-nums text-ink">
+                    <span className={`whitespace-nowrap ${source.collected === 0 && source.status === "done" ? "text-warning" : ""}`}>{String(source.collected).padStart(3, " ")} / {source.target == null ? "—" : String(source.target).padStart(3, " ")}</span>
+                    {source.target != null && <span role="progressbar" aria-label={t("run.sources.progress", { name: source.name, got: source.collected, target: source.target })} aria-valuemin={0} aria-valuemax={max} aria-valuenow={source.collected} className="h-1 w-7 shrink-0 overflow-hidden rounded-full bg-line sm:w-16">
                       <span className="block h-full rounded-full bg-accent" style={{ width: `${progress}%` }} />
                     </span>}
                   </span>
-                  <span role="img" aria-label={skippedLabel} title={skippedLabel} className="inline-flex items-center justify-end gap-1 text-xs tabular-nums text-ink-soft">
-                    <History aria-hidden="true" className="size-3.5 shrink-0" />{formatNumber(source.skipped_old, lang)}
+                  <span aria-label={`${skippedLabel}${source.skipped_dup ? `; ${duplicatesLabel}` : ""}`} title={`${skippedLabel}${source.skipped_dup ? ` · ${duplicatesLabel}` : ""}`} className="inline-flex min-w-0 items-center justify-end gap-1 text-xs tabular-nums text-ink-soft">
+                    <History aria-hidden="true" className="size-3.5 shrink-0" /><span>{String(source.skipped_old).padStart(3, " ")}</span>{!!source.skipped_dup && <span className="sr-only">, {duplicatesLabel}</span>}
                   </span>
-                  <span title={detail} aria-label={`${status}: ${detail}`} className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs leading-tight ${tone}`}>
+                  <span title={detail} aria-label={`${status}: ${detail}`} className={`inline-flex w-full items-center justify-center gap-1 rounded-full border px-1.5 py-0.5 text-center text-xs leading-tight ${tone}`}>
                     {source.status === "running" && <LoaderCircle aria-hidden="true" className="size-3 shrink-0 animate-spin motion-reduce:animate-none" />}
                     <span className="truncate">{status}</span>
                   </span>
@@ -259,17 +262,17 @@ function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: Sa
   );
 }
 
-function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) {
+function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onStarted: () => void; reanalyzeAll?: boolean }) {
   const { t } = useI18n();
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
-  const [provider, setProvider] = useState(run.request.ai_provider || "auto");
+  const [provider, setProvider] = useState(reanalyzeAll ? "auto" : run.request.ai_provider || "auto");
   const [model, setModel] = useState(run.request.ai_model || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
   const submit = async () => {
     setBusy(true); setError("");
-    try { await api.retryAnalysis(run.id, provider, model); onStarted(); }
+    try { await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue"); onStarted(); }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
@@ -284,7 +287,7 @@ function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) 
       </Select></label>
       {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <Button busy={busy} onClick={submit}>{t("run.continueAnalysis")}</Button>
+      <Button busy={busy} onClick={submit}>{t(reanalyzeAll ? "run.sendToAI" : "run.continueAnalysis")}</Button>
     </fieldset>
   </div>;
 }
