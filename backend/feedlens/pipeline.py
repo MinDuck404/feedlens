@@ -12,7 +12,7 @@ from .db import Database
 from .models import RawPost, RunRequest
 from .job_profile import load_profile
 from .scrapers import SCRAPERS, LinkedInJobsScraper
-from .source_modes import normalize, total_target as planned_total_target
+from .source_modes import allocate_targets, normalize, total_target as planned_total_target
 
 # Tiến độ trực tiếp cho UI: run_id -> {"phase", "message", "done", "target"}
 PROGRESS: dict[int, dict] = {}
@@ -44,7 +44,10 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
         remaining = total_cap - len(posts)
         if remaining <= 0:
             break
-        quota = min(per_target_count, remaining)
+        # Chia lại phần còn lại cho các nguồn chưa lướt: nhóm trước hết bài mới sớm (caught_up)
+        # thì phần dư chuyển sang nhóm sau, thay vì bỏ phí (lượt 15: 370/500 dù còn nhóm có bài mới).
+        requested = [t._replace(per_target_count=req.count) for t in targets[i:]]
+        quota = min(allocate_targets(requested, remaining)[0].per_target_count, remaining)
         base = len(posts)
         prefix = f"Nguồn {i + 1}/{len(targets)} · " if len(targets) > 1 else ""
         try:

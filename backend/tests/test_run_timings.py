@@ -73,3 +73,27 @@ def test_collect_all_hands_the_report_to_the_scraper(monkeypatch):
     report: dict = {}
     pipeline.collect_all(type("Page", (), {"is_closed": lambda self: False})(), req, set(), lambda n, m: None, False, report=report)
     assert seen_reports == [report] and report["timings"]["navigation"] == 2.0
+
+
+def test_unused_quota_of_caught_up_groups_moves_to_later_groups(monkeypatch):
+    """13 nhóm × 120 với trần 500: nhóm hết bài mới sớm nhường phần dư cho nhóm sau."""
+    asked = []
+    yields = {"g1": 2}  # g1 chỉ còn 2 bài mới rồi gặp bài cũ
+
+    class FakeScraper:
+        last_report = {}
+
+        def collect(self, page, url, label, target, seen, progress, report=None, **kwargs):
+            asked.append(target)
+            n = min(target, yields.get(label.rsplit("/", 1)[-1], target))
+            return [RawPost(platform="facebook", source=label, text=f"{label} bài {i} " + "x" * 20) for i in range(n)]
+
+    monkeypatch.setitem(pipeline.SCRAPERS, "facebook", FakeScraper)
+    import dataclasses
+    monkeypatch.setattr(pipeline, "settings", dataclasses.replace(pipeline.settings, max_posts=20))
+    req = RunRequest(platform="facebook", source_type="group", count=10,
+                     sources=[f"https://www.facebook.com/groups/g{i}" for i in (1, 2, 3)])
+    page = type("Page", (), {"is_closed": lambda self: False})()
+    posts = pipeline.collect_all(page, req, set(), lambda n, m: None, False, report={})
+    assert asked == [7, 9, 9]  # ban đầu 7/7/6; g1 lấy 2 → 18 bài còn lại chia đều cho 2 nhóm
+    assert len(posts) == 20

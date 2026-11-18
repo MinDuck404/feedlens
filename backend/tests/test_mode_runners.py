@@ -50,7 +50,8 @@ def test_plan_quota_after_platform_cap_is_passed_to_collector(monkeypatch):
     monkeypatch.setitem(pipeline.SCRAPERS, "reddit", Fake)
     req = RunRequest(platform="reddit", mode="subreddit", sources=["a", "b", "c"], count=40)
     pipeline.collect_all(None, req, set(), lambda *a: None, False)
-    assert quotas == [(34, True), (33, True), (33, True)]
+    # "a" trả 0 bài nên 100 bài còn lại chia cho "b" và "c", mỗi nguồn tối đa count=40.
+    assert quotas == [(34, True), (40, True), (40, True)]
 
 
 @pytest.mark.parametrize("chronological,expected", [(True, "caught_up"), (False, "target_reached")])
