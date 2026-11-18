@@ -12,6 +12,7 @@ global.localStorage = { getItem: () => "en", setItem() {}, removeItem() {} };
 global.window = new EventTarget(); global.document = { documentElement: {} };
 const React = require("react"), { api } = require("../src/api.ts");
 const Component = require("../src/components/AIProviderKeys.tsx").default;
+const { TextField } = require("../src/components/ui/TextField.tsx");
 const tick = () => new Promise(setImmediate);
 const provider = { key: "gemini", name: "Gemini", configured: true, source: "db", hint: "", default_model: "gemini-3.5-flash-lite", key_url: "https://example.test/keys" };
 const rows = [
@@ -85,18 +86,18 @@ test("add form sends label/password/plan, keeps errors inline, and clears secret
   try {
     let tree = harness.render(props);
     find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
-    find(tree, (node) => node.type === "input" && node.props.maxLength === 80).props.onChange({ target: { value: "  Backup  " } });
-    find(tree, (node) => node.type === "input" && node.props.type === "password").props.onChange({ target: { value: "  fake-new-secret  " } });
+    find(tree, (node) => node.type === TextField && node.props.maxLength === 80).props.onChange({ target: { value: "  Backup  " } });
+    find(tree, (node) => node.type === TextField && node.props.type === "password").props.onChange({ target: { value: "  fake-new-secret  " } });
     const plan = find(tree, (node) => node.props?.value === "free" && node.props.onChange && node.type !== "input");
     plan.props.onChange({ target: { value: "paid" } }); tree = harness.render(props);
     await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick(); tree = harness.render(props);
     assert.ok(find(tree, (node) => node.props?.role === "alert" && node.props.children === "Invalid key"));
-    assert.equal(find(tree, (node) => node.type === "input" && node.props.type === "password").props.value, "  fake-new-secret  ");
+    assert.equal(find(tree, (node) => node.type === TextField && node.props.type === "password").props.value, "  fake-new-secret  ");
     fail = false; await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick(); tree = harness.render(props);
     assert.deepEqual(calls[1], { provider: "gemini", api_key: "fake-new-secret", label: "Backup", tier: "paid" });
-    assert.equal(find(tree, (node) => node.type === "input" && node.props.type === "password"), null);
+    assert.equal(find(tree, (node) => node.type === TextField && node.props.type === "password"), null);
     find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
-    assert.equal(find(tree, (node) => node.type === "input" && node.props.type === "password").props.value, "");
+    assert.equal(find(tree, (node) => node.type === TextField && node.props.type === "password").props.value, "");
   } finally { harness.close(); Object.assign(api, original); }
 });
 

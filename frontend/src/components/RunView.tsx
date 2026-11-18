@@ -1,13 +1,13 @@
-import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, RotateCcw, Trash2 } from "lucide-react";
+import { Briefcase, Check, CheckCircle2, Copy, ExternalLink, FileSearch, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../api";
 import { formatNumber, serverMessage, useI18n, type Key } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { AIProviderInfo, Meta, Post, Run, RunRequest, ScrapeReport, Topic } from "../types";
+import type { AIProviderInfo, Meta, Post, Preferences, Run, RunRequest, SavedGroup, ScrapeReport, Topic } from "../types";
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
-import { canContinueAnalysis, defaultRunTab, describeRunSource, formatDuration, isRemoteText, jobPresentation, matchesJobType, parseTimestamp, runTimingSummary, type TimingKey } from "../logic";
+import { canContinueAnalysis, defaultRunTab, describeRunSource, formatDuration, isRemoteText, jobPresentation, matchesJobType, parseTimestamp, runTimingSummary, scrapeSourceRows, type TimingKey } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
@@ -21,6 +21,7 @@ type Tab = RunTab;
 interface Props {
   runId: number;
   meta: Meta;
+  prefs?: Preferences | null;
   tab: Tab;               // tab nằm trong URL (#/runs/12/jobs) nên tải lại trang vẫn giữ
   onTab: (t: Tab) => void;
   onDeleted: () => void;
@@ -28,7 +29,7 @@ interface Props {
   onRerun?: (request: RunRequest) => void;
 }
 
-export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysisStarted, onRerun }: Props) {
+export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onAnalysisStarted, onRerun }: Props) {
   const [run, setRun] = useState<Run | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -129,7 +130,7 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
           {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
           {run.ai_label && t("run.readBy", { ai: run.ai_label })}
         </p>
-        {run.request?.scrape_report && <ScrapeReportLine report={run.request.scrape_report} />}
+        {run.request?.scrape_report && <ScrapeReportLine report={run.request.scrape_report} groups={savedGroupsFor(prefs, run.request)} />}
         <div className="mt-2 flex items-center justify-center gap-1 text-ink-soft">
           {!!run.posts?.length && (["md", "csv", "json"] as const).map((f) => (
             <Button key={f} variant="ghost" size="sm" onClick={() => api.download(run.id, f).catch((e) => alert(e.message))} className="font-mono text-xs hover:bg-sunken hover:text-ink hover:underline underline-offset-4">
@@ -167,10 +168,16 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
   );
 }
 
-function ScrapeReportLine({ report }: { report: ScrapeReport }) {
+function savedGroupsFor(prefs: Preferences | null | undefined, request: RunRequest): SavedGroup[] {
+  const stored = (prefs as { saved_sources?: Record<string, SavedGroup[]> } | null | undefined)?.saved_sources ?? {};
+  return [...(stored[`${request.platform}:${request.mode ?? "group"}`] ?? []), ...Object.values(stored).flat(), ...(prefs?.groups?.[request.platform] ?? [])];
+}
+
+function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: SavedGroup[] }) {
   const { t, lang } = useI18n();
   const reason = report.stop_reason && report.stop_reason !== "target_reached" ? t(`run.stop.${report.stop_reason}` as Key) : "";
   const timing = runTimingSummary(report.timings);
+  const sources = scrapeSourceRows(report.sources, groups);
   const label = (key: TimingKey, seconds: number) => `${t(`run.timing.${key}` as Key)} ${formatDuration(seconds, lang)}`;
   return (
     <>
@@ -181,6 +188,31 @@ function ScrapeReportLine({ report }: { report: ScrapeReport }) {
           {reason && ` · ${reason}`}
         </p>
       )}
+      {sources.length > 0 && <section aria-label={t("run.sources.title")} className="mx-auto mt-3 max-w-3xl text-left">
+        <h2 className="text-sm font-semibold">{t("run.sources.title")}</h2>
+        <ul className="mt-2 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
+          {sources.map((source, index) => {
+            const zero = source.collected === 0;
+            const status = source.status === "running" ? t("run.source.running")
+              : source.status === "pending" ? t("run.source.pending")
+                : source.stop_reason ? t(`run.stop.${source.stop_reason}` as Key) : t("run.source.done");
+            return <li key={`${source.name}-${index}`} className={`grid min-w-0 grid-cols-1 gap-x-4 gap-y-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] ${zero && source.status === "done" ? "bg-danger/5" : ""}`}>
+              <div className="min-w-0">
+                <p className={`[overflow-wrap:anywhere] text-sm font-medium ${zero && source.status === "done" ? "text-danger" : "text-ink"}`}>{source.name}</p>
+                {zero && <p className={`mt-0.5 text-xs ${source.status === "done" ? "text-danger" : "text-ink-soft"}`}>{t("run.source.zero")}</p>}
+              </div>
+              <div className="flex flex-wrap gap-x-4 text-xs text-ink-soft sm:justify-end">
+                <span>{t("run.source.collected")}: <b className="font-medium text-ink">{formatNumber(source.collected, lang)} / {source.target == null ? "—" : formatNumber(source.target, lang)}</b></span>
+                <span>{t("run.source.skippedOld")}: <b className="font-medium text-ink">{formatNumber(source.skipped_old, lang)}</b></span>
+                <span className="inline-flex items-center gap-1.5" aria-live={source.status === "running" ? "polite" : undefined}>
+                  {source.status === "running" && <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin motion-reduce:animate-none" />}
+                  <span>{t("run.source.reason")}:</span> {status}
+                </span>
+              </div>
+            </li>;
+          })}
+        </ul>
+      </section>}
       {timing && (
         <details className="mx-auto mt-1 max-w-prose text-xs leading-relaxed text-ink-soft">
           <summary className="interactive-tap cursor-pointer [overflow-wrap:anywhere]">
@@ -215,7 +247,7 @@ function RetryAnalysis({ run, onStarted }: { run: Run; onStarted: () => void }) 
   return <div className="mt-4 border-t border-line pt-4">
     <p className="text-sm text-ink-soft">{t("run.retryAnalysisHint")}</p>
     <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
-      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} wrapperClassName="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
+      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
         <option value="auto">{t("profile.auto")}</option>
         {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
         {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider}</option>}
@@ -539,10 +571,10 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
           <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
             value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
         </div>
-        <Select wrapperClassName="w-full sm:w-auto sm:flex-none" className="min-h-11 rounded-full" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
+        <Select shape="pill" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
           {["all", "primary", "adjacent", "stretch", "none"].map((type) => <option key={type} value={type}>{t(`profile.match.${type}` as Key)}</option>)}
         </Select>
-        <Select wrapperClassName="w-full sm:w-auto sm:flex-none" className="min-h-11 rounded-full" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
+        <Select shape="pill" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
           <option value="score">{t("job.sortScore")}</option>
           <option value="salary">{t("job.sortSalary")}</option>
           <option value="source">{t("job.sortSource")}</option>

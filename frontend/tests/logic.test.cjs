@@ -65,6 +65,21 @@ test("malformed and Unicode saved group names render without crashing", () => {
   assert.equal(groupName("https://facebook.com/groups/viec-lam/"), "viec lam");
 });
 
+test("source scrape rows use saved names and treat missing status as complete", () => {
+  const { scrapeSourceRows } = require("../src/logic.ts");
+  const rows = scrapeSourceRows([
+    { label: "https://facebook.com/groups/123/", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
+    { label: "https://facebook.com/groups/viec-lam/", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached" },
+    { label: "https://facebook.com/groups/tech/", target: 5 },
+  ], [{ url: "https://facebook.com/groups/123", name: "Engineering jobs" }]);
+
+  assert.deepEqual(rows, [
+    { name: "Engineering jobs", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
+    { name: "viec lam", target: 10, collected: 10, skipped_old: 0, stop_reason: "target_reached", status: "done" },
+    { name: "tech", target: 5, collected: 0, skipped_old: 0, stop_reason: null, status: "done" },
+  ]);
+});
+
 test("run source descriptions localize new modes and retain legacy surface labels", () => {
   const { describeRunSource } = require("../src/logic.ts");
   const context = hooks(i18n.I18nProvider);

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../api";
 import { formatNumber, useI18n } from "../i18n";
 import type { AIKey, AIProviderInfo } from "../types";
-import { Button, IconButton, Select } from "./ui";
+import { Button, IconButton, Select, TextField } from "./ui";
 
 interface Props {
   provider: AIProviderInfo;
@@ -110,10 +110,10 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
     {error && <p role="alert" className="mt-3 text-sm text-danger [overflow-wrap:anywhere]">{error}</p>}
     {editing && <div className="mt-4 space-y-3 border-t border-line pt-4">
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.keyLabel")}</span>
-        <input className="field" value={label} maxLength={80} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
+        <TextField value={label} maxLength={80} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
       </label>
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.pasteKey", { name: p.name })}</span>
-        <input type="password" className="field" autoFocus value={secret} maxLength={500} autoComplete="off" disabled={busy}
+        <TextField type="password" autoFocus value={secret} maxLength={500} autoComplete="off" disabled={busy}
           onChange={(event) => setSecret(event.target.value)} />
       </label>
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.keyTier")}</span>

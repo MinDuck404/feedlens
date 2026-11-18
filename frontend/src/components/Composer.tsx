@@ -4,7 +4,7 @@ import { groupName } from "../logic";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { formatNumber, useI18n, type Key } from "../i18n";
-import { Sheet, Button, IconButton, Skeleton, Select, SegmentedControl } from "./ui";
+import { Sheet, Button, IconButton, Skeleton, Select, SegmentedControl, TextField } from "./ui";
 import { PLATFORM_MODES, applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode, jobProfileSuggestions,
   migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../platformModes";
 import type {
@@ -334,7 +334,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                   </Button>
                 </div>
                 : <div className="mt-3"><label className="block"><span className="mb-1.5 block text-sm">{t("cmp.onePerLine", { label: t(hint.label) })}</span>
-                    <textarea className="field resize-y" rows={3} value={newGroups} aria-label={t(hint.label)} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example}
+                    <TextField as="textarea" className="resize-y" rows={3} value={newGroups} aria-label={t(hint.label)} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example}
                       onChange={(event) => setNewGroups(event.target.value)} /></label><Button className="mt-2" variant="secondary" disabled={!sourceLines(newGroups).length} onClick={addGroups}>{t("cmp.add")}</Button></div>}
                 {hint.type === "saved" && <p className="mt-1.5 px-1 text-xs text-ink-soft">{t("cmp.addHint")}</p>}
               </div>
@@ -343,7 +343,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             {hint?.type === "sources" && !usesSaved && (
               <label className="mt-3 block">
                 <span className="mb-1 block text-sm">{t("cmp.onePerLine", { label: t(hint.label) })}</span>
-                <textarea className="field resize-y" rows={3} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example} value={sourceText}
+                <TextField as="textarea" className="resize-y" rows={3} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example} value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)} aria-label={t(hint.label)} required={hint.required} />
               </label>
             )}
@@ -366,12 +366,12 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               return <div key={field.name} className="mt-4"><label className="block"><span className="mb-1.5 block text-sm">{t(field.label)}</span>
                 {field.type === "select" ? <Select aria-label={t(field.label)} value={value === null ? "" : String(value ?? "")} onChange={(event) => setOption(field.name, event.target.value || null)}>
                   {value === null && <option value="">{t("cmp.input.time.any")}</option>}{field.choices?.map((choice) => <option key={choice.value} value={choice.value}>{t(choice.label)}</option>)}
-                </Select> : field.type === "number" ? <input type="number" className="field" min={field.min} max={field.max} step={1}
+                </Select> : field.type === "number" ? <TextField type="number" min={field.min} max={field.max} step={1}
                   value={value === undefined || value === null ? "" : String(value)}
                   onChange={(event) => {
                     const raw = event.target.value;
                     setOption(field.name, raw === "" ? null : Number(raw));
-                  }} /> : <input className="field" value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
+                  }} /> : <TextField value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
                   placeholder={field.placeholder ? t(field.placeholder) : undefined} onChange={(event) => setOption(field.name, event.target.value)} />}</label>
                 {field.hint && <p className="mt-1.5 text-xs text-ink-soft">{t(field.hint)}</p>}
                 {mode === "jobs" && field.name === "keywords" && jobProfile && <div className="mt-2 flex flex-wrap gap-2">
@@ -494,7 +494,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
                 {jobProfile && <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-y border-line py-3 text-sm"><span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span><button type="button" onClick={() => onOpenSettings()} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button></p>}
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
-                  <textarea aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="field resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
+                  <TextField as="textarea" aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
                     placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
                   <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
                 </label>
@@ -510,7 +510,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <button type="button" onClick={() => onOpenSettings("profile")} className="font-medium text-link underline underline-offset-4">{t("profile.upload")}</button>
             </p>}
             <label className="block"><span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
-              <textarea aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="field resize-y" rows={2} value={f.profile} onChange={(e) => set("profile", e.target.value)}
+              <TextField as="textarea" aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="resize-y" rows={2} value={f.profile} onChange={(e) => set("profile", e.target.value)}
                 placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
               <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
             </label>

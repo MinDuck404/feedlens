@@ -320,6 +320,7 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               key={route.id}
               runId={route.id}
               meta={meta}
+              prefs={prefs}
               tab={route.tab}
               onAnalysisStarted={refreshRuns}
               onRerun={(request) => { setRerunRequest(request); setComposerOpen(true); }}

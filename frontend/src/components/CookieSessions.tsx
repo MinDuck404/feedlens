@@ -6,7 +6,7 @@ import { PLATFORM_LABEL } from "../categories";
 import { serverMessage, useI18n, type Key } from "../i18n";
 import type { Platform, PlatformSession } from "../types";
 
-import { Button, SkeletonCard } from "./ui";
+import { Button, SkeletonCard, TextField } from "./ui";
 
 const PLATFORMS: Platform[] = ["facebook", "linkedin", "x", "reddit"];
 
@@ -107,7 +107,7 @@ function SessionRow({ platform, s, onChanged }: { platform: Platform; s?: Platfo
       {editing && (
         <div className="page-enter mt-4">
           <label htmlFor={`cookie-${platform}`} className="mb-2 block text-sm font-medium">{t("ck.paste")}</label>
-          <textarea id={`cookie-${platform}`} className="field font-mono text-xs" rows={4} autoFocus value={value} onChange={(e) => setValue(e.target.value)}
+          <TextField as="textarea" id={`cookie-${platform}`} className="font-mono text-xs" rows={4} autoFocus value={value} onChange={(e) => setValue(e.target.value)}
             placeholder={t("ck.placeholder")} />
           <div className="mt-2 flex justify-end gap-2">
             <Button onClick={() => { setEditing(false); setValue(""); setError(""); }} disabled={!!busy} variant="ghost">{t("act.cancel")}</Button>

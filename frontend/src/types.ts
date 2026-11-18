@@ -108,15 +108,26 @@ export interface ScrapeReport {
   skipped_old?: number;
   skipped_ads?: number;
   stop_reason?: StopReason | null;
+  sources?: ScrapeSourceReport[];
   /** Giây theo giai đoạn: scrape_total, analysis, summary, navigation, scroll_wait, expand, link_resolve, extract */
   timings?: Record<string, number>;
   /** Số bài lấy được toàn văn từ dữ liệu Facebook thay vì chữ trên trang */
   full_text_from_story?: number;
 }
 
+export interface ScrapeSourceReport {
+  label: string;
+  target?: number;
+  collected?: number;
+  skipped_old?: number;
+  stop_reason?: StopReason | null;
+  status?: "pending" | "running" | "done";
+}
+
 export interface SavedGroup {
   url: string;
   enabled: boolean;
+  name?: string;
 }
 
 /** Cài đặt lưu theo tài khoản (server chỉ lưu nguyên JSON này). */

@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../api";
 import { useI18n, type Key } from "../i18n";
 import type { AIProviderInfo, JobProfile } from "../types";
-import { Button, Select, SkeletonCard } from "./ui";
+import { Button, Select, SkeletonCard, TextField } from "./ui";
 
 const EMPTY: JobProfile = { markdown: "", criteria: { work_modes: [], locations: [], min_salary: null, currency: "VND", level: "" }, primary_roles: [], adjacent_roles: [], allow_adjacent: true };
 
@@ -74,11 +74,11 @@ export default function JobProfileSettings({ providers }: { providers: AIProvide
             <p className="mt-2 break-words text-xs text-ink-soft">{file?.name ?? t("profile.noFile")}</p>
           </div>
           <label className="block text-sm">{t("profile.paste")}
-            <textarea aria-label={t("profile.paste")} className="field mt-2" rows={4} value={text} onChange={(e) => { setText(e.target.value); setNotice(null); }} disabled={!!file || !!busy} />
+            <TextField as="textarea" aria-label={t("profile.paste")} className="mt-2" rows={4} value={text} onChange={(e) => { setText(e.target.value); setNotice(null); }} disabled={!!file || !!busy} />
           </label>
           <div className="flex flex-wrap items-end gap-3">
             <label className="min-w-0 flex-1 text-sm">{t("profile.provider")}
-              <Select aria-label={t("profile.provider")} wrapperClassName="mt-2" value={provider} onChange={(e) => setProvider(e.target.value)}>
+              <Select aria-label={t("profile.provider")} className="mt-2" value={provider} onChange={(e) => setProvider(e.target.value)}>
                 <option value="auto">{t("profile.auto")}</option>
                 {providers.filter((p) => p.key !== "offline" && p.configured).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
                 <option value="offline">{t("profile.offlineOption")}</option>
@@ -88,7 +88,7 @@ export default function JobProfileSettings({ providers }: { providers: AIProvide
           </div>
           {notice && <p role="status" className="border-y border-line py-3 text-sm text-ink-soft">{t(notice)}</p>}
           <label className="block text-sm font-medium">{t("profile.markdown")}
-            <textarea aria-label={t("profile.markdown")} className="field mt-2 font-mono text-xs" rows={8} maxLength={8000} value={profile.markdown} onChange={(e) => set("markdown", e.target.value)} />
+            <TextField as="textarea" aria-label={t("profile.markdown")} className="mt-2 font-mono text-xs" rows={8} maxLength={8000} value={profile.markdown} onChange={(e) => set("markdown", e.target.value)} />
           </label>
           <details className="border-y border-line py-3">
             <summary className="min-h-10 cursor-pointer text-sm font-medium">{t("profile.preview")}</summary>
@@ -110,10 +110,10 @@ export default function JobProfileSettings({ providers }: { providers: AIProvide
           </div></fieldset>
           <ListEditor label={t("profile.locations")} values={profile.criteria.locations} onChange={(v) => criterion("locations", v)} max={20} />
           <div className="grid grid-cols-[minmax(0,1fr)_90px] gap-3">
-            <label className="text-sm">{t("profile.salary")}<input className="field mt-2" type="number" min={0} value={profile.criteria.min_salary ?? ""} onChange={(e) => criterion("min_salary", e.target.value === "" ? null : Number(e.target.value))} /></label>
-            <label className="text-sm">{t("profile.currency")}<Select aria-label={t("profile.currency")} wrapperClassName="mt-2" value={profile.criteria.currency} onChange={(e) => criterion("currency", e.target.value as "VND" | "USD")}><option>VND</option><option>USD</option></Select></label>
+            <label className="text-sm">{t("profile.salary")}<TextField className="mt-2" type="number" min={0} value={profile.criteria.min_salary ?? ""} onChange={(e) => criterion("min_salary", e.target.value === "" ? null : Number(e.target.value))} /></label>
+            <label className="text-sm">{t("profile.currency")}<Select aria-label={t("profile.currency")} className="mt-2" value={profile.criteria.currency} onChange={(e) => criterion("currency", e.target.value as "VND" | "USD")}><option>VND</option><option>USD</option></Select></label>
           </div>
-          <label className="block text-sm">{t("profile.level")}<Select aria-label={t("profile.level")} wrapperClassName="mt-2" value={profile.criteria.level} onChange={(e) => criterion("level", e.target.value)}>{["", "intern", "fresher", "junior", "mid", "senior", "lead"].map((level) => <option key={level} value={level}>{t(`profile.level.${level || "any"}` as Key)}</option>)}</Select></label>
+          <label className="block text-sm">{t("profile.level")}<Select aria-label={t("profile.level")} className="mt-2" value={profile.criteria.level} onChange={(e) => criterion("level", e.target.value)}>{["", "intern", "fresher", "junior", "mid", "senior", "lead"].map((level) => <option key={level} value={level}>{t(`profile.level.${level || "any"}` as Key)}</option>)}</Select></label>
           <div className="flex flex-wrap gap-3 border-t border-line pt-4"><Button onClick={save} busy={busy === "save"} disabled={!!busy || !profile.markdown.trim()}>{t("profile.save")}</Button><Button variant="ghost" onClick={remove} busy={busy === "delete"} disabled={!!busy} className="hover:text-danger">{t("profile.delete")}</Button></div>
         </fieldset>
       )}

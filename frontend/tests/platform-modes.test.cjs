@@ -9,6 +9,7 @@ for (const extension of [".ts", ".tsx"]) require.extensions[extension] = (module
   } }).outputText, filename);
 };
 const modes = require("../src/platformModes.ts");
+const { TextField } = require("../src/components/ui/TextField.tsx");
 const base = { platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false, keywords: ["Python"],
   profile: "Existing notes", ai_provider: "offline", ai_model: "", only_new: true, headless: true, speed: "careful", runner: "agent" };
 
@@ -188,7 +189,7 @@ test("Composer switches platform drafts, serializes Jobs, and preserves old pref
     find(tree, (n) => n.props?.label === "cmp.platform" && n.props.onChange).props.onChange("reddit"); tree = harness.render(props);
     find(tree, (n) => n.props?.["aria-label"] === "cmp.input.sortLabel").props.onChange({ target: { value: "top_week" } });
     find(tree, (n) => n.type === "button" && n.props.children?.includes?.("r/forhire")).props.onClick(); tree = harness.render(props);
-    find(tree, (n) => n.type === "textarea" && n.props["aria-label"] === "cmp.addSubreddit").props.onChange({ target: { value: "r/not-added-yet" } }); tree = harness.render(props);
+    find(tree, (n) => n.type === TextField && n.props.as === "textarea" && n.props["aria-label"] === "cmp.addSubreddit").props.onChange({ target: { value: "r/not-added-yet" } }); tree = harness.render(props);
     find(tree, (n) => n.props?.label === "cmp.platform" && n.props.onChange).props.onChange("linkedin"); tree = harness.render(props);
     assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, "Python Developer");
     await tree.props.onSubmit({ preventDefault() {} });
@@ -239,7 +240,7 @@ test("Jobs hides the redundant toggle, autofills from CV and chip click replaces
     let tree = harness.render(props);
     assert.equal(find(tree, (n) => n.props?.children === "cmp.jobs"), null);
     assert.ok(find(tree, (n) => n.props?.children === "profile.using"));
-    assert.ok(find(tree, (n) => n.type === "textarea" && n.props["aria-label"] === "profile.notes"));
+    assert.ok(find(tree, (n) => n.type === TextField && n.props.as === "textarea" && n.props["aria-label"] === "profile.notes"));
     assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.keywordsPh").props.value, "Python Engineer");
     assert.equal(find(tree, (n) => n.props?.placeholder === "cmp.input.locationPh").props.value, "Hà Nội");
     find(tree, (n) => n.type === "button" && n.props.children === "QA Engineer").props.onClick(); tree = harness.render(props);

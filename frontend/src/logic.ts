@@ -1,5 +1,5 @@
 import type { Key } from "./i18n";
-import type { Job, Post, RunRequest } from "./types";
+import type { Job, Post, RunRequest, SavedGroup, ScrapeSourceReport, StopReason } from "./types";
 import { PLATFORM_LABEL } from "./categories";
 
 type SourceRequest = Pick<RunRequest, "platform" | "source_type" | "sources"> & Partial<Pick<RunRequest, "mode" | "options">>;
@@ -108,6 +108,21 @@ export function formatDuration(seconds: number, lang: "vi" | "en" | "zh"): strin
   const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
   const parts = h ? [`${h}${u.h}`, m ? `${m}${u.m}` : ""] : [m ? `${m}${u.m}` : "", s ? `${s}${u.s}` : ""];
   return parts.filter(Boolean).join(u.sep);
+}
+
+export function scrapeSourceRows(sources: ScrapeSourceReport[] = [], groups: SavedGroup[] = []) {
+  const normalizeUrl = (url: string) => url.trim().replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "").toLowerCase();
+  return sources.map((source) => {
+    const saved = groups.find((group) => normalizeUrl(group.url) === normalizeUrl(source.label));
+    return {
+      name: saved?.name?.trim() || groupName(source.label),
+      target: source.target ?? null,
+      collected: source.collected ?? 0,
+      skipped_old: source.skipped_old ?? 0,
+      stop_reason: source.stop_reason ?? null as StopReason | null,
+      status: source.status === "pending" || source.status === "running" ? source.status : "done" as const,
+    };
+  });
 }
 
 const MAIN_PHASES = ["scrape_total", "analysis", "summary"] as const;

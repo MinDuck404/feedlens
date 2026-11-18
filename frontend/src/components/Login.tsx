@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { api, auth, ApiError } from "../api";
 import { serverMessage, useI18n } from "../i18n";
 import { Button } from "./ui/Button";
+import { TextField } from "./ui/TextField";
 import { LanguageMenu, ThemeMenu } from "./PreferenceMenus";
 
 interface Props {
@@ -161,10 +162,9 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
                 >
                   {t("login.email")}
                 </label>
-                <input
+                <TextField
                   id={emailId}
                   type="email"
-                  className="field"
                   autoComplete="email"
                   required
                   placeholder="name@example.com"
@@ -180,10 +180,9 @@ export default function Login({ configError, signupOpen, onDone }: Props) {
                 >
                   {registering ? t("login.passwordMin") : t("login.password")}
                 </label>
-                <input
+                <TextField
                   id={passwordId}
                   type="password"
-                  className="field"
                   required
                   minLength={registering ? 8 : undefined}
                   autoComplete={registering ? "new-password" : "current-password"}
