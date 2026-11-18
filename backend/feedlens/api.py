@@ -34,7 +34,7 @@ from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
 from .messages import error_code, progress_message
 from .cookies import CookieError, cookie_hint, parse_cookies
-from .pipeline import PROGRESS, _platform_locks, fail_run, start_analysis, start_ingest, start_run, start_server_run
+from .pipeline import PROGRESS, _platform_locks, fail_run, run_cap, start_analysis, start_ingest, start_run, start_server_run
 from .ai.registry import preferred_provider
 
 app = FastAPI(title="FeedLens API", version="0.4.0")
@@ -446,7 +446,7 @@ def create_run(req: RunRequest, user: User = Depends(current_user)):
         normalize(req)
     except ValueError as exc:
         raise HTTPException(422, f"Invalid source mode/options: {exc}") from exc
-    req = req.model_copy(update={"count": min(req.count, settings.max_posts)})
+    req = req.model_copy(update={"count": min(req.count, run_cap(req))})
     _check_ai(req, user.id)
     if settings.is_cloud and req.runner == "server":
         if not settings.server_scrape:
@@ -536,9 +536,9 @@ class PostsBody(BaseModel):
     posts: list[RawPost] = Field(default_factory=list)
 
 
-def _clean_posts(posts: list[RawPost]) -> list[RawPost]:
-    if len(posts) > settings.max_posts:
-        raise HTTPException(413, f"Tối đa {settings.max_posts} bài mỗi lượt.")
+def _clean_posts(posts: list[RawPost], cap: int) -> list[RawPost]:
+    if len(posts) > cap:
+        raise HTTPException(413, f"Tối đa {cap} bài mỗi lượt.")
     return [p.model_copy(update={"text": p.text[:20_000]}) for p in posts]
 
 
@@ -576,7 +576,8 @@ def agent_posts(run_id: int, body: PostsBody, user: User = Depends(agent_user)):
     r = _own_run(run_id, user)
     if r["status"] != "scraping":
         raise HTTPException(409, "Lượt này không còn ở trạng thái đang lướt.")
-    start_analysis(db(), run_id, RunRequest(**r["request"]), _clean_posts(body.posts), user.id)
+    req = RunRequest(**r["request"])
+    start_analysis(db(), run_id, req, _clean_posts(body.posts, run_cap(req)), user.id)
     return {"ok": True}
 
 
@@ -600,7 +601,7 @@ class IngestBody(BaseModel):
 def ingest(body: IngestBody, user: User = Depends(current_user)):
     """`feedlens push`: gửi một lượt đã lướt xong, không qua hàng đợi."""
     _check_ai(body.request, user.id)
-    return {"id": start_ingest(db(), body.request, _clean_posts(body.posts), user.id)}
+    return {"id": start_ingest(db(), body.request, _clean_posts(body.posts, run_cap(body.request)), user.id)}
 
 
 from .ai_keys_api import ai_keys_router

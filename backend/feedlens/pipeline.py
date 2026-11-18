@@ -24,7 +24,7 @@ def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], No
     """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
     from .browser import open_context  # chỉ cần Playwright khi thật sự lướt
 
-    normalize(req, settings.max_posts)  # Reject invalid sources before opening a profile.
+    normalize(req, run_cap(req))  # Reject invalid sources before opening a profile.
     with open_context(req.platform, headless=req.headless) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         return collect_all(page, req, seen, on_progress, interactive=not req.headless, report=report)
@@ -35,7 +35,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
     from .scrapers import NeedsVerification
 
-    targets = normalize(req, settings.max_posts)
+    targets = normalize(req, run_cap(req))
     scraper = LinkedInJobsScraper() if req.platform == "linkedin" and req.mode == "jobs" else SCRAPERS[req.platform]()
     total_cap = total_target(req)
     posts: list[RawPost] = []
@@ -56,7 +56,8 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                                          lambda n, msg: on_progress(base + n, prefix + msg),
                                          speed=req.speed, interactive=interactive, chronological=chronological,
                                          leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0,
-                                         report=report)
+                                         report=report,
+                                         old_streak_limit=getattr(req.options, "old_streak", 8))
             finally:
                 if report is not None and getattr(scraper, "last_report", None):
                     report.setdefault("sources", []).append({"label": label, **scraper.last_report})
@@ -132,8 +133,13 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
             pass
 
 
+def run_cap(req: RunRequest) -> int:
+    """Trần bài của lượt: lựa chọn trong Cài đặt (500/1000/2000), không có thì dùng FEEDLENS_MAX_POSTS."""
+    return req.max_posts or settings.max_posts
+
+
 def total_target(req: RunRequest) -> int:
-    return planned_total_target(req, settings.max_posts)
+    return planned_total_target(req, run_cap(req))
 
 
 def _keys(db: Database, user_id: int | None):

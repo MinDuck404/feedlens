@@ -18,6 +18,7 @@ class EmptyOptions(BaseModel):
 
 class FacebookGroupOptions(EmptyOptions):
     latest: bool = Field(True, strict=True)
+    old_streak: int = Field(5, ge=1, le=50, strict=True, description="Gặp N bài cũ liên tiếp thì bỏ qua nhóm (khi bỏ qua bài cũ)")
 
 
 class LinkedInJobsOptions(EmptyOptions):
@@ -168,6 +169,7 @@ class RunRequest(BaseModel):
     ai_model: str = Field("", description="Bỏ trống => model mặc định của nhà cung cấp")
     only_new: bool = Field(False, description="Bỏ qua bài đã thấy ở các lượt trước")
     headless: bool = False  # mặc định hiện cửa sổ để bạn thấy bot đang làm gì
+    max_posts: Literal[500, 1000, 2000] | None = Field(None, description="Trần bài mỗi lượt chọn trong Cài đặt; None = mặc định của server")
 
     @model_validator(mode="before")
     @classmethod
