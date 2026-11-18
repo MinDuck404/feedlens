@@ -252,18 +252,20 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         started = time.monotonic()
         try:
             analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, report("analyzing"))
+            returned = {post.fingerprint for post in analyzed}
+            if any(post.fingerprint not in returned for post in pending):
+                raise RuntimeError("AI chưa đọc hết các bài đã lưu. Bấm gửi tiếp để chỉ gửi những bài AI chưa đọc.")
             db.save_batch(run_id, analyzed)
         finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
             add_timings(db, run_id, analysis=time.monotonic() - started)
     analyzed = db.get_posts(run_id)
-    completed = {p.fingerprint for p in analyzed if not needs_ai or p.analyzed_by not in {"", "offline"}}
-    if any(p.fingerprint not in completed for p in raw):
-        raise RuntimeError("AI chưa đọc hết các bài đã lưu. Bấm gửi tiếp để chỉ gửi những bài AI chưa đọc.")
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
     started = time.monotonic()
     digest = analyzer.digest(analyzed, req.job_mode)
     add_timings(db, run_id, summary=time.monotonic() - started)
-    db.update_run(run_id, status="done", error=None, digest=digest)
+    request = db.get_run(run_id)["request"]
+    db.update_run(run_id, status="done", error=None, digest=digest,
+                  request={**request, "analysis_used_ai": needs_ai})
     prog.update(phase="done", message="Hoàn tất")
 
 

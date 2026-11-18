@@ -355,8 +355,9 @@ class Database:
         raw = self.get_analysis_posts(run_id)
         if reanalyze_all:
             return bool(raw)
-        needs_ai = run["request"].get("ai_provider") != "offline" and not (
-            run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline")
+        request = run["request"]
+        needs_ai = request.get("analysis_used_ai", request.get("ai_provider") != "offline" and not (
+            run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline"))
         completed = {p.fingerprint for p in self.get_posts(run_id)
                      if not needs_ai or p.analyzed_by not in {"", "offline"}}
         return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))

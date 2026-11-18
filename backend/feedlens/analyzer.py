@@ -21,6 +21,7 @@ from .job_profile import JobProfile, matching_context
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
 
 BATCH_SIZE = 20
+MISSING_ITEM_BATCH_SIZE = 5
 PARALLEL_BATCHES = 4  # số lô gửi AI cùng lúc
 MAX_POST_CHARS = 3000  # bài cực dài bị cắt để giữ chi phí mỗi lô ổn định
 ProgressFn = Callable[[int, str], None]
@@ -297,15 +298,15 @@ class LLMAnalyzer:
         # Chủ đề của user gửi đúng một lần mỗi lô (không lặp theo từng bài)
         topic_ctx = f"\n\nChủ đề người dùng theo dõi:\n{topics_block(topics)}\n{TOPIC_RULES}" if topics else ""
 
-        def run_batch(batch: list[RawPost]) -> list[AnalyzedPost]:
-            known_jobs = batch[0].job_seed is not None
+        def classify_batch(batch: list[tuple[int, RawPost]]) -> dict[int, AnalyzedPost]:
+            known_jobs = batch[0][1].job_seed is not None
             base_schema = KNOWN_JOBS_SCHEMA if known_jobs else CLASSIFY_SCHEMA
             schema = _with_topic_fields(base_schema) if topics else base_schema
             body = "\n".join(
                 f'<post id="{i}" source="{p.source}" author="{p.author}">\n{p.text[:MAX_POST_CHARS]}\n'
                 + ("<job_seed>" + json.dumps(p.job_seed.model_dump(), ensure_ascii=False) + "</job_seed>\n"
                    if p.job_seed is not None else "") + "</post>"
-                for i, p in enumerate(batch)
+                for i, (_, p) in enumerate(batch)
             )
             instructions = (
                 "Các bài này đã xác định là việc làm (category=job); không phân loại lại. "
@@ -320,14 +321,12 @@ class LLMAnalyzer:
             )
             prompt = f"{instructions}{job_ctx}{topic_ctx}\n\n<posts>\n{body}\n</posts>"
             data = self._json_call(prompt, schema, effort="low")
-            by_id = {it["id"]: it for it in (data.get("items", []) if known_jobs else data["items"])}
-            res = []
-            for i, p in enumerate(batch):
+            by_id = {it["id"]: it for it in data.get("items", [])}
+            label = self.label
+            res = {}
+            for i, (index, p) in enumerate(batch):
                 it = by_id.get(i)
                 if not it:
-                    fallback = {"category": "job", "job": _seeded_job(p),
-                                "topic_ids": heuristic_topics(p.text, topics)} if known_jobs else {}
-                    res.append(AnalyzedPost(**p.model_dump(), analyzed_by=self.label, summary=_first_sentence(p.text), **fallback))
                     continue
                 job_data = dict(it.get("job") or {}) if known_jobs else (dict(it["job"]) if it["is_job"] else None)
                 if job_data is not None:
@@ -344,12 +343,29 @@ class LLMAnalyzer:
                     if cv_profile and job.constraint_flags:
                         job.match_score = min(max(0, 100 - 35 * len(job.constraint_flags)), job.match_score)
                 tids = _clean_topic_ids(it.get("topic_ids"), allowed_topics)
-                res.append(AnalyzedPost(**p.model_dump(), category="job" if known_jobs or it["is_job"] else it["category"],
-                                        analyzed_by=self.label,
-                                        summary=(it.get("summary") or _first_sentence(p.text)) if known_jobs else it["summary"],
-                                        job=job, topic_ids=tids,
-                                        topic_reason=(it.get("topic_reason") or "")[:100] if tids else ""))
+                res[index] = AnalyzedPost(**p.model_dump(), category="job" if known_jobs or it["is_job"] else it["category"],
+                                          analyzed_by=label,
+                                          summary=(it.get("summary") or _first_sentence(p.text)) if known_jobs else it["summary"],
+                                          job=job, topic_ids=tids,
+                                          topic_reason=(it.get("topic_reason") or "")[:100] if tids else "")
             return res
+
+        def run_batch(batch: list[tuple[int, RawPost]]) -> tuple[dict[int, AnalyzedPost], Exception | None]:
+            res = classify_batch(batch)
+            missing = [(index, post) for index, post in batch if index not in res]
+            for start in range(0, len(missing), MISSING_ITEM_BATCH_SIZE):
+                try:
+                    res.update(classify_batch(missing[start:start + MISSING_ITEM_BATCH_SIZE]))
+                except Exception as error:
+                    # Keep successful results from this batch even when its retry hits a quota error.
+                    return res, error
+            remaining = [(index, post) for index, post in missing if index not in res]
+            if remaining:
+                offline = HeuristicAnalyzer()
+                offline.job_profile, offline.topics = cv_profile, topics
+                fallback = offline.classify([post for _, post in remaining], job_mode, keywords, profile, lambda *_: None)
+                res.update((index, post) for (index, _), post in zip(remaining, fallback))
+            return res, None
 
         # Các lô độc lập nhau -> gửi song song để nhanh hơn, giữ nguyên thứ tự bài
         tpms = [self.scheduler.limits(c).tpm for c in self.candidates if not c.disabled and self.scheduler.limits(c).tpm]
@@ -372,18 +388,20 @@ class LLMAnalyzer:
         done = 0
         errors = []
         with ThreadPoolExecutor(max_workers=min(self.scheduler.parallelism(self.candidates), len(batches) or 1)) as pool:
-            futures = {pool.submit(run_batch, [p for _, p in b]): b for b in batches}
+            futures = [pool.submit(run_batch, batch) for batch in batches]
             for fut in as_completed(futures):
                 try:
-                    batch = fut.result()
+                    batch, error = fut.result()
                 except Exception as e:
                     errors.append(e)
                     continue
-                for (index, _), post in zip(futures[fut], batch):
+                for index, post in batch.items():
                     results[index] = post
-                if checkpoint := getattr(self, "on_batch", None):
-                    checkpoint(batch)
-                done += len(futures[fut])
+                if batch and (checkpoint := getattr(self, "on_batch", None)):
+                    checkpoint([batch[index] for index in sorted(batch)])
+                if error is not None:
+                    errors.append(error)
+                done += len(batch)
                 progress(done, f"Đã phân loại {done}/{len(posts)}")
         if errors:
             raise errors[0]

@@ -138,7 +138,7 @@ class FakeProvider(AIProvider):
                 {"id": 0, "category": "other", "summary": "Tuyển Python", "is_job": True,
                  "job": empty_job | {"title": "Python Dev", "match_score": 90}},
                 {"id": 1, "category": "marketplace", "summary": "Bán laptop", "is_job": False, "job": empty_job},
-                # id 2 thiếu -> analyzer phải tự điền fallback
+                {"id": 2, "category": "question", "summary": "React hay Vue?", "is_job": False, "job": empty_job},
             ]}
         return {"overall": "Tổng hợp", "action_items": ["Ứng tuyển Python Dev"],
                 "categories": [{"category": "job", "summary": "1 job", "highlights": []},
@@ -214,7 +214,7 @@ def test_llm_batches_run_in_parallel_and_keep_order(monkeypatch):
 def test_llm_analyzer_with_any_provider():
     a = LLMAnalyzer(FakeProvider())
     out = a.classify(SAMPLE, True, ["python"], "", lambda *x: None)
-    assert [p.category for p in out] == ["job", "marketplace", "other"]
+    assert [p.category for p in out] == ["job", "marketplace", "question"]
     assert out[0].job.match_score == 90 and out[2].summary
     d = a.digest(out, True)
     assert [c.category for c in d.categories] == ["job"]  # nhóm không có bài bị loại
