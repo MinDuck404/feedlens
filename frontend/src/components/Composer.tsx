@@ -105,7 +105,8 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
   const myGroups: SavedGroup[] = savedSources[key] ?? [];
   const sources = usesSaved ? myGroups.filter((g) => g.enabled).map((g) => g.url) : sourceLines(sourceText);
   const draft: ModeDraft = { count: f.count, sourceText: sources.join("\n"), ...(newGroups ? { sourceEntry: newGroups } : {}), options: (f.options ?? {}) as ModeDraft["options"] };
-  const plan = countPlan(f.platform, mode, draft, meta.max_posts);
+  const effectiveMaxPosts = prefs.max_posts ?? meta.max_posts;
+  const plan = countPlan(f.platform, mode, draft, effectiveMaxPosts);
   const nSources = plan.sources, total = plan.total;
   const changeMode = (platform: Platform, nextMode = selectedModes.current[platform] ?? defaultMode(platform)) => {
     if (platform === f.platform && nextMode === mode) return;
@@ -204,7 +205,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
     }
     setSending(true);
     try {
-      const { id } = await api.createRun(serializeDraft({ ...f, language: lang, keywords }, mode, draft));
+      const { id } = await api.createRun(serializeDraft({ ...f, ...(prefs.max_posts ? { max_posts: prefs.max_posts } : {}), language: lang, keywords }, mode, draft));
       persist({});
       onCreated(id);
     } catch (err) {
@@ -365,8 +366,14 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               return <div key={field.name} className="mt-4"><label className="block"><span className="mb-1.5 block text-sm">{t(field.label)}</span>
                 {field.type === "select" ? <Select aria-label={t(field.label)} value={value === null ? "" : String(value ?? "")} onChange={(event) => setOption(field.name, event.target.value || null)}>
                   {value === null && <option value="">{t("cmp.input.time.any")}</option>}{field.choices?.map((choice) => <option key={choice.value} value={choice.value}>{t(choice.label)}</option>)}
-                </Select> : <input className="field" value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
+                </Select> : field.type === "number" ? <input type="number" className="field" min={field.min} max={field.max} step={1}
+                  value={value === undefined || value === null ? "" : String(value)}
+                  onChange={(event) => {
+                    const raw = event.target.value;
+                    setOption(field.name, raw === "" ? null : Number(raw));
+                  }} /> : <input className="field" value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
                   placeholder={field.placeholder ? t(field.placeholder) : undefined} onChange={(event) => setOption(field.name, event.target.value)} />}</label>
+                {field.hint && <p className="mt-1.5 text-xs text-ink-soft">{t(field.hint)}</p>}
                 {mode === "jobs" && field.name === "keywords" && jobProfile && <div className="mt-2 flex flex-wrap gap-2">
                   {jobProfileSuggestions(jobProfile).map((role) => <button key={role} type="button"
                     className="min-h-10 max-w-full truncate rounded-full border border-line px-3 text-xs text-ink-soft hover:border-ink hover:text-ink"
@@ -379,9 +386,9 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
           <Group label={t(plan.label)}>
             <div className="flex items-center gap-4">
             <output className="min-w-12 text-right font-mono text-3xl font-medium tabular-nums" aria-hidden="true">{formatNumber(f.count, lang)}</output>
-            <input type="range" min={1} max={Math.min(200, meta.max_posts)} step={1} value={f.count}
+            <input type="range" min={1} max={Math.min(200, effectiveMaxPosts)} step={1} value={f.count}
               onChange={(e) => set("count", Number(e.target.value))}
-              style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (f.count - 1) / Math.max(1, Math.min(200, meta.max_posts) - 1)}%, color-mix(in srgb, var(--ink) 35%, var(--sheet)) ${100 * (f.count - 1) / Math.max(1, Math.min(200, meta.max_posts) - 1)}%)`, backgroundSize: "100% 6px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
+              style={{ backgroundImage: `linear-gradient(to right, var(--accent) ${100 * (f.count - 1) / Math.max(1, Math.min(200, effectiveMaxPosts) - 1)}%, color-mix(in srgb, var(--ink) 35%, var(--sheet)) ${100 * (f.count - 1) / Math.max(1, Math.min(200, effectiveMaxPosts) - 1)}%)`, backgroundSize: "100% 6px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
               className="h-11 min-w-0 flex-1 cursor-pointer appearance-none bg-transparent
                 [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent
                 [&::-webkit-slider-thumb]:-mt-[7px] [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-accent [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-[var(--duration-fast)] hover:[&::-webkit-slider-thumb]:scale-110 active:[&::-webkit-slider-thumb]:scale-125
@@ -389,7 +396,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               aria-label={t(plan.label)} />
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {[20, 25, 40, 80, 120].filter((n) => n <= Math.min(200, meta.max_posts)).map((n) => (
+              {[20, 25, 40, 80, 120].filter((n) => n <= Math.min(200, effectiveMaxPosts)).map((n) => (
                 <button key={n} type="button" onClick={() => set("count", n)} aria-pressed={f.count === n}
                   className="interactive-tap relative isolate min-h-11 min-w-11 rounded-full px-2 py-1 font-mono text-xs text-ink-soft hover:text-ink aria-pressed:text-primary-ink before:absolute before:inset-x-1 before:inset-y-1.5 before:-z-10 before:rounded-full hover:before:bg-sunken aria-pressed:before:bg-primary">
                   {formatNumber(n, lang)}

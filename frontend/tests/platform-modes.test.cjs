@@ -43,7 +43,7 @@ test("job profile autofill fills only empty fields and preserves current choices
 
 const cases = [
   ["facebook", "feed", "", {}, "feed", []],
-  ["facebook", "group", "demo\nhttps://www.facebook.com/groups/demo/", { latest: true }, "group", ["demo"]],
+  ["facebook", "group", "demo\nhttps://www.facebook.com/groups/demo/", { latest: true, old_streak: 5 }, "group", ["demo"]],
   ["facebook", "page", "NASA\nhttps://www.facebook.com/NASA/", {}, "group", ["NASA"]],
   ["facebook", "search", "python\nreact", {}, "search", ["python", "react"]],
   ["linkedin", "jobs", "", { keywords: "  Python & React  ", location: "Vietnam", work_modes: ["remote", "hybrid"], posted_within: "week" }, "search", ["Python & React"]],
@@ -290,4 +290,48 @@ test("Jobs without a CV links to profile settings and other modes retain the tog
     find(tree, (n) => n.props?.label === "cmp.where" && n.props.onChange).props.onChange("recruiting_posts"); tree = harness.render(props);
     assert.ok(find(tree, (n) => n.props?.children === "cmp.jobs"));
   } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("countPlan and Composer use prefs.max_posts cap (13 groups x 100 with cap 2000 = 1300) and send max_posts", async () => {
+  global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
+  const { api } = require("../src/api.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const groups = Array.from({ length: 13 }, (_, i) => `https://www.facebook.com/groups/g${i + 1}`);
+  const plan = modes.countPlan("facebook", "group", { sourceText: groups.join("\n"), count: 100, options: { latest: true, old_streak: 5 } }, 2000);
+  assert.equal(plan.cap, 2000);
+  assert.equal(plan.total, 1300);
+
+  const original = { ...api }, created = [];
+  api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
+  api.createRun = async (req) => { created.push(req); return { id: 99 }; };
+  const harness = hooks(Composer), props = {
+    meta: { mode: "local", max_posts: 500 }, me: null, platforms: [],
+    prefs: { max_posts: 2000, composer: { platform: "facebook", mode: "group", count: 100, sources: groups },
+      saved_sources: { "facebook:group": groups.map((url) => ({ url, enabled: true })) },
+      drafts: { "facebook:group": { sourceText: groups.join("\n"), count: 100, options: { latest: true, old_streak: 5 } } } },
+    onPrefsChange() {}, onClose() {}, onCreated() {}, onOpenSettings() {},
+  };
+  try {
+    harness.render(props); await new Promise(setImmediate);
+    const tree = harness.render(props);
+    assert.ok(JSON.stringify(tree).includes('"cmp.total"'));
+    assert.ok(!JSON.stringify(tree).includes('"cmp.cap"'));
+    await find(tree, (n) => typeof n.props?.onSubmit === "function").props.onSubmit({ preventDefault() {} });
+    assert.equal(created[0].max_posts, 2000);
+    assert.equal(created[0].options.old_streak, 5);
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("facebook group old_streak validates 1..50 and defaults to 5 for legacy drafts", () => {
+  const valid = { sourceText: "g1", count: 20, options: { latest: true, old_streak: 5 } };
+  assert.equal(modes.validateDraft("facebook", "group", valid), null);
+  assert.equal(modes.validateDraft("facebook", "group", { ...valid, options: { latest: true, old_streak: 0 } }), "error.validation");
+  assert.equal(modes.validateDraft("facebook", "group", { ...valid, options: { latest: true, old_streak: 51 } }), "error.validation");
+  assert.equal(modes.validateDraft("facebook", "group", { ...valid, options: { latest: true, old_streak: 1.5 } }), "error.validation");
+  const migrated = modes.migratePreferences({
+    version: 2,
+    drafts: { "facebook:group": { sourceText: "g1", count: 20, options: { latest: false } } },
+    saved_sources: { "facebook:group": [{ url: "g1", enabled: true }] },
+  });
+  assert.equal(migrated.drafts["facebook:group"].options.old_streak, 5);
+  assert.equal(migrated.drafts["facebook:group"].options.latest, false);
 });

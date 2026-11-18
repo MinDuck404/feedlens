@@ -1,15 +1,18 @@
 import type { Key } from "./i18n";
 import type { JobProfile, Mode, ModeOptions, Platform, Preferences, RunRequest, SavedGroup, SourceType } from "./types";
 
-type OptionValue = string | boolean | string[] | null;
+type OptionValue = string | number | boolean | string[] | null;
 export interface ModeDraft { sourceText: string; sourceEntry?: string; count: number; options: Record<string, OptionValue> }
 export interface ModeField {
   name: string;
-  type: "text" | "sources" | "saved" | "select" | "multi" | "toggle";
+  type: "text" | "sources" | "saved" | "select" | "multi" | "toggle" | "number";
   label: Key;
+  hint?: Key;
   placeholder?: Key;
   example?: string;
   required?: boolean;
+  min?: number;
+  max?: number;
   choices?: { value: string; label: Key }[];
 }
 export interface PlatformMode {
@@ -31,9 +34,10 @@ export const PLATFORM_MODES: Record<Platform, PlatformMode[]> = {
   facebook: [
     { mode: "feed", label: "cmp.mode.fb.feed", description: "cmp.mode.fb.feedDesc", sourceType: "feed", countLabel: "cmp.countLabel", count: 40, fields: [] },
     { mode: "group", label: "cmp.mode.fb.groups", description: "cmp.mode.fb.groupsDesc", sourceType: "group", countLabel: "cmp.countPerGroupLabel", count: 20,
-      defaults: { latest: true }, fields: [
+      defaults: { latest: true, old_streak: 5 }, fields: [
         { name: "sources", type: "saved", label: "cmp.addGroup", example: "https://www.facebook.com/groups/vieclamit", required: true },
         { name: "latest", type: "toggle", label: "cmp.input.groupChronological" },
+        { name: "old_streak", type: "number", label: "cmp.input.oldStreak", hint: "cmp.input.oldStreakHint", min: 1, max: 50 },
       ] },
     { mode: "page", label: "cmp.mode.fb.pages", description: "cmp.mode.fb.pagesDesc", sourceType: "group", countLabel: "cmp.countPerPageLabel", count: 20,
       fields: [{ name: "sources", type: "sources", label: "cmp.input.pageLabel", placeholder: "cmp.input.pagePh", required: true }] },
@@ -188,6 +192,12 @@ export function validateDraft(platform: Platform, mode: Mode, draft: ModeDraft):
     const value = field.name === "sources" ? draft.sourceText : draft.options[field.name];
     if (field.required && (typeof value !== "string" || !value.trim())) return field.name === "sources" ? "error.sources_missing" : "error.validation";
     if (field.type === "toggle" && typeof value !== "boolean") return "error.validation";
+    if (field.type === "number") {
+      const effective = value === undefined ? modeDefinition(platform, mode).defaults?.[field.name] : value;
+      if (typeof effective !== "number" || !Number.isInteger(effective)) return "error.validation";
+      if (field.min !== undefined && effective < field.min) return "error.validation";
+      if (field.max !== undefined && effective > field.max) return "error.validation";
+    }
     if (field.type === "multi" && !Array.isArray(value)) return "error.validation";
     if (field.type === "text" && typeof value !== "string") return "error.validation";
     if (field.choices && !(mode === "recruiting_posts" && value === null)) {
@@ -293,6 +303,11 @@ export function migratePreferences(input: Preferences): ModePreferences {
     if (!drafts[key]) drafts[key] = draftFromRequest(request);
     else if (stored.version !== 2) drafts[key] = { ...draftFromRequest(request), sourceText: request.sources?.length ? request.sources.join("\n") : drafts[key].sourceText };
     if (modeDefinition(platform, mode).sourceType === "group" && !saved[key]) saved[key] = sourceLines(drafts[key].sourceText).map((url) => ({ url, enabled: true }));
+  }
+  for (const key of Object.keys(drafts)) {
+    const [platform, mode] = key.split(":") as [Platform, Mode];
+    const defaults = PLATFORM_MODES[platform]?.find((item) => item.mode === mode)?.defaults;
+    if (defaults) drafts[key] = { ...drafts[key], options: { ...defaults, ...drafts[key].options } };
   }
   return { ...input, version: 2, drafts, saved_sources: saved };
 }

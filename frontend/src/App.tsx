@@ -381,6 +381,8 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
           initialTab={settingsTab}
           meta={meta}
           me={me}
+          prefs={prefs}
+          onPrefsChange={savePrefs}
           onClose={() => { setSettingsOpen(false); setSettingsTab(undefined); }}
           onChanged={() => { refreshMe(); window.dispatchEvent(new Event("feedlens:aiChanged")); }}
         />

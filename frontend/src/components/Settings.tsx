@@ -2,28 +2,30 @@ import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { parseTimestamp } from "../logic";
 import { API_BASE, api } from "../api";
-import type { AIKey, AIProviderInfo, Me, Meta } from "../types";
+import type { AIKey, AIProviderInfo, Me, Meta, Preferences } from "../types";
 import AIProviderKeys from "./AIProviderKeys";
 import CookieSessions from "./CookieSessions";
 import TopicSettings from "./TopicSettings";
 import JobProfileSettings from "./JobProfileSettings";
-import { useI18n } from "../i18n";
-import { Sheet, Button, SkeletonCard, SegmentedControl } from "./ui";
+import { formatNumber, useI18n } from "../i18n";
+import { Sheet, Button, SkeletonCard, SegmentedControl, Select } from "./ui";
 
 interface Props {
   initialTab?: string;
   meta: Meta;
   me: Me | null;
+  prefs?: Preferences | null;
+  onPrefsChange?: (p: Preferences) => void;
   onClose: () => void;
   onChanged: () => void;
 }
 
 function settingsTab(value: string | null | undefined, cloud: boolean): string {
   if (["agent", "cookies"].includes(value ?? "")) return cloud ? "scrape" : "keys";
-  return ["keys", "profile", "topics", ...(cloud ? ["scrape"] : [])].includes(value ?? "") ? value! : "keys";
+  return ["keys", "profile", "topics", "general", ...(cloud ? ["scrape"] : [])].includes(value ?? "") ? value! : "keys";
 }
 
-export default function Settings({ meta, me, onClose, onChanged, initialTab }: Props) {
+export default function Settings({ meta, me, prefs, onPrefsChange, onClose, onChanged, initialTab }: Props) {
   const [open, setOpen] = useState(true);
   const id = useId();
   const body = useRef<HTMLDivElement>(null);
@@ -38,12 +40,12 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
   const [keys, setKeys] = useState<AIKey[]>([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const reload = () => Promise.all([api.providers(), api.listKeys()]).then(([providers, keys]) => {
     setProviders(providers); setKeys(keys); setLoadError("");
   }).finally(() => setLoading(false));
 
-  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, ...(cloud ? [{ value: "scrape", label: t("set.tab.scrape") }] : [])];
+  const tabs = [{ value: "keys", label: t("set.tab.keys") }, { value: "profile", label: t("profile.title") }, { value: "topics", label: t("topics.title") }, { value: "general", label: t("set.tab.general") }, ...(cloud ? [{ value: "scrape", label: t("set.tab.scrape") }] : [])];
   const changeTab = (value: string) => {
     setTab(value); if (body.current) body.current.scrollTop = 0;
     try { localStorage.setItem("feedlens.settingsTab", value); } catch { /* Keep the current tab in memory. */ }
@@ -88,6 +90,25 @@ export default function Settings({ meta, me, onClose, onChanged, initialTab }: P
         </div>
         <div hidden={tab !== "profile"} role="tabpanel" id={`${id}-panel-profile`} aria-labelledby={`${id}-tab-profile`} tabIndex={0}><JobProfileSettings providers={providers} /></div>
         <div hidden={tab !== "topics"} role="tabpanel" id={`${id}-panel-topics`} aria-labelledby={`${id}-tab-topics`} tabIndex={0}><TopicSettings /></div>
+        <div hidden={tab !== "general"} role="tabpanel" id={`${id}-panel-general`} aria-labelledby={`${id}-tab-general`} tabIndex={0}>
+          <h3 className="font-headline text-2xl font-semibold">{t("set.tab.general")}</h3>
+          <label className="mt-4 block">
+            <span className="mb-1.5 block text-sm font-medium">{t("set.maxPosts")}</span>
+            <Select
+              aria-label={t("set.maxPosts")}
+              value={String(prefs?.max_posts ?? (meta.max_posts === 1000 || meta.max_posts === 2000 ? meta.max_posts : 500))}
+              onChange={(event) => {
+                const max_posts = Number(event.target.value) as 500 | 1000 | 2000;
+                onPrefsChange?.({ ...(prefs ?? {}), max_posts });
+              }}
+            >
+              {[500, 1000, 2000].map((n) => (
+                <option key={n} value={String(n)}>{formatNumber(n, lang)}</option>
+              ))}
+            </Select>
+          </label>
+          <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.maxPostsHint")}</p>
+        </div>
         {cloud && <div hidden={tab !== "scrape"} role="tabpanel" id={`${id}-panel-scrape`} aria-labelledby={`${id}-tab-scrape`} tabIndex={0}>
           {me ? <AgentSection me={me} onChanged={onChanged} /> : <div role="status" aria-label={t("act.loading")}><SkeletonCard /></div>}
           {meta.server_scrape && <div className="mt-6"><CookieSessions /></div>}

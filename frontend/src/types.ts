@@ -7,7 +7,7 @@ export interface LinkedInJobsOptions {
   work_modes?: ("remote" | "hybrid" | "onsite")[];
   posted_within?: "day" | "week" | "month";
 }
-export type ModeOptions = Record<string, never> | { latest?: boolean } | LinkedInJobsOptions
+export type ModeOptions = Record<string, never> | { latest?: boolean; old_streak?: number } | LinkedInJobsOptions
   | { posted_within?: "day" | "week" | null; hiring?: boolean }
   | { sort?: "new" | "top_day" | "top_week" | "top" };
 export interface JobSeed {
@@ -83,6 +83,7 @@ export interface RunRequest {
   options?: ModeOptions;
   sources: string[];
   count: number;
+  max_posts?: 500 | 1000 | 2000;
   job_mode: boolean;
   keywords: string[];
   profile: string;
@@ -120,6 +121,7 @@ export interface SavedGroup {
 
 /** Cài đặt lưu theo tài khoản (server chỉ lưu nguyên JSON này). */
 export interface Preferences {
+  max_posts?: 500 | 1000 | 2000;
   composer?: Partial<RunRequest> & { keywords_text?: string };
   groups?: Partial<Record<Platform, SavedGroup[]>>;
   searches?: Partial<Record<Platform, string>>;
