@@ -729,14 +729,13 @@ def test_story_graphql_replaces_truncated_dom_with_full_text(facebook_page, monk
         "__typename": "Story",
         "post_id": "101",
         "actors": [{"name": "HR Tech"}],
-        "to": {"__typename": "Group", "id": "demo"},
         "message": {"text": full_text},
     }
     facebook_page.set_content(f'''<div role="feed"><div role="article">
       <h3>HR Tech</h3>
       <div data-ad-preview="message">{prefix}… Xem thêm</div>
       <div role="button" onclick="window.expandClicks=(window.expandClicks||0)+1">Xem thêm</div>
-      <a href="/groups/demo/posts/101/">1 h</a>
+      <a href="/hrtech/posts/101/">1 h</a>
       <script type="application/json">{json.dumps({"data": story})}</script>
     </div></div>''')
     facebook_page.evaluate("window.expandClicks = 0")
@@ -746,7 +745,7 @@ def test_story_graphql_replaces_truncated_dom_with_full_text(facebook_page, monk
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
     report = {}
-    posts = scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report=report)
+    posts = scraper.collect(facebook_page, "https://www.facebook.com/", "feed", 1, set(), lambda *args: None, report=report)
     assert len(posts) == 1
     assert posts[0].text == full_text
     assert report["full_text_from_story"] == 1
@@ -923,29 +922,240 @@ def test_report_contains_all_five_timing_keys_and_accumulates_without_secrets(fa
         "__typename": "Story",
         "post_id": "50",
         "actors": [{"name": "Author"}],
-        "to": {"__typename": "Group", "id": "demo"},
         "message": {"text": full_text},
     }
     facebook_page.set_content(f'''<div role="feed"><div role="article">
       <h3>Author</h3>
       <div data-ad-preview="message">{prefix}… Xem thêm</div>
-      <a href="/groups/demo/posts/50/">1 h</a>
+      <a href="/author/posts/50/">1 h</a>
       <script type="application/json">{json.dumps({"data": story})}</script>
     </div></div>''')
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
     report = {}
-    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo1", 1, set(), lambda *args: None, report=report)
+    scraper.collect(facebook_page, "https://www.facebook.com/", "feed1", 1, set(), lambda *args: None, report=report)
     first_nav = report["timings"]["navigation"]
     assert set(report["timings"].keys()) == {"navigation", "scroll_wait", "expand", "link_resolve", "extract"}
     assert all(isinstance(v, float) and v >= 0.0 for v in report["timings"].values())
     assert report["full_text_from_story"] == 1
 
     # Second source accumulates on the same report dict
-    scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo2", 1, set(), lambda *args: None, report=report)
+    scraper.collect(facebook_page, "https://www.facebook.com/", "feed2", 1, set(), lambda *args: None, report=report)
     assert report["timings"]["navigation"] > first_nav
     assert report["full_text_from_story"] == 2
     serialized = json.dumps(report, ensure_ascii=False)
     assert full_text not in serialized
     assert "cookie" not in serialized.lower()
+
+
+@pytest.mark.parametrize("href,expected", [
+    ("/groups/x/posts/4616939438573919/?comment_id=4616948331906363&__cft__[0]=abc&__tn__=R",
+     "https://www.facebook.com/groups/x/posts/4616939438573919/"),
+    ("/groups/x/posts/4616939438573919/?reply_comment_id=999&notif_id=123",
+     "https://www.facebook.com/groups/x/posts/4616939438573919/"),
+    ("/permalink/123456/?comment_id=777&fbclid=xyz",
+     "https://www.facebook.com/permalink/123456/"),
+    ("/permalink.php?story_fbid=111&id=222&comment_id=333&__cft__[0]=a",
+     "https://www.facebook.com/permalink.php?story_fbid=111&id=222"),
+])
+def test_facebook_permalink_strips_comment_id_and_junk_query(href, expected):
+    assert select_facebook_link([(href, True)]) == expected
+
+
+def test_facebook_dom_prefers_post_anchor_over_earlier_comment_anchor(facebook_page):
+    facebook_page.set_content('''<div role="feed"><div role="article">
+      <h3>Author</h3>
+      <div data-ad-preview="message">Post content long enough for extraction in group feed.</div>
+      <a href="/groups/x/posts/999/?comment_id=111&__tn__=R">5 m</a>
+      <a href="/groups/x/posts/4616939438573919/">2 h</a>
+    </div></div>''')
+    item = scrapers._facebook_items(facebook_page)[0]
+    assert item["url"] == "https://www.facebook.com/groups/x/posts/4616939438573919/"
+
+
+def _ndjson_page(monkeypatch, payloads, *, dom_items=None):
+    callbacks = {}
+    def goto(url, **kwargs):
+        for body in payloads:
+            callbacks["response"](SimpleNamespace(
+                url="https://www.facebook.com/api/graphql/", status=200, text=lambda b=body: b
+            ))
+    page = SimpleNamespace(
+        on=lambda event, fn: callbacks.update({event: fn}),
+        remove_listener=lambda event, fn: callbacks.pop(event, None),
+        goto=goto,
+        evaluate=lambda *args: [],
+        mouse=SimpleNamespace(wheel=lambda *args: None),
+    )
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: list(dom_items or []))
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    return page
+
+
+def test_group_graphql_first_extracts_clean_story_without_dom_and_dedups_repeats(monkeypatch):
+    import base64, json
+    comment_fb = base64.b64encode(b"comment:9876543210").decode()
+    good_story = {
+        "__typename": "Story",
+        "post_id": "1001",
+        "creation_time": 1794900000,
+        "actors": [{"name": "Minh Dev"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "permalink_url": "https://www.facebook.com/groups/111/posts/1001/?comment_id=555&__cft__[0]=x",
+        "message": {"text": "Tuyển kỹ sư Backend Python làm việc tại Hà Nội, toàn văn đầy đủ từ GraphQL."},
+    }
+    other_group = {
+        "__typename": "Story",
+        "post_id": "1002",
+        "creation_time": 1794900100,
+        "actors": [{"name": "Other"}],
+        "to": {"__typename": "Group", "id": "999"},
+        "message": {"text": "Bài viết từ nhóm khác không được phép lọt vào kết quả của nhóm 111."},
+    }
+    suggested_page = {
+        "__typename": "Story",
+        "post_id": "1003",
+        "creation_time": 1794900200,
+        "actors": [{"id": "777", "name": "Suggested Page"}],
+        "message": {"text": "Bài gợi ý từ trang ngoài nhóm không thuộc nhóm 111."},
+    }
+    comment_node = {
+        "__typename": "Comment",
+        "feedback": {"id": comment_fb},
+        "body": {"text": "Bình luận có feedback số nhưng không phải Story."},
+    }
+    ad_story = {
+        "__typename": "Story",
+        "post_id": "1004",
+        "creation_time": 1794900300,
+        "actors": [{"name": "Sponsor"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "sponsored_data": {"ad_id": "888"},
+        "message": {"text": "Quảng cáo tài trợ trong nhóm cần bị lọc khỏi target."},
+    }
+    ndjson = "\n".join([
+        json.dumps({"data": good_story}),
+        json.dumps({"data": other_group}),
+        json.dumps({"data": suggested_page}),
+        json.dumps({"data": comment_node}),
+        json.dumps({"data": ad_story}),
+    ])
+    # Repeat the exact same NDJSON payload to verify duplicate responses do not duplicate posts.
+    page = _ndjson_page(monkeypatch, [ndjson, ndjson])
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    report = {}
+    posts = scraper.collect(page, "https://www.facebook.com/groups/111/", "111", 5, set(), lambda *a: None, report=report)
+    assert len(posts) == 1
+    assert posts[0].url == "https://www.facebook.com/groups/111/posts/1001/"
+    assert posts[0].author == "Minh Dev"
+    assert posts[0].posted_at.startswith("2026-") or "T" in posts[0].posted_at
+    assert scraper.last_report["skipped_ads"] == 1
+    assert report["from_story"] == 1
+
+
+def test_group_graphql_first_keeps_photo_only_and_same_caption_different_post_id(monkeypatch):
+    import json
+    photo_story = {
+        "__typename": "Story",
+        "post_id": "2001",
+        "creation_time": 1794900100,
+        "actors": [{"name": "Photo Poster"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "attachments": [{"media": {"__typename": "Photo", "id": "444", "accessibility_caption": "Ảnh tuyển dụng"}}],
+    }
+    dup_caption_1 = {
+        "__typename": "Story",
+        "post_id": "2002",
+        "creation_time": 1794900200,
+        "actors": [{"name": "User A"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "message": {"text": "Tuyển lập trình viên Python gấp trong tuần này!"},
+    }
+    dup_caption_2 = {
+        "__typename": "Story",
+        "post_id": "2003",
+        "creation_time": 1794900300,
+        "actors": [{"name": "User B"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "message": {"text": "Tuyển lập trình viên Python gấp trong tuần này!"},
+    }
+    payload = json.dumps({"data": [photo_story, dup_caption_1, dup_caption_2]})
+    page = _ndjson_page(monkeypatch, [payload])
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    report = {}
+    posts = scraper.collect(page, "https://www.facebook.com/groups/111/", "111", 5, set(), lambda *a: None, report=report)
+    assert len(posts) == 3
+    assert {p.url for p in posts} == {
+        "https://www.facebook.com/groups/111/posts/2001/",
+        "https://www.facebook.com/groups/111/posts/2002/",
+        "https://www.facebook.com/groups/111/posts/2003/",
+    }
+    assert report["from_story"] == 3
+
+
+def test_group_graphql_first_sorts_by_creation_time_for_caught_up_and_dedups_dom(monkeypatch):
+    import json
+    # 8 old stories (older creation_time) + 1 newest story (arrives LAST in cache!)
+    old_stories = [{
+        "__typename": "Story",
+        "post_id": str(3000 + i),
+        "creation_time": 1794800000 + i,
+        "actors": [{"name": f"Old {i}"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "message": {"text": f"Bài cũ số {i} đã đọc ở lượt trước đó rồi nhé."},
+    } for i in range(8)]
+    newest_story = {
+        "__typename": "Story",
+        "post_id": "3999",
+        "creation_time": 1794999999,
+        "actors": [{"name": "Newest"}],
+        "to": {"__typename": "Group", "id": "111"},
+        "message": {"text": "Bài mới nhất có creation_time lớn nhất nhưng về sau trong JSON."},
+    }
+    seen = {fingerprint(s["message"]["text"]) for s in old_stories}
+    # DOM also renders newest_story with same post_id: must be deduplicated, not counted twice.
+    dom_dup = {
+        "author": "Newest",
+        "text": newest_story["message"]["text"],
+        "url": "https://www.facebook.com/groups/111/posts/3999/",
+        "posted_at": "",
+        "sponsored": False,
+    }
+    payload = json.dumps({"data": [*old_stories, newest_story]})
+    page = _ndjson_page(monkeypatch, [payload], dom_items=[dom_dup])
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    report = {}
+    posts = scraper.collect(
+        page, "https://www.facebook.com/groups/111/?sorting_setting=CHRONOLOGICAL",
+        "111", 10, seen, lambda *a: None, chronological=True, report=report,
+    )
+    assert len(posts) == 1
+    assert posts[0].url == "https://www.facebook.com/groups/111/posts/3999/"
+    assert scraper.last_report["skipped_old"] == 8
+    assert scraper.last_report["stop_reason"] == "caught_up"
+    assert report["from_story"] == 1
+
+
+def test_collect_respects_custom_old_streak_limit(monkeypatch):
+    old = [item(f"Old group post number {i}") for i in range(5)]
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    batches = iter([[p] for p in old])
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda page: next(batches, []))
+    scraper = FacebookScraper()
+    monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
+    page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
+                           mouse=SimpleNamespace(wheel=lambda *args: None))
+    posts = scraper.collect(
+        page, "https://www.facebook.com/groups/demo/?sorting_setting=CHRONOLOGICAL",
+        "demo", 20, {fingerprint(p["text"]) for p in old}, lambda *a: None,
+        old_streak_limit=3,
+    )
+    assert posts == []
+    assert scraper.last_report["skipped_old"] == 3
+    assert scraper.last_report["stop_reason"] == "caught_up"

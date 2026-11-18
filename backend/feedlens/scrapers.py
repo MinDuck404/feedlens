@@ -51,7 +51,7 @@ def facebook_ad_link(href: str) -> bool:
 
 def select_facebook_link(links: list[tuple[str, bool]]) -> str:
     """Prefer post permalinks, then timestamp anchors, then media fallbacks."""
-    best_url, best_rank = "", (3, True)
+    best_url, best_rank = "", (3, False, True)
     for href, timestamp in links:
         if not href or href.startswith("#") or facebook_ad_link(href):
             continue
@@ -66,16 +66,20 @@ def select_facebook_link(links: list[tuple[str, bool]]) -> str:
             continue
         if url.path in ("", "/"):
             continue
-        query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
-                 if not k.startswith(("__cft__", "__tn__")) and k != "fbclid"]
+        raw_query = parse_qsl(url.query, keep_blank_values=True)
+        has_comment = any(k in {"comment_id", "reply_comment_id"} for k, _ in raw_query)
+        query = [(k, v) for k, v in raw_query
+                 if not k.startswith(("__cft__", "__tn__")) and k not in {"fbclid", "comment_id", "reply_comment_id"}]
         group = re.fullmatch(r"/groups/([\w.-]+)/?", url.path)
         multi = dict(query).get("multi_permalinks", "")
         if group and re.fullmatch(r"\d+", multi):
             url = url._replace(path=f"/groups/{group[1]}/posts/{multi}/")
             query = []
+        elif re.fullmatch(r"(?:/groups/[\w.-]+)?/(?:posts|permalink)/[^/]+/?", url.path):
+            query = []
         post = bool(re.search(r"/(?:posts|permalink)/[^/]+|^/share/(?:[prv]/)?[^/]+", url.path)) or any(k == "story_fbid" and v for k, v in query)
         media = bool(re.search(r"/(?:photos?|videos?|reels?)(?:/|\.php$)|^/watch/?$", url.path)) or host == "fb.watch"
-        rank = (0 if post else 1 if timestamp else 2 if media else 3, not timestamp)
+        rank = (0 if post else 1 if timestamp else 2 if media else 3, has_comment, not timestamp)
         if rank < best_rank:
             best_url = urlunsplit((url.scheme, url.netloc, url.path, urlencode(query), url.fragment))
             best_rank = rank
@@ -209,8 +213,19 @@ class FacebookStoryCache(dict):
     def __init__(self):
         super().__init__()
         self.author_keys: dict[str, list[dict]] = {}
+        self.by_id: dict[str, dict] = {}
         self.link_resolve_s: float = 0.0
         self.track_timings: bool = False
+
+
+def _extract_facebook_post_id(url: str) -> str:
+    if not url:
+        return ""
+    match = re.search(r"/(?:posts|permalink)/([0-9]+|pfbid[A-Za-z0-9]+)", url)
+    if match:
+        return match.group(1)
+    match = re.search(r"[?&]story_fbid=([0-9]+|pfbid[A-Za-z0-9]+)", url)
+    return match.group(1) if match else ""
 
 
 def facebook_graphql_debug(post: RawPost, cache: dict) -> dict:
@@ -259,8 +274,34 @@ def facebook_stories(payload: object, group_url: str = "", author_keys: dict | N
             shapes = author_keys.setdefault(author.casefold(), [])
             if shape not in shapes and len(shapes) < 10: shapes.append(shape)
             if len(author_keys) > 100: author_keys.pop(next(iter(author_keys)))
-        if not isinstance(text, str) or len(text.strip()) < 15:
-            continue
+        has_attachment = any(isinstance(view.get("attachments"), list) and len(view["attachments"]) > 0 for view in views)
+        if not isinstance(text, str):
+            text = ""
+        if len(text.strip()) < 15:
+            if not has_attachment:
+                continue
+            if not text.strip():
+                for view in views:
+                    for wrapper in view.get("attachments", []) if isinstance(view.get("attachments"), list) else []:
+                        if not isinstance(wrapper, dict):
+                            continue
+                        styles = wrapper.get("styles")
+                        att = styles.get("attachment") if isinstance(styles, dict) else wrapper
+                        if not isinstance(att, dict):
+                            continue
+                        media = att.get("media") if isinstance(att.get("media"), dict) else {}
+                        caption = (
+                            (att.get("title") or {}).get("text") if isinstance(att.get("title"), dict) else ""
+                        ) or media.get("accessibility_caption") or (
+                            (att.get("description") or {}).get("text") if isinstance(att.get("description"), dict) else ""
+                        )
+                        if isinstance(caption, str) and caption.strip():
+                            text = caption.strip()
+                            break
+                    if text.strip():
+                        break
+                if not text.strip():
+                    text = "[Ảnh/Đính kèm]"
         urls = [(v, False) for n in views for k in ("url", "wwwURL", "permalink_url")
                 if isinstance(v := n.get(k), str)]
         for view in views:
@@ -305,25 +346,39 @@ def facebook_stories(payload: object, group_url: str = "", author_keys: dict | N
         except (ValueError, TypeError, OverflowError, OSError):
             posted_at = ""
         group_id = ""
+        group_url_target = ""
         for view in views:
             target = view.get("to")
-            if isinstance(target, dict) and target.get("__typename") == "Group" and target.get("id"):
-                group_id = str(target["id"])
-                break
+            if isinstance(target, dict) and target.get("__typename") == "Group":
+                if target.get("id"):
+                    group_id = str(target["id"])
+                if isinstance(target.get("url"), str):
+                    group_url_target = target["url"]
+                if group_id:
+                    break
+        has_group_identity = bool(group_id) or any("/groups/" in h for h, _ in urls)
+        try:
+            creation_ts = int(created) if created else 0
+        except (ValueError, TypeError):
+            creation_ts = 0
+        post_id = _extract_facebook_post_id(url) or next((fid for v in views if (fid := facebook_story_id(v))), "")
         record = dict(text=text[:20000], author=clean_facebook_author(str(actor.get("name") or "")), url=url,
                       posted_at=posted_at,
                       sponsored=bool(sponsored or any(facebook_ad_link(h) for h, _ in urls)),
-                      _group_id=group_id)
+                      _group_id=group_id, _group_url=group_url_target,
+                      _has_group_identity=has_group_identity,
+                      _post_id=post_id, _creation_time=creation_ts)
         record["_debug_story"] = sanitize_facebook_debug(node)
         fp = RawPost(platform="facebook", source="", **record).fingerprint
-        previous = found.get(fp)
+        story_key = f"id:{post_id}" if post_id else f"fp:{fp}"
+        previous = found.get(story_key)
         if previous and previous["url"] and record["url"] and previous["url"].rstrip("/") != record["url"].rstrip("/"):
             previous["_conflict"] = True
         if not previous or (record["url"] and not previous["url"]) or record["sponsored"]:
             if previous:
                 record["sponsored"] |= previous["sponsored"]
                 record["_conflict"] = bool(record.get("_conflict") or previous.get("_conflict"))
-            found[fp] = record
+            found[story_key] = record
     return list(found.values())
 
 
@@ -337,15 +392,36 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
             continue
         for record in records:
             fp = RawPost(platform="facebook", source="", **record).fingerprint
+            record["_text_key"] = re.sub(r"\s+", " ", record["text"].lower()).strip()[:500]
             previous = cache.get(fp)
             if previous:
-                record["sponsored"] |= previous["sponsored"]
-                record["_conflict"] = bool(record.get("_conflict") or previous.get("_conflict") or
+                record_for_fp = dict(record)
+                record_for_fp["sponsored"] |= previous["sponsored"]
+                record_for_fp["_conflict"] = bool(record.get("_conflict") or previous.get("_conflict") or
                     (previous["url"] and record["url"] and previous["url"].rstrip("/") != record["url"].rstrip("/")))
-            if not previous or record["url"] or record["sponsored"]:
-                record["_text_key"] = re.sub(r"\s+", " ", record["text"].lower()).strip()[:500]
+                if record["url"] or record["sponsored"]:
+                    cache[fp] = record_for_fp
+                else:
+                    previous["_conflict"] = record_for_fp["_conflict"]
+            else:
                 cache[fp] = record
             if len(cache) > 1500: cache.pop(next(iter(cache)))
+            by_id = getattr(cache, "by_id", None)
+            if by_id is not None:
+                story_key = f"id:{record['_post_id']}" if record.get("_post_id") else f"fp:{fp}"
+                prev_id = by_id.get(story_key)
+                if prev_id:
+                    merged = dict(record)
+                    merged["sponsored"] |= prev_id["sponsored"]
+                    if not merged["url"] and prev_id["url"]:
+                        merged["url"] = prev_id["url"]
+                    if not merged["_creation_time"] and prev_id.get("_creation_time"):
+                        merged["_creation_time"] = prev_id["_creation_time"]
+                        merged["posted_at"] = prev_id["posted_at"]
+                    by_id[story_key] = merged
+                else:
+                    by_id[story_key] = dict(record)
+                if len(by_id) > 1500: by_id.pop(next(iter(by_id)))
 
 
 def match_facebook_story(post: RawPost, cache: dict) -> dict | None:
@@ -370,6 +446,29 @@ def _normalize_fb_prefix(text: str) -> str:
     norm = re.sub(r"\s+", " ", cleaned).strip()
     norm = re.sub(r"(?:…|\.\.\.)?\s*(?:see more|xem thêm|查看更多)$", "", norm, flags=re.IGNORECASE).strip()
     return re.sub(r"(?:…|\.\.\.)+$", "", norm).strip()
+
+
+def _facebook_story_belongs_to_group(story: dict, group_url: str) -> bool:
+    src_match = re.search(r"/groups/([\w.-]+)", group_url)
+    if not src_match or not story.get("_has_group_identity"):
+        return False
+    src_slug = src_match.group(1)
+    story_url = story.get("url") or ""
+    if not is_facebook_content_url(story_url):
+        return False
+    st_match = re.search(r"/groups/([\w.-]+)", story_url)
+    st_slug = st_match.group(1) if st_match else (story.get("_group_id") or "")
+    if not st_slug:
+        return False
+    if src_slug.isdigit() and st_slug.isdigit():
+        return src_slug == st_slug
+    if not src_slug.isdigit() and not st_slug.isdigit():
+        return src_slug.casefold() == st_slug.casefold()
+    target_url = story.get("_group_url") or ""
+    t_match = re.search(r"/groups/([\w.-]+)", target_url)
+    if t_match and not t_match.group(1).isdigit() and not src_slug.isdigit():
+        return t_match.group(1).casefold() == src_slug.casefold()
+    return True
 
 
 def _is_other_facebook_group(source_url: str, story: dict) -> bool:
@@ -803,7 +902,7 @@ class Scraper:
     def collect(self, page: Page, url: str, label: str, target: int,
                 seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True,
                 chronological: bool | None = None, leading_old_grace: int = 0,
-                report: dict | None = None) -> list[RawPost]:
+                report: dict | None = None, old_streak_limit: int = 8) -> list[RawPost]:
         pace = PACE.get(speed, PACE["fast"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
@@ -826,10 +925,56 @@ class Scraper:
             for key in ("navigation", "scroll_wait", "expand", "link_resolve", "extract"):
                 timings[key] = float(timings.get(key, 0.0))
             report["full_text_from_story"] = int(report.get("full_text_from_story", 0))
+            report["from_story"] = int(report.get("from_story", 0))
+        is_group_mode = (self.platform == "facebook" and bool(re.fullmatch(r"/groups/([\w.-]+)/?", urlsplit(url).path)))
+        consumed_story_keys: set[str] = set()
+        collected_post_ids: set[str] = set()
         debug_posts: dict[str, RawPost] = {}
         reason = None
         stories = FacebookStoryCache()
         stories.track_timings = timings is not None
+
+        def record_post(p: RawPost, post_id: str = "", *, from_story: bool = False,
+                        replaced_full_text: bool = False, header: str = "") -> None:
+            nonlocal leading, leading_old, consecutive_old, reason
+            fp = p.fingerprint
+            dedup_key = f"id:{post_id}" if post_id else f"fp:{fp}"
+            if post_id and post_id in collected_post_ids:
+                return
+            if dedup_key in encountered:
+                return
+            encountered.add(dedup_key)
+            if post_id:
+                collected_post_ids.add(post_id)
+            if replaced_full_text and report is not None:
+                report["full_text_from_story"] += 1
+            if header and not p.sponsored and not facebook_ad_link(p.url) and len(self.missing_headers) < 10:
+                self.missing_headers.append(header)
+            if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
+                self.last_report["skipped_ads"] += 1
+                # Ads do not count as old-post streaks and never enter seen/history.
+            elif fp in prior or (not post_id and fp in seen):
+                if fp in prior:
+                    self.last_report["skipped_old"] += 1
+                    if leading and leading_old < leading_old_grace:
+                        leading_old += 1
+                    else:
+                        consecutive_old += 1
+            else:
+                leading = False
+                consecutive_old = 0
+                seen.add(fp)
+                collected[dedup_key] = p
+                posts.append(p)
+                if from_story and report is not None:
+                    report["from_story"] += 1
+            self.last_report.update(collected=len(posts), examined=len(encountered))
+            if len(posts) >= target:
+                reason = "target_reached"
+            elif chronological and consecutive_old >= old_streak_limit:
+                reason = "caught_up"
+            elif len(encountered) >= max_examined or time.monotonic() >= deadline:
+                reason = "budget_exhausted"
         listening = self.platform == "facebook" and hasattr(page, "on")
         def on_response(response):
             capture_facebook_response(response, stories, url)
@@ -852,12 +997,33 @@ class Scraper:
                     reason = "budget_exhausted"; break
                 if self.ensure_access(page, url, progress, interactive):
                     stale_rounds = 0
+                before = len(encountered)
+                if is_group_mode and stories.by_id:
+                    pending_stories = [
+                        (skey, s) for skey, s in stories.by_id.items()
+                        if skey not in consumed_story_keys and _facebook_story_belongs_to_group(s, url)
+                    ]
+                    pending_stories.sort(key=lambda pair: -int(pair[1].get("_creation_time") or 0))
+                    for skey, s in pending_stories:
+                        consumed_story_keys.add(skey)
+                        spid = s.get("_post_id") or _extract_facebook_post_id(s.get("url", ""))
+                        sp = RawPost(
+                            platform="facebook", source=label,
+                            author=s["author"], text=s["text"], url=s["url"],
+                            posted_at=s["posted_at"], sponsored=s["sponsored"],
+                        )
+                        record_post(sp, spid, from_story=True)
+                        if reason is not None:
+                            break
+                if reason is not None:
+                    self.last_report["stop_reason"] = reason
+                    progress(len(posts), collection_message(self.last_report))
+                    break
                 t_exp0 = time.monotonic() if timings is not None else 0.0
                 if self._expand(page, stories, url, label) > 0:
                     _human_pause(*pace["expand"])
                 if timings is not None:
                     timings["expand"] += max(0.0, time.monotonic() - t_exp0)
-                before = len(encountered)
                 prev_lr = stories.link_resolve_s
                 t_ext0 = time.monotonic() if timings is not None else 0.0
                 items = self.extract_items(page, stories)
@@ -881,44 +1047,19 @@ class Scraper:
                         if _should_use_story_text(p.text, network, url):
                             p.text = network["text"]
                             replaced_full_text = True
+                    post_id = ((network.get("_post_id") if network else "") or _extract_facebook_post_id(p.url)) if self.platform == "facebook" else ""
                     fp = p.fingerprint
-                    if fp in collected and not collected[fp].url and p.url:
-                        collected[fp].url = p.url
+                    dedup_key = f"id:{post_id}" if post_id else f"fp:{fp}"
+                    if dedup_key in collected and not collected[dedup_key].url and p.url:
+                        collected[dedup_key].url = p.url
                     if self.platform == "facebook":
                         if p.sponsored or is_facebook_content_url(p.url):
                             debug_posts.pop(fp, None)
                         elif fp in debug_posts or len(debug_posts) < 10:
                             debug_posts[fp] = p
-                    if fp in encountered:
-                        continue
-                    encountered.add(fp)
-                    if replaced_full_text and report is not None:
-                        report["full_text_from_story"] += 1
-                    if header and not p.sponsored and not facebook_ad_link(p.url) and len(self.missing_headers) < 10:
-                        self.missing_headers.append(header)
-                    if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
-                        self.last_report["skipped_ads"] += 1
-                        # Ads do not count as old-post streaks and never enter seen/history.
-                    elif fp in seen:
-                        if fp in prior:
-                            self.last_report["skipped_old"] += 1
-                            if leading and leading_old < leading_old_grace:
-                                leading_old += 1
-                            else:
-                                consecutive_old += 1
-                    else:
-                        leading = False
-                        consecutive_old = 0
-                        seen.add(fp)
-                        collected[fp] = p
-                        posts.append(p)
-                    self.last_report.update(collected=len(posts), examined=len(encountered))
-                    if len(posts) >= target:
-                        reason = "target_reached"; break
-                    if chronological and consecutive_old >= 8:
-                        reason = "caught_up"; break
-                    if len(encountered) >= max_examined or time.monotonic() >= deadline:
-                        reason = "budget_exhausted"; break
+                    record_post(p, post_id, replaced_full_text=replaced_full_text, header=header)
+                    if reason is not None:
+                        break
                 stale_rounds = stale_rounds + 1 if len(encountered) == before else 0
                 moved_page = False
                 if stale_rounds >= pace["stale"]:
@@ -959,8 +1100,9 @@ class Scraper:
             for fp, post in debug_posts.items():
                 latest = match_facebook_story(post, stories)
                 if latest and (latest["sponsored"] or is_facebook_content_url(latest["url"])):
-                    if fp in collected and not latest["sponsored"] and latest["url"] and not collected[fp].url:
-                        collected[fp].url = latest["url"]
+                    target_post = collected.get(f"fp:{fp}")
+                    if target_post is not None and not latest["sponsored"] and latest["url"] and not target_post.url:
+                        target_post.url = latest["url"]
                     continue
                 self.missing_graphql_samples.append(facebook_graphql_debug(post, stories))
             self.last_report.update(collected=len(posts), stop_reason=reason or "interrupted")
