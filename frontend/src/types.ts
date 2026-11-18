@@ -101,11 +101,16 @@ export interface RunRequest {
 export type StopReason = "target_reached" | "caught_up" | "budget_exhausted" | "no_more_posts" | "interrupted";
 
 export interface ScrapeReport {
-  target: number;
-  collected: number;
-  skipped_old: number;
+  /** Lượt chỉ có số đo (agent, lướt lỗi) không có các trường đếm bài */
+  target?: number;
+  collected?: number;
+  skipped_old?: number;
   skipped_ads?: number;
-  stop_reason: StopReason | null;
+  stop_reason?: StopReason | null;
+  /** Giây theo giai đoạn: scrape_total, analysis, summary, navigation, scroll_wait, expand, link_resolve, extract */
+  timings?: Record<string, number>;
+  /** Số bài lấy được toàn văn từ dữ liệu Facebook thay vì chữ trên trang */
+  full_text_from_story?: number;
 }
 
 export interface SavedGroup {

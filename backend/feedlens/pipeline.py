@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import threading
 import traceback
 from typing import Callable
@@ -70,6 +71,19 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
     return posts
 
 
+def add_timings(db: Database, run_id: int, **seconds: float) -> None:
+    """Cộng dồn số giây vào request.scrape_report.timings (Phân tích tiếp cộng thêm, không ghi đè khoá khác)."""
+    run = db.get_run(run_id)
+    if not run:
+        return
+    request = dict(run.get("request") or {})
+    report = dict(request.get("scrape_report") or {})
+    timings = dict(report.get("timings") or {})
+    for key, value in seconds.items():
+        timings[key] = round(timings.get(key, 0) + value, 3)
+    db.update_run(run_id, request={**request, "scrape_report": {**report, "timings": timings}})
+
+
 def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict) -> None:
     """Keep why scraping stopped next to the run request (JSON, no migration); diagnostics stay local."""
     sources = report.get("sources") or []
@@ -80,6 +94,14 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
                    "skipped_ads": sum(s.get("skipped_ads", 0) for s in sources),
                    "stop_reason": sources[-1].get("stop_reason") if len(sources) == 1 else None,
                    "sources": sources}
+    else:
+        summary = {}
+    # Số đo thời gian (giây) và số bài lấy được toàn văn từ Story: scrapers.py ghi, pipeline thêm scrape_total.
+    if report.get("timings"):
+        summary["timings"] = dict(report["timings"])
+    if report.get("full_text_from_story"):
+        summary["full_text_from_story"] = report["full_text_from_story"]
+    if summary:
         db.update_run(run_id, request={**req.model_dump(), "scrape_report": summary})
     samples = report.get("missing_link_samples") or []
     if samples:
@@ -133,9 +155,11 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
             db.update_run(run_id, status="scraping")
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
             scrape_report: dict = {}
+            started = time.monotonic()
             try:
                 raw = scrape(req, seen, report("scraping"), scrape_report)
             finally:
+                scrape_report.setdefault("timings", {})["scrape_total"] = round(time.monotonic() - started, 3)
                 save_scrape_report(db, run_id, req, scrape_report)
         _analyze(db, run_id, req, raw, analyzer, report)
     except Exception as e:  # noqa: BLE001 — lỗi được ghi lại cho UI
@@ -162,11 +186,17 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     pending = [p for p in raw if p.fingerprint not in known]
     analyzer.on_batch = lambda batch: db.save_batch(run_id, batch)
     if pending:
-        analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, report("analyzing"))
-        db.save_batch(run_id, analyzed)
+        started = time.monotonic()
+        try:
+            analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, report("analyzing"))
+            db.save_batch(run_id, analyzed)
+        finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
+            add_timings(db, run_id, analysis=time.monotonic() - started)
     analyzed = db.get_posts(run_id)
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
+    started = time.monotonic()
     digest = analyzer.digest(analyzed, req.job_mode)
+    add_timings(db, run_id, summary=time.monotonic() - started)
     db.update_run(run_id, status="done", error=None, digest=digest, ai_label=analyzer.label)  # model có thể đã đổi
     prog.update(phase="done", message="Hoàn tất")
 
@@ -245,9 +275,11 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
             prog.update(phase="scraping", done=0, target=target, message="Server đang mở trình duyệt…")
             seen = db.known_fingerprints(req.platform, user_id) if req.only_new else set()
             scrape_report: dict = {}
+            started = time.monotonic()
             try:
                 raw = scrape_with_cookies(req, cookies, seen, report("scraping"), scrape_report)
             finally:
+                scrape_report.setdefault("timings", {})["scrape_total"] = round(time.monotonic() - started, 3)
                 save_scrape_report(db, run_id, req, scrape_report)
         finally:
             SERVER_SLOT.release()

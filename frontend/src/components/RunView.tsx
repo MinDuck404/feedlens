@@ -7,7 +7,7 @@ import type { AIProviderInfo, Meta, Post, Run, RunRequest, ScrapeReport, Topic }
 import { filterTopicPosts, topicColor } from "../topics";
 import { ModelPicker } from "./Composer";
 
-import { canContinueAnalysis, defaultRunTab, describeRunSource, isRemoteText, jobPresentation, matchesJobType, parseTimestamp } from "../logic";
+import { canContinueAnalysis, defaultRunTab, describeRunSource, formatDuration, isRemoteText, jobPresentation, matchesJobType, parseTimestamp, runTimingSummary, type TimingKey } from "../logic";
 
 import { Button, IconButton, Skeleton, SkeletonCard, EmptyState, Select } from "./ui";
 
@@ -168,14 +168,33 @@ export default function RunView({ runId, meta, tab, onTab, onDeleted, onAnalysis
 }
 
 function ScrapeReportLine({ report }: { report: ScrapeReport }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const reason = report.stop_reason && report.stop_reason !== "target_reached" ? t(`run.stop.${report.stop_reason}` as Key) : "";
+  const timing = runTimingSummary(report.timings);
+  const label = (key: TimingKey, seconds: number) => `${t(`run.timing.${key}` as Key)} ${formatDuration(seconds, lang)}`;
   return (
-    <p className="mt-1 text-xs leading-relaxed text-ink-soft">
-      {t("run.scrapeReport", { got: report.collected, target: report.target, old: report.skipped_old })}
-      {!!report.skipped_ads && ` · ${t("run.scrapeAds", { n: report.skipped_ads })}`}
-      {reason && ` · ${reason}`}
-    </p>
+    <>
+      {report.target !== undefined && (
+        <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+          {t("run.scrapeReport", { got: report.collected ?? 0, target: report.target, old: report.skipped_old ?? 0 })}
+          {!!report.skipped_ads && ` · ${t("run.scrapeAds", { n: report.skipped_ads })}`}
+          {reason && ` · ${reason}`}
+        </p>
+      )}
+      {timing && (
+        <details className="mx-auto mt-1 max-w-prose text-xs leading-relaxed text-ink-soft">
+          <summary className="interactive-tap cursor-pointer [overflow-wrap:anywhere]">
+            {t("run.timing.title")}: {timing.main.map((p) => label(p.key, p.seconds)).join(" · ")}
+          </summary>
+          {(timing.detail.length > 0 || !!report.full_text_from_story) && (
+            <p className="mt-1 [overflow-wrap:anywhere]">
+              {timing.detail.length > 0 && `${t("run.timing.details")}: ${timing.detail.map((p) => label(p.key, p.seconds)).join(" · ")}`}
+              {!!report.full_text_from_story && <span className="block">{t("run.timing.fullText", { n: report.full_text_from_story })}</span>}
+            </p>
+          )}
+        </details>
+      )}
+    </>
   );
 }
 

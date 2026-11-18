@@ -93,3 +93,31 @@ export function canContinueAnalysis(run: { status: string; digest?: unknown; pos
   if (["pending", "queued", "scraping", "analyzing"].includes(run.status)) return false;
   return run.can_continue_analysis ?? (!!run.posts?.length && (!run.digest || run.posts.some((post) => post.analyzed === false)));
 }
+
+const DURATION_UNITS = {
+  vi: { h: " giờ", m: " phút", s: " giây", sep: " " },
+  en: { h: "h", m: "m", s: "s", sep: " " },
+  zh: { h: "小时", m: "分", s: "秒", sep: "" },
+} as const;
+
+/** 192 → "3 phút 12 giây" / "3m 12s" / "3分12秒"; từ 1 giờ trở lên bỏ giây. */
+export function formatDuration(seconds: number, lang: "vi" | "en" | "zh"): string {
+  const u = DURATION_UNITS[lang] ?? DURATION_UNITS.en;
+  const total = Math.round(seconds);
+  if (total < 1) return `<1${u.s.trim()}`;
+  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  const parts = h ? [`${h}${u.h}`, m ? `${m}${u.m}` : ""] : [m ? `${m}${u.m}` : "", s ? `${s}${u.s}` : ""];
+  return parts.filter(Boolean).join(u.sep);
+}
+
+const MAIN_PHASES = ["scrape_total", "analysis", "summary"] as const;
+const DETAIL_PHASES = ["navigation", "scroll_wait", "expand", "link_resolve", "extract"] as const;
+export type TimingKey = (typeof MAIN_PHASES)[number] | (typeof DETAIL_PHASES)[number];
+
+/** Chỉ giữ các giai đoạn có số đo (lượt cũ không có), theo thứ tự hiển thị. */
+export function runTimingSummary(timings: Record<string, number> | undefined) {
+  if (!timings) return null;
+  const pick = (keys: readonly TimingKey[]) => keys.filter((key) => typeof timings[key] === "number").map((key) => ({ key, seconds: timings[key] }));
+  const main = pick(MAIN_PHASES), detail = pick(DETAIL_PHASES);
+  return main.length || detail.length ? { main, detail } : null;
+}
