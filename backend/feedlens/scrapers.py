@@ -217,6 +217,9 @@ class FacebookStoryCache(dict):
         self.link_resolve_s: float = 0.0
         self.track_timings: bool = False
         self.skip_keys: set[str] | None = None
+        self.hover_attempts: dict[tuple, set[int]] = {}
+        self.hover_links: dict[tuple, str] = {}
+        self.response_count = 0
 
 
 def _extract_facebook_post_id(url: str) -> str:
@@ -414,6 +417,8 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
                 if prev_id:
                     merged = dict(record)
                     merged["sponsored"] |= prev_id["sponsored"]
+                    merged["_conflict"] = bool(merged.get("_conflict") or prev_id.get("_conflict") or (
+                        merged["url"] and prev_id["url"] and merged["url"].rstrip("/") != prev_id["url"].rstrip("/")))
                     if not merged["url"] and prev_id["url"]:
                         merged["url"] = prev_id["url"]
                     if not merged["_creation_time"] and prev_id.get("_creation_time"):
@@ -425,16 +430,27 @@ def cache_facebook_stories(body: str, cache: dict, group_url: str = "") -> None:
                 if len(by_id) > 1500: by_id.pop(next(iter(by_id)))
 
 
+def _match_facebook_story_by_id(post_id: str, cache: dict) -> dict | None:
+    story = getattr(cache, "by_id", {}).get(f"id:{post_id}") if post_id else None
+    return story if story and not story.get("_conflict") else None
+
+
 def match_facebook_story(post: RawPost, cache: dict) -> dict | None:
+    post_id = _extract_facebook_post_id(post.url)
+    def consistent(story):
+        return not post_id or not story.get("_post_id") or story["_post_id"] == post_id
+
     if post.fingerprint in cache:
         exact = cache[post.fingerprint]
+        if not consistent(exact):
+            return None
         return ({**exact, "url": ""} if exact["sponsored"] else None) if exact.get("_conflict") else exact
     prefix = re.sub(r"\s+", " ", post.text.lower()).strip()
     prefix = re.sub(r"(?:…|\.\.\.)?\s*(?:see more|xem thêm|查看更多)$", "", prefix).strip()[:500]
     # A Page's short caption can be followed by a longer DOM link preview.
     # That reverse match additionally requires the exact author, and stays ambiguous if duplicated.
     author = clean_facebook_author(post.author).casefold()
-    matches = [story for story in cache.values() if not story.get("_conflict") and (
+    matches = [story for story in cache.values() if consistent(story) and not story.get("_conflict") and (
                (len(prefix) >= 80 and story["_text_key"].startswith(prefix)) or
                (len(story["_text_key"]) >= 15 and author and
                 author == clean_facebook_author(story["author"]).casefold() and
@@ -511,6 +527,8 @@ def capture_facebook_response(response, cache: dict, group_url: str = "") -> Non
         url = urlsplit(response.url)
         if url.hostname not in {"www.facebook.com", "facebook.com", "m.facebook.com"} or url.path.rstrip("/") != "/api/graphql" or response.status != 200:
             return
+        if isinstance(cache, FacebookStoryCache):
+            cache.response_count += 1
         cache_facebook_stories(response.text(), cache, group_url)
     except Exception:  # noqa: BLE001 — network enrichment must not interrupt DOM scraping
         return
@@ -520,10 +538,15 @@ def capture_facebook_response(response, cache: dict, group_url: str = "") -> Non
 
 FB_NODE_SELECTOR = 'div[role="feed"] > div, [role="article"], [aria-posinset]'
 FB_LINK_SELECTOR = 'a, [role="link"]'
+FB_SCROLL_MESSAGES_JS = r"""
+() => [...document.querySelectorAll('[data-ad-preview="message"], [data-ad-comet-preview="message"]')]
+  .slice(-30).map(n => (n.textContent || '').trim().slice(0, 240)).filter(Boolean)
+"""
 
 FB_JS = r"""
 (root) => {
   const out = [];
+  const cards = window.__feedlensCards ||= { keys: new WeakMap(), next: 0 };
   if (!root) document.querySelectorAll('[data-feedlens-node]').forEach(n => n.removeAttribute('data-feedlens-node'));
   const nodes = root ? [root] : document.querySelectorAll('__NODES__');
   for (const [nodeIndex, n] of [...nodes].entries()) {
@@ -570,7 +593,9 @@ FB_JS = r"""
       // only text is U+2060; organic posts put an aria-labelledby timestamp there instead.
       || anchors.some(a => !a.closest('h2, h3, h4') && (a.textContent || '').includes('⁠')
         && /^[⁠​\s]*$/.test(a.textContent || ''));
+    if (!cards.keys.has(n)) cards.keys.set(n, ++cards.next);
     out.push({ author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, url: '', links,
+      _card_key: performance.timeOrigin + ':' + cards.keys.get(n),
       _node_index: nodeIndex, _node_marker: n.getAttribute('data-feedlens-node'), _hover: hover, _author_url: authorUrl, posted_at: '', sponsored });
   }
   return out;
@@ -639,21 +664,27 @@ def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
     skip_keys = getattr(stories, "skip_keys", None) if stories is not None else None
     if stories or skip_keys:
         for item in items:
+            dom_url = item.get("url") or facebook_dom_permalink(item.get("links", []), item.get("_author_url", ""))
             raw = RawPost(
                 platform="facebook",
                 source="",
                 author=item.get("author", ""),
                 text=item.get("text", ""),
-                url=item.get("url", ""),
+                url=dom_url,
                 posted_at=item.get("posted_at", ""),
                 sponsored=bool(item.get("sponsored", False)),
             )
-            if skip_keys and f"fp:{raw.fingerprint}" in skip_keys:
-                item["_skip_link_resolve"] = True
+            item["url"] = dom_url
             if stories:
                 network = match_facebook_story(raw, stories)
+                if network is None:
+                    network = _match_facebook_story_by_id(_extract_facebook_post_id(dom_url), stories)
+                    if network:
+                        # ID match can skip link work, but text replacement still needs text corroboration.
+                        item["_skip_link_resolve"] = True
                 if network:
-                    item["_network_url"] = network["url"]
+                    if match_facebook_story(raw, stories):
+                        item["_network_url"] = network["url"]
                     item["sponsored"] |= network["sponsored"]
                     pid = network.get("_post_id") or _extract_facebook_post_id(network.get("url") or "")
                     if is_facebook_content_url(network["url"]) or (pid and skip_keys and f"id:{pid}" in skip_keys):
@@ -662,7 +693,7 @@ def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
     try:
         t_res0 = time.monotonic() if getattr(stories, "track_timings", False) else 0.0
         try:
-            return _resolve_facebook_items(page, items)
+            return _resolve_facebook_items(page, items, stories if isinstance(stories, FacebookStoryCache) else None)
         finally:
             if getattr(stories, "track_timings", False):
                 stories.link_resolve_s += max(0.0, time.monotonic() - t_res0)
@@ -671,7 +702,7 @@ def _facebook_items(page: Page, stories: dict | None = None) -> list[dict]:
         page.evaluate("y => window.scrollTo(0, y)", scroll_y)
 
 
-def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
+def _resolve_facebook_items(page: Page, items: list[dict], stories: FacebookStoryCache | None = None) -> list[dict]:
     hover_enabled = os.getenv("FEEDLENS_FB_HOVER", "1").strip() != "0"
     hover_budget = 3 if hover_enabled else 0
     deadline = time.monotonic() + 4
@@ -682,6 +713,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
         item["author"] = clean_facebook_author(item.get("author", ""))
         node_index = item.pop("_node_index", None)
         marker = item.pop("_node_marker", None)
+        card_key = item.pop("_card_key", None)
         hover = item.pop("_hover", [])
         links = item.pop("links", [])
         item["sponsored"] = bool(item.get("sponsored") or any(facebook_ad_link(href) for href, _ in links))
@@ -689,11 +721,22 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
         author_url = item.pop("_author_url", "")
         skip_resolve = bool(item.pop("_skip_link_resolve", False))
         item["url"] = network_url or facebook_dom_permalink(links, author_url)
-        if node_index is None or skip_resolve:
+        if node_index is None or skip_resolve or item["sponsored"] or is_facebook_content_url(item["url"]):
             continue
+        key = None
+        if stories is not None and card_key:
+            # Virtualization can reuse a node with different post text or links.
+            key = (card_key, item["author"], item["text"], tuple(map(tuple, links)), tuple(hover))
+            if key in stories.hover_links:
+                item["url"] = stories.hover_links[key]
+                continue
+            attempted_indices = stories.hover_attempts.get(key, set())
+            hover = [index for index in hover if index not in attempted_indices]
+            if attempted_indices and not hover:
+                continue
         selector = f'[data-feedlens-node="{marker}"]' if str(marker).isdigit() else None
         node = page.locator(selector) if selector else page.locator(FB_NODE_SELECTOR).nth(node_index)
-        jobs.append((item, node, hover, selector))
+        jobs.append((item, node, hover, selector, key))
         if len(candidates) < 10 and not item["sponsored"] and not is_facebook_content_url(item["url"]):
             candidate_ids.append(id(item))
             candidates.append(dict(selector=selector, index=node_index, text=item["text"]))
@@ -708,7 +751,7 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
             snapshots = dict(zip(candidate_ids, captured))
         except Exception:  # noqa: BLE001 — diagnostics must never interrupt collection
             pass
-    for item, node, hover, selector in jobs:
+    for item, node, hover, selector, key in jobs:
         status = "no_timestamp" if hover_enabled else "hover_disabled"
         attempted = 0
         if not item["sponsored"] and not is_facebook_content_url(item["url"]):
@@ -723,6 +766,8 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
                     refreshed = node.evaluate(FB_JS, timeout=700)
                     if refreshed and refreshed[0]["text"] == item["text"]:
                         hover = refreshed[0]["_hover"]
+                        if key is not None:
+                            hover = [index for index in hover if index not in stories.hover_attempts.get(key, ())]
                         item["sponsored"] |= refreshed[0]["sponsored"]
                         item["url"] = facebook_dom_permalink(refreshed[0]["links"], refreshed[0]["_author_url"])
                     else:
@@ -748,8 +793,12 @@ def _resolve_facebook_items(page: Page, items: list[dict]) -> list[dict]:
                         item["url"] = select_facebook_link([(item["url"], False), *links])
                         status = "resolved"; break
                     status = "hover_no_url"
+                    if key is not None:
+                        stories.hover_attempts.setdefault(key, set()).add(index)
                 except PlaywrightTimeoutError:
                     status = "hover_timeout"
+        if key is not None and status == "resolved" and is_facebook_content_url(item["url"]) and not item["sponsored"]:
+            stories.hover_links[key] = item["url"]
         if not item["sponsored"] and not is_facebook_content_url(item["url"]) and id(item) in candidate_ids:
             snapshot = snapshots.pop(id(item), None)
             if snapshot is None:
@@ -788,7 +837,10 @@ FB_EXPAND_CANDIDATES_JS = r"""
     }
     const authorEl = n.querySelector('h2 a, h3 a, h4 a, strong a, h2, h3, h4');
     b.setAttribute('data-feedlens-expand', String(idx));
-    out.push({ idx, author: authorEl ? authorEl.innerText.split('\n')[0] : '', text });
+    const links = [...n.querySelectorAll('a[href]')]
+      .filter(a => a.closest('[role="article"], [aria-posinset], div[role="feed"] > div') === n)
+      .map(a => a.getAttribute('href'));
+    out.push({ idx, author: authorEl ? authorEl.innerText.split('\n')[0] : '', text, links });
   });
   return out;
 }
@@ -876,6 +928,30 @@ def collection_message(report: dict) -> str:
             + (f" · dừng vì {reason}" if reason else ""))
 
 
+def _wait_for_facebook_scroll(page: Page, stories: FacebookStoryCache, url: str, group: bool,
+                              messages: set[str], story_keys: set[str], response_count: int,
+                              pause: tuple[float, float]) -> bool:
+    floor, ceiling = (round(seconds * 1000) for seconds in pause)
+    deadline = time.monotonic() + ceiling / 1000
+    # Playwright pumps response callbacks while waiting. Keep the existing minimum interval.
+    page.wait_for_timeout(floor)
+    remaining = ceiling - floor
+    while True:
+        if stories.response_count > response_count:
+            return True
+        if any(key not in story_keys and (not group or _facebook_story_belongs_to_group(story, url))
+               for key, story in stories.by_id.items()):
+            return True
+        current = page.evaluate(FB_SCROLL_MESSAGES_JS) or []
+        if any(message not in messages for message in current):
+            return True
+        delay = min(200, remaining, round((deadline - time.monotonic()) * 1000))
+        if delay <= 0:
+            return False
+        page.wait_for_timeout(delay)
+        remaining -= delay
+
+
 @dataclass
 class Scraper:
     platform: str
@@ -888,7 +964,7 @@ class Scraper:
 
     def extract_items(self, page: Page, stories: dict) -> list[dict]:
         if self.platform == "facebook":
-            return _facebook_items(page, stories) if stories else _facebook_items(page)
+            return _facebook_items(page, stories)
         return page.evaluate(self.extract_js)
 
     def scroll(self, page: Page, distance: int) -> None:
@@ -909,7 +985,16 @@ class Scraper:
             for cand in candidates:
                 text = cand.get("text") or ""
                 author = clean_facebook_author(cand.get("author") or "")
-                probe = RawPost(platform="facebook", source=label, author=author, text=text)
+                candidates_by_id = {}
+                for href in cand.get("links", []):
+                    if POST_LINK_RE.search(href) and (link := select_facebook_link([(href, False)])):
+                        if pid := _extract_facebook_post_id(link):
+                            candidates_by_id[pid] = link
+                probe_url = next(iter(candidates_by_id.values())) if len(candidates_by_id) == 1 else ""
+                pid = _extract_facebook_post_id(probe_url)
+                if pid and skip_keys and f"id:{pid}" in skip_keys:
+                    continue
+                probe = RawPost(platform="facebook", source=label, author=author, text=text, url=probe_url)
                 if skip_keys and f"fp:{probe.fingerprint}" in skip_keys:
                     continue
                 network = match_facebook_story(probe, stories) if stories else None
@@ -925,12 +1010,14 @@ class Scraper:
     def collect(self, page: Page, url: str, label: str, target: int,
                 seen: set[str], progress: ProgressFn, speed: str = "fast", interactive: bool = True,
                 chronological: bool | None = None, leading_old_grace: int = 0,
-                report: dict | None = None, old_streak_limit: int = 8) -> list[RawPost]:
+                report: dict | None = None, old_streak_limit: int = 8,
+                history: frozenset[str] | None = None) -> list[RawPost]:
         pace = PACE.get(speed, PACE["fast"])
         posts: list[RawPost] = []
         collected: dict[str, RawPost] = {}
         encountered: set[str] = set()
-        prior = set(seen)
+        prior = frozenset(seen) if history is None else history
+        earlier_sources = seen.difference(prior)
         stale_rounds = consecutive_old = 0
         # Scale with the quota so large runs are not cut short; old-post streaks still end within minutes.
         deadline = time.monotonic() + (max(300, 8 * target) if speed == "careful" else max(180, 4 * target))
@@ -939,13 +1026,14 @@ class Scraper:
         leading_old = 0
         leading = True
         page_start = empty_pages = 0
-        self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_ads=0, examined=0, stop_reason=None)
+        self.last_report = dict(target=target, collected=0, skipped_old=0, skipped_dup=0,
+                                skipped_ads=0, examined=0, stop_reason=None)
         self.missing_headers: list[str] = []
         self.missing_graphql_samples: list[dict] = []
         timings: dict[str, float] | None = None
         if report is not None:
             timings = report.setdefault("timings", {})
-            for key in ("navigation", "scroll_wait", "expand", "link_resolve", "extract"):
+            for key in ("navigation", "scroll_wait", "scroll_ready_wait", "scroll_timeout_wait", "expand", "link_resolve", "extract"):
                 timings[key] = float(timings.get(key, 0.0))
             report["full_text_from_story"] = int(report.get("full_text_from_story", 0))
             report["from_story"] = int(report.get("from_story", 0))
@@ -977,13 +1065,14 @@ class Scraper:
             if self.platform == "facebook" and (p.sponsored or facebook_ad_link(p.url)):
                 self.last_report["skipped_ads"] += 1
                 # Ads do not count as old-post streaks and never enter seen/history.
-            elif fp in prior or (not post_id and fp in seen):
-                if fp in prior:
-                    self.last_report["skipped_old"] += 1
-                    if leading and leading_old < leading_old_grace:
-                        leading_old += 1
-                    else:
-                        consecutive_old += 1
+            elif fp in prior:
+                self.last_report["skipped_old"] += 1
+                if leading and leading_old < leading_old_grace:
+                    leading_old += 1
+                else:
+                    consecutive_old += 1
+            elif fp in earlier_sources or (not post_id and fp in seen):
+                self.last_report["skipped_dup"] += 1
             else:
                 leading = False
                 consecutive_old = 0
@@ -1110,9 +1199,22 @@ class Scraper:
                     break
                 if moved_page:
                     continue  # Read the top cards before scrolling a newly loaded page.
+                wait_for_signal = self.platform == "facebook" and hasattr(page, "wait_for_timeout")
                 t_scr0 = time.monotonic() if timings is not None else 0.0
+                if wait_for_signal:
+                    messages = set(page.evaluate(FB_SCROLL_MESSAGES_JS) or [])
+                    story_keys = set(stories.by_id)
+                    response_count = stories.response_count
                 self.scroll(page, random.randint(*pace["scroll"]))
-                _human_pause(*pace["pause"])
+                if wait_for_signal:
+                    wait_start = time.monotonic()
+                    ready = _wait_for_facebook_scroll(page, stories, url, is_group_mode, messages, story_keys,
+                                                      response_count, pace["pause"])
+                    if timings is not None:
+                        bucket = "scroll_ready_wait" if ready else "scroll_timeout_wait"
+                        timings[bucket] = timings.get(bucket, 0.0) + max(0.0, time.monotonic() - wait_start)
+                else:
+                    _human_pause(*pace["pause"])
                 if random.random() < pace["long_chance"]:
                     _human_pause(*pace["long"])
                 if timings is not None:

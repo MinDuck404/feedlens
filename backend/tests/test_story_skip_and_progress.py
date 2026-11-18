@@ -2,10 +2,87 @@ import dataclasses
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from feedlens import pipeline, scrapers
 from feedlens.analyzer import HeuristicAnalyzer
 from feedlens.db import Database
 from feedlens.models import RawPost, RunRequest
+
+
+def test_cross_posted_jobs_do_not_stop_later_group(monkeypatch):
+    shared = [f"A cross-posted job advertisement number {i}" for i in range(5)]
+    fresh = "A new job only present in the second group"
+    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(scrapers.FacebookScraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(scrapers.FacebookScraper, "_expand", lambda *args: 0)
+
+    def extract(self, page, stories):
+        group = "first" if "/first" in page.url else "second"
+        texts = shared if group == "first" else [*shared, fresh]
+        offset = 1000 if group == "first" else 2000
+        return [dict(text=text, author="Recruiter", posted_at="",
+                     url=f"https://www.facebook.com/groups/{group}/posts/{offset + i}/")
+                for i, text in enumerate(texts)]
+
+    monkeypatch.setattr(scrapers.FacebookScraper, "extract_items", extract)
+    page = SimpleNamespace(mouse=SimpleNamespace(wheel=lambda *args: None))
+    page.goto = lambda url, **kwargs: setattr(page, "url", url)
+    req = RunRequest(platform="facebook", mode="group", source_type="group",
+                     sources=["first", "second"], count=5, only_new=True,
+                     options={"latest": True, "old_streak": 5})
+    report = {}
+    posts = pipeline.collect_all(page, req, set(), lambda *args: None, False, report)
+
+    assert [post.text for post in posts] == [*shared, fresh]
+    second = report["sources"][1]
+    assert second["skipped_old"] == 0
+    assert second["skipped_dup"] == 5
+    assert second["stop_reason"] != "caught_up"
+
+
+def test_facebook_scroll_waits_for_new_content_within_existing_pace(monkeypatch):
+    now = 0.0
+    round_no = 0
+    scrolled_at = 0.0
+
+    def advance(seconds):
+        nonlocal now
+        now += seconds
+
+    def scroll(*args):
+        nonlocal round_no, scrolled_at
+        round_no += 1
+        scrolled_at = now
+
+    # First scroll adds a card quickly, second shows no change and uses the full wait.
+    def visible_messages(script):
+        return ["old", "new"] if now >= 0.5 and round_no else ["old"]
+
+    monkeypatch.setattr(scrapers.time, "monotonic", lambda: now)
+    monkeypatch.setattr(scrapers, "_human_pause", lambda lo, hi: advance((lo + hi) / 2))
+    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scrapers.FacebookScraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(scrapers.FacebookScraper, "_expand", lambda *args: 0)
+    observed = []
+
+    def extract(self, page, stories):
+        if round_no:
+            observed.append(now - scrolled_at)
+        return [dict(text=f"Organic post number {round_no}", author="Author", url="", posted_at="")]
+
+    monkeypatch.setattr(scrapers.FacebookScraper, "extract_items", extract)
+    page = SimpleNamespace(goto=lambda *args, **kwargs: None, mouse=SimpleNamespace(wheel=scroll),
+                           evaluate=visible_messages, wait_for_timeout=lambda ms: advance(ms / 1000))
+    report = {}
+    posts = scrapers.FacebookScraper().collect(page, "https://www.facebook.com/", "Feed", 3,
+                                              set(), lambda *args: None, report=report)
+
+    assert len(posts) == 3
+    assert observed == pytest.approx([0.8, 1.6])
+    assert report["timings"]["scroll_ready_wait"] == pytest.approx(0.8)
+    assert report["timings"]["scroll_timeout_wait"] == pytest.approx(1.6)
+    assert report["timings"]["scroll_wait"] == pytest.approx(2.4)
 
 
 def test_save_scrape_report_caps_target_at_max_posts_and_records_story_counts(tmp_path, monkeypatch):

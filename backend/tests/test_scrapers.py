@@ -122,7 +122,7 @@ def test_facebook_collect_backfills_missing_url_on_later_scroll(monkeypatch):
     monkeypatch.setattr(scrapers.random, 'random', lambda: 1)
     original = dict(text='A long enough post with a late permalink.', author='Author', posted_at='')
     rounds = iter([[dict(original, url='')], [dict(original, url='https://www.facebook.com/author/posts/late/')]])
-    monkeypatch.setattr(scrapers, '_facebook_items', lambda page: next(rounds, []))
+    monkeypatch.setattr(scrapers, '_facebook_items', lambda page, stories: next(rounds, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, 'ensure_access', lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
@@ -162,7 +162,7 @@ def fake_collect(monkeypatch, rounds, seen=(), target=2, url="https://www.facebo
     monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
     monkeypatch.setattr(scrapers.random, "random", lambda: 1)
     batches = iter(rounds)
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda page: next(batches, []))
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda page, stories: next(batches, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
@@ -936,7 +936,7 @@ def test_report_contains_all_five_timing_keys_and_accumulates_without_secrets(fa
     report = {}
     scraper.collect(facebook_page, "https://www.facebook.com/", "feed1", 1, set(), lambda *args: None, report=report)
     first_nav = report["timings"]["navigation"]
-    assert set(report["timings"].keys()) == {"navigation", "scroll_wait", "expand", "link_resolve", "extract"}
+    assert set(report["timings"].keys()) == {"navigation", "scroll_wait", "scroll_ready_wait", "scroll_timeout_wait", "expand", "link_resolve", "extract"}
     assert all(isinstance(v, float) and v >= 0.0 for v in report["timings"].values())
     assert report["full_text_from_story"] == 1
 
@@ -1146,7 +1146,7 @@ def test_collect_respects_custom_old_streak_limit(monkeypatch):
     monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
     monkeypatch.setattr(scrapers.random, "random", lambda: 1)
     batches = iter([[p] for p in old])
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda page: next(batches, []))
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda page, stories: next(batches, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,

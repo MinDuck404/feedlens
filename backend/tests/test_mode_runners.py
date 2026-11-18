@@ -58,7 +58,7 @@ def test_plan_quota_after_platform_cap_is_passed_to_collector(monkeypatch):
 def test_target_chronology_overrides_url_guess(monkeypatch, fast_scrape, chronological, expected):
     old = [RawPost(platform="facebook", source="s", text=f"Old post number {i}") for i in range(8)]
     fresh = RawPost(platform="facebook", source="s", text="A new post after the old streak")
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda p: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
     page = SimpleNamespace(goto=lambda *a, **k: None, evaluate=lambda *a: None,
                            mouse=SimpleNamespace(wheel=lambda *a: None))
     collector = scrapers.FacebookScraper()
@@ -71,7 +71,7 @@ def test_target_chronology_overrides_url_guess(monkeypatch, fast_scrape, chronol
 def test_facebook_page_pinned_old_posts_have_a_small_grace(monkeypatch, fast_scrape):
     old = [RawPost(platform="facebook", source="s", text=f"Old post number {i}") for i in range(8)]
     fresh = RawPost(platform="facebook", source="s", text="New Page update below pinned posts")
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda p: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
+    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
     page = SimpleNamespace(goto=lambda *a, **k: None, evaluate=lambda *a: None,
                            mouse=SimpleNamespace(wheel=lambda *a: None))
     collector = scrapers.FacebookScraper()

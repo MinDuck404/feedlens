@@ -49,6 +49,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                 "target": t.per_target_count,
                 "collected": 0,
                 "skipped_old": 0,
+                "skipped_dup": 0,
                 "skipped_ads": 0,
                 "examined": 0,
                 "stop_reason": None,
@@ -58,6 +59,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
         ]
     posts: list[RawPost] = []
     skipped: list[str] = []
+    history = frozenset(seen)
     for i, (label, url, chronological, per_target_count) in enumerate(targets):
         remaining = total_cap - len(posts)
         if remaining <= 0:
@@ -93,7 +95,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                                          speed=req.speed, interactive=interactive, chronological=chronological,
                                          leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0,
                                          report=report,
-                                         old_streak_limit=getattr(req.options, "old_streak", 8))
+                                         old_streak_limit=getattr(req.options, "old_streak", 8), history=history)
             finally:
                 if report is not None:
                     last = getattr(scraper, "last_report", None)
@@ -140,7 +142,9 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
                    "skipped_old": sum(s.get("skipped_old", 0) for s in sources),
                    "skipped_ads": sum(s.get("skipped_ads", 0) for s in sources),
                    "stop_reason": sources[-1].get("stop_reason") if len(sources) == 1 else None,
-                   "sources": [dict(s) for s in sources]}
+                    "sources": [dict(s) for s in sources]}
+        if any("skipped_dup" in s for s in sources):
+            summary["skipped_dup"] = sum(s.get("skipped_dup", 0) for s in sources)
     else:
         summary = {}
     # Số đo thời gian (giây) và số bài lấy được toàn văn từ Story: scrapers.py ghi, pipeline thêm scrape_total.
