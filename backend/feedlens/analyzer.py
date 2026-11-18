@@ -17,7 +17,7 @@ from typing import Callable
 from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
 from .ai.registry import KeyCredential
 from .ai.scheduler import Candidate, MAX_OUTPUT, QuotaScheduler, scheduler_for
-from .job_profile import matching_context
+from .job_profile import JobProfile, matching_context
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
 
 BATCH_SIZE = 20
@@ -478,6 +478,58 @@ MATCH_STOPWORDS = set("""
     experience skills role work years year job jobs hcm tphcm
 """.split())
 
+_SKILLS_HEADING = re.compile(
+    r"^\s*(?:#{1,6}\s+)?\*{0,2}(?:main skills|other skills|technical skills|skills|"
+    r"kỹ năng(?: chính| khác| chuyên môn| bổ sung)?|(?:主要|其他|核心|技术)?技能)\*{0,2}"
+    r"\s*(?:[:：]\*{0,2}\s*(.*))?$", re.I,
+)
+_PAY_NUMBER = r"\d+(?:[.,]\d+)*"
+_PAY_CURRENCY = r"(?:USD|VND|VNĐ)\b|\$"
+_PAY_UNIT = (r"(?:triệu|tr|million|m|nghìn|ngàn|k)\b(?:[ \t]*(?:USD|VND|VNĐ|đồng)\b|[ \t]*₫)?"
+             r"|(?:USD|VND|VNĐ|đồng)\b|[₫$]")
+_PAY_AMOUNT = rf"(?:(?:{_PAY_CURRENCY})[ \t]*)?{_PAY_NUMBER}"
+_SALARY = re.compile(
+    rf"(?<!\w)(?P<label>(?:lương(?:[ \t]+cứng)?|thu nhập|salary)\b[ \t]*[:：]?[ \t]*)?"
+    rf"(?P<pay>(?:(?P<qualifier>up to|tối đa|từ)[ \t]+)?{_PAY_AMOUNT}"
+    rf"(?:[ \t]*(?:{_PAY_UNIT}))?"
+    rf"(?P<range>[ \t]*(?:[-–—~]|đến|to)[ \t]*{_PAY_AMOUNT}(?:[ \t]*(?:{_PAY_UNIT}))?)?"
+    r"(?P<period>[ \t]*(?:/|per\b|mỗi\b)[ \t]*(?:tháng|năm|ngày|giờ|month|year|day|hour)\b)?)"
+    r"(?![\w]|[.,]\d)", re.I,
+)
+
+
+def _cv_skills(profile: JobProfile) -> list[str]:
+    skills = []
+    in_skills = False
+    for line in profile.markdown.splitlines():
+        heading = _SKILLS_HEADING.match(line)
+        if heading:
+            in_skills = True
+            line = heading[1] or ""
+        elif re.match(r"^\s*(?:#{1,6}\s|\*\*[^*]+\*\*\s*(?:[:：]|$))", line):
+            in_skills = False
+        if in_skills:
+            line = re.sub(r"^\s*(?:[-*+]\s+|\d+\.\s+)", "", line)
+            skills.extend(term.strip(" \t.*_`").casefold() for term in re.split(r"[,;|、，；]", line))
+    return [skill for skill in skills if skill and skill not in MATCH_STOPWORDS]
+
+
+def _match_terms(terms: list[str], text: str) -> list[str]:
+    return [term for term in terms if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text)]
+
+
+def _job_salary(text: str) -> str:
+    candidate = ""
+    for match in _SALARY.finditer(text):
+        # A number without currency or scale may be experience, headcount, or a date.
+        if not re.search(_PAY_UNIT, match["pay"], re.I):
+            continue
+        if match["label"]:
+            return match["pay"]
+        if not candidate and (match["range"] or match["period"] or match["qualifier"]):
+            candidate = match["pay"]
+    return candidate
+
 
 def _first_sentence(text: str, limit: int = 160) -> str:
     s = re.split(r"(?<=[.!?\n])\s", text.strip(), maxsplit=1)[0]
@@ -498,12 +550,16 @@ class HeuristicAnalyzer:
         out = []
         topics = list(getattr(self, "topics", None) or [])
         cv_profile = getattr(self, "job_profile", None) if job_mode else None
-        kws = [k.lower() for k in keywords]
+        kws = [k.casefold() for k in keywords]
+        primary_roles, adjacent_roles = [], []
         if cv_profile:
-            kws = sorted(set(kws + [w for w in re.findall(r"[\w+#.]+", cv_profile.markdown.lower()) if len(w) > 2]))
+            primary_roles = [role.strip().casefold() for role in cv_profile.primary_roles if role.strip()]
+            adjacent_roles = [r.role.strip().casefold() for r in cv_profile.adjacent_roles
+                              if cv_profile.allow_adjacent and r.enabled and r.role.strip()]
         elif profile:
-            kws = sorted(set(kws + [w for w in re.findall(r"[\w+#.]+", profile.lower()) if len(w) > 2]))
+            kws += re.findall(r"[\w+#.]+", profile.casefold())
         kws = sorted({k.strip() for k in kws if len(k.strip()) > 2 and k.strip() not in MATCH_STOPWORDS})
+        skills = sorted(set(kws + _cv_skills(cv_profile)) - set(primary_roles + adjacent_roles)) if cv_profile else kws
         for p in posts:
             match_text = p.text
             if p.job_seed is not None:
@@ -512,13 +568,25 @@ class HeuristicAnalyzer:
             cat = "job" if p.job_seed is not None else heuristic_category(p.text)
             job = None
             if cat == "job":
-                hits = [k for k in kws if re.search(r"(?<!\w)" + re.escape(k) + r"(?!\w)", match_text.lower())]
-                score = int(100 * len(hits) / len(kws)) if kws else 50
+                hits = _match_terms(skills, match_text.casefold())
+                match_type = None
+                if cv_profile:
+                    role_text = "\n".join([p.job_seed.title, p.text]) if p.job_seed else p.text
+                    primary = _match_terms(primary_roles, role_text.casefold())
+                    adjacent = [] if primary else _match_terms(adjacent_roles, role_text.casefold())
+                    match_type = "primary" if primary else "adjacent" if adjacent else "none"
+                    role_score = {"primary": 50, "adjacent": 45, "none": 0}[match_type]
+                    skill_cap = 50 if match_type == "primary" else 30
+                    score = role_score + min(skill_cap, 20 * len(hits))
+                    hits = primary + adjacent + hits
+                else:
+                    score = int(100 * len(hits) / len(kws)) if kws else 50
                 contact = re.search(r"[\w.+-]+@[\w-]+\.[\w.]+|0\d{9,10}", p.text)
                 job = JobInfo(title=_first_sentence(p.text, 80), match_score=score,
+                              salary=_job_salary(p.text),
                               contact=contact.group(0) if contact else "",
                               match_reason=(f"Khớp từ khóa: {', '.join(hits)}" if hits else "")[:140],
-                               match_type=("primary" if any(r.casefold() in match_text.casefold() for r in cv_profile.primary_roles) else "none") if cv_profile else None)
+                              match_type=match_type)
                 if p.job_seed is not None:
                     job = _seeded_job(p, job.model_dump())
             tids = heuristic_topics(match_text, topics)

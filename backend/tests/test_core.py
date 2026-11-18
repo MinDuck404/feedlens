@@ -49,6 +49,52 @@ def test_heuristic_job_scoring_and_contact():
     assert out[1].job is None
 
 
+def test_offline_cv_scoring_uses_roles_and_skills_with_a_bounded_bonus():
+    from feedlens.job_profile import AdjacentRole, JobProfile
+
+    analyzer = HeuristicAnalyzer()
+    analyzer.job_profile = JobProfile(
+        markdown="## Kỹ năng chính\n- Python, PostgreSQL\n## Kinh nghiệm\n" + " ".join(f"project{i}" for i in range(200)),
+        primary_roles=["Backend Developer"],
+        adjacent_roles=[AdjacentRole(role="Data Engineer"), AdjacentRole(role="QA Engineer", enabled=False)],
+    )
+    posts = [RawPost(platform="facebook", source="g1", text=f"Tuyển dụng vị trí {job}. Gửi CV.") for job in (
+        "Backend Developer, cần Python và PostgreSQL",
+        "Data Engineer, cần Python",
+        "Backend Developer",
+        "QA Engineer, cần Python",
+        "Sales Assistant, project17",
+    )]
+    primary, adjacent, title_only, disabled, unrelated = [
+        p.job for p in analyzer.classify(posts, True, [], "", lambda *a: None)
+    ]
+    assert primary.match_type == "primary" and primary.match_score >= 70
+    assert "python" in primary.match_reason.casefold()
+    assert primary.match_score > title_only.match_score
+    assert adjacent.match_type == "adjacent" and disabled.match_type == "none"
+    assert unrelated.match_type == "none" and unrelated.match_score < 20
+    analyzer.job_profile.allow_adjacent = False
+    result = analyzer.classify(posts[1:2], True, [], "", lambda *a: None)[0].job
+    assert result.match_type == "none" and result.match_score < 45
+
+
+@pytest.mark.parametrize("details,salary", [
+    ("2 năm kinh nghiệm. Lương 25–30 triệu/tháng.", "25–30 triệu/tháng"),
+    ("Lương: 500k/ngày.", "500k/ngày"),
+    ("Từ 18tr-22tr/tháng.", "Từ 18tr-22tr/tháng"),
+    ("Salary: USD 1,500 - 2,000 / month.", "USD 1,500 - 2,000 / month"),
+    ("Lương 25.000.000 VND.", "25.000.000 VND"),
+    ("Lương 25 triệu VND/tháng.", "25 triệu VND/tháng"),
+    ("Thưởng 500k/ngày. Lương cứng: 25 triệu.", "25 triệu"),
+    ("Lương thỏa thuận. Yêu cầu 2-3 năm.", ""),
+    ("Tuyển 2-3 người. Công ty có 200k lượt theo dõi.", ""),
+])
+def test_offline_extracts_job_salary_with_units_and_without_guessing(details, salary):
+    post = RawPost(platform="facebook", source="g1", text=f"Tuyển dụng vị trí Kế toán. {details} Gửi CV.")
+    result = HeuristicAnalyzer().classify([post], True, [], "", lambda *a: None)
+    assert result[0].job.salary == salary
+
+
 def test_scraper_urls():
     s = FacebookScraper()
     assert s.urls("group", ["123"]) == [("123", "https://www.facebook.com/groups/123")]
