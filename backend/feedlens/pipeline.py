@@ -52,7 +52,8 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                 posts += scraper.collect(page, url, label, quota, seen,
                                          lambda n, msg: on_progress(base + n, prefix + msg),
                                          speed=req.speed, interactive=interactive, chronological=chronological,
-                                         leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0)
+                                         leading_old_grace=3 if req.platform == "facebook" and req.mode == "page" else 0,
+                                         report=report)
             finally:
                 if report is not None and getattr(scraper, "last_report", None):
                     report.setdefault("sources", []).append({"label": label, **scraper.last_report})
