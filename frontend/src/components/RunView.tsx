@@ -539,10 +539,10 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
           <input className="min-w-0 w-full bg-transparent py-2 text-sm text-ink border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft" placeholder={t("job.search")}
             value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("job.searchAria")} />
         </div>
-        <Select className="min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
+        <Select wrapperClassName="w-full sm:w-auto sm:flex-none" className="min-h-11 rounded-full" value={matchType} onChange={(e) => setMatchType(e.target.value)} aria-label={t("profile.matchFilter")}>
           {["all", "primary", "adjacent", "stretch", "none"].map((type) => <option key={type} value={type}>{t(`profile.match.${type}` as Key)}</option>)}
         </Select>
-        <Select className="min-h-11 min-w-0 w-full rounded-full sm:w-auto" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
+        <Select wrapperClassName="w-full sm:w-auto sm:flex-none" className="min-h-11 rounded-full" value={sort} onChange={(e) => setSort(e.target.value as JobSort)} aria-label={t("job.sort")}>
           <option value="score">{t("job.sortScore")}</option>
           <option value="salary">{t("job.sortSalary")}</option>
           <option value="source">{t("job.sortSource")}</option>
