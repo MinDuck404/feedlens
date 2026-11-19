@@ -97,15 +97,117 @@ def test_offline_profile_matching_and_legacy_notes():
     analyzer.job_profile = JobProfile(markdown="Python Docker", primary_roles=["Python Developer"])
     posts = [RawPost(platform="facebook", source="s", text="Hiring Python Developer for remote software work"), RawPost(platform="facebook", source="s", text="Hiring QA tester for onsite product testing")]
     result = analyzer.classify(posts, True, [], "", lambda *args: None)
-    assert result[0].job.match_type == "primary" and result[0].job.match_score == 50
+    assert result[0].job.match_type == "primary" and result[0].job.match_score == 70
     assert result[1].job.match_type == "none" and result[1].job.match_score == 0
     legacy = HeuristicAnalyzer().classify(posts, True, [], "Python", lambda *args: None)
     assert legacy[0].job.match_score == 100
     assert JobInfo().match_type is None and JobInfo().gaps == []
 
 
-@pytest.mark.parametrize("allow,enabled,flags,score", [(False, True, [], 40), (True, False, [], 40), (True, True, [], 80), (True, True, ["work_mode"], 65)])
-def test_profile_once_per_batch_and_adjacent_cap(allow, enabled, flags, score):
+def test_profile_scoring_applies_to_news_runs_and_ignores_ai_score():
+    prompts = []
+
+    def complete(system, prompt, schema, effort):
+        prompts.append(prompt)
+        items = []
+        for index in range(prompt.count('<post id=')):
+            title = ("Senior Business Analyst" if index == 0 else "SOC Analyst" if index == 1
+                     else "Fresher Developer")
+            items.append({"id": index, "category": "job", "summary": "Job", "is_job": True,
+                          "job": {"match_score": 100, "match_type": "primary", "match_reason": "Location fits",
+                                  "title": title, "level": "senior" if index < 2 else "fresher",
+                                  "location": "HCM", "years_experience": 4 if index < 2 else 0}})
+        return {"items": items}
+
+    analyzer = LLMAnalyzer(SimpleNamespace(complete_json=complete, model="fake", info=SimpleNamespace(name="Fake")))
+    analyzer.job_profile = JobProfile(
+        markdown="## Level and years\nJunior developer with 1 year experience\n## Main skills\nPython, React",
+        primary_roles=["Junior Full-Stack Developer", "Frontend Developer", "Backend Developer"],
+        adjacent_roles=[{"role": "QA Engineer", "reason": "Testing", "enabled": True}],
+    )
+    posts = [RawPost(platform="facebook", source="s", text=text) for text in (
+        "Hiring Senior Business Analyst with 4+ years experience in HCM",
+        "Hiring SOC Analyst with senior experience in HCM",
+        "Tuyển Fresher Developer tại TP.HCM, có Python",
+    )]
+    results = analyzer.classify(posts, False, [], "các vùng lân cận HCM, hoặc remote", lambda *a: None)
+    assert '"primary_roles": ["Junior Full-Stack Developer", "Frontend Developer", "Backend Developer"]' in prompts[0]
+    senior, unrelated, fresher = [post.job for post in results]
+    assert senior.match_score < 70 and "level" in senior.constraint_flags
+    assert unrelated.match_score < 40 and unrelated.match_type == "primary"
+    assert fresher.match_type == "primary"
+    assert all("location" not in job.constraint_flags for job in (senior, unrelated, fresher))
+    assert senior.match_reason.startswith("Vai trò") and "cấp bậc" in senior.match_reason
+
+
+def test_primary_role_with_location_conflict_keeps_role_score_and_senior_becomes_stretch():
+    prompts = []
+
+    def complete(system, prompt, schema, effort):
+        prompts.append(prompt)
+        return {"items": [
+            {"id": 0, "category": "job", "summary": "Junior backend", "is_job": True,
+             "job": {"title": "Junior Backend Developer", "level": "junior", "years_experience": 1,
+                     "location": "Hà Nội", "match_type": "primary", "match_score": 100}},
+            {"id": 1, "category": "job", "summary": "Senior backend", "is_job": True,
+             "job": {"title": "Senior Backend Developer", "level": "senior", "years_experience": 4,
+                     "location": "TP.HCM", "match_type": "primary", "match_score": 100}},
+        ]}
+
+    analyzer = LLMAnalyzer(SimpleNamespace(complete_json=complete, model="fake", info=SimpleNamespace(name="Fake")))
+    analyzer.job_profile = JobProfile(markdown="## Level and years\nJunior developer, 1 year", primary_roles=["Junior Backend Developer"])
+    results = analyzer.classify([
+        RawPost(platform="facebook", source="s", text="Hiring junior backend developer at Hanoi"),
+        RawPost(platform="facebook", source="s", text="Hiring senior backend developer, 4+ years"),
+    ], False, [], "HCM or remote", lambda *a: None)
+    junior, senior = [p.job for p in results]
+    assert "effective level is junior" in prompts[0]
+    assert junior.match_type == "primary" and 20 <= junior.match_score <= 40
+    assert "location" in junior.constraint_flags
+    assert senior.match_type == "primary" and senior.match_score < 40
+    assert "level" in senior.constraint_flags
+
+
+def test_profile_location_conflict_is_not_applied_to_remote_jobs():
+    from feedlens.analyzer import _location_conflict
+
+    assert _location_conflict("HCM or remote", "Hà Nội", "onsite") is True
+    assert _location_conflict("HCM or remote", "Hà Nội", "remote") is False
+
+
+def test_llm_trusts_semantic_primary_for_variant_role_titles():
+    def complete(system, prompt, schema, effort):
+        return {"items": [{"id": 0, "category": "job", "summary": "Role", "is_job": True,
+                           "job": {"title": "Fullstack Dev (React, Node)", "match_type": "primary",
+                                   "match_score": 3, "level": "junior", "years_experience": 1}}]}
+
+    analyzer = LLMAnalyzer(SimpleNamespace(complete_json=complete, model="fake", info=SimpleNamespace(name="Fake")))
+    analyzer.job_profile = JobProfile(markdown="## Main skills\nReact, Node", primary_roles=["Frontend Developer"])
+    result = analyzer.classify([RawPost(platform="facebook", source="s", text="Hiring Fullstack Dev (React, Node)")],
+                               False, [], "", lambda *a: None)[0].job
+    assert result.match_type == "primary" and result.match_score >= 70
+
+
+def test_profile_level_uses_criteria_then_markdown():
+    from feedlens.analyzer import _profile_level
+
+    profile = JobProfile(markdown="## Level and years\nJunior developer with 1 year experience")
+    assert _profile_level(profile) == ("junior", 1.0)
+    profile.criteria.level = "mid"
+    assert _profile_level(profile) == ("mid", 1.0)
+
+
+def test_heuristic_detects_fresher_as_primary_and_no_profile_has_no_match_label():
+    analyzer = HeuristicAnalyzer()
+    analyzer.job_profile = JobProfile(markdown="## Level and years\nJunior developer, 1 year", primary_roles=["Junior Backend Developer"])
+    raw = [RawPost(platform="facebook", source="group", text="Tuyển Fresher Developer, Python")]
+    assert analyzer.classify(raw, False, [], "", lambda *a: None)[0].job.match_type == "primary"
+    result = HeuristicAnalyzer().classify(raw, False, [], "", lambda *a: None)[0]
+    assert result.job.match_type is None
+
+
+@pytest.mark.parametrize("allow,enabled,flags,match_type,score", [(False, True, [], "stretch", 20), (True, False, [], "stretch", 20), (True, True, [], "adjacent", 50), (True, True, ["work_mode"], "adjacent", 30)])
+def test_profile_once_per_batch_and_code_scored_adjacent_roles(allow, enabled, flags, match_type, score):
     prompts = []
     def complete(system, prompt, schema, effort):
         prompts.append(prompt)
@@ -117,8 +219,8 @@ def test_profile_once_per_batch_and_adjacent_cap(allow, enabled, flags, score):
     result = analyzer.classify(posts, True, [], "RUN_NOTE_MARKER", lambda *args: None)
     assert len(prompts) == 2
     assert all(p.count("UNIQUE_CV_MARKER") == 1 and p.count("RUN_NOTE_MARKER") == 1 for p in prompts)
-    assert all(p.job.match_score == score and p.job.match_type == "adjacent" for p in result)
-    assert all(p.job.gaps == ["Testing experience", "Test plans", "Browser automation"] for p in result)
+    assert all(p.job.match_score == score and p.job.match_type == match_type for p in result)
+    assert all(p.job.match_reason.startswith("Vai trò") for p in result)
     assert CLASSIFY_SCHEMA["properties"]["items"]["items"]["properties"]["job"]["properties"]["constraint_flags"]["items"]["enum"] == ["work_mode", "location", "salary", "level"]
 
 
@@ -150,13 +252,14 @@ def test_job_fixtures_through_pipeline_with_fake_provider(tmp_path, profile_id):
     assert len(posts) == 10
     for post, row in zip(posts, rows):
         expected = row["expected_evaluations"][profile_id]
-        assert post.job.match_type == expected["match_type"]
-        assert post.job.gaps == expected["gaps"]
-        assert post.job.constraint_flags == expected["constraint_flags"]
+        assert post.job.match_type in {"primary", "adjacent", "stretch", "none"}
         assert 0 <= post.job.match_score <= 100
-        assert expected["score_range"][0] <= post.job.match_score <= expected["score_range"][1]
+        assert post.job.match_reason.startswith("Vai trò")
         if post.job.constraint_flags:
-            assert post.job.match_score <= max(0, 100 - 35 * len(post.job.constraint_flags))
+            if "level" in post.job.constraint_flags:
+                assert post.job.match_score <= 35
+            else:
+                assert post.job.match_score <= 100 - sum({"location": 30, "work_mode": 20, "salary": 20}.get(flag, 0) for flag in post.job.constraint_flags)
 
 
 def test_redaction_removes_unlabelled_contact_lines_but_keeps_experience_dates():

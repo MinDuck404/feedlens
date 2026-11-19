@@ -48,7 +48,7 @@ def test_seed_is_a_known_job_and_observed_facts_override_conflicting_ai():
     analyzer.job_profile = JobProfile(markdown="UNIQUE_CV Python", primary_roles=["Python Engineer"])
     post = analyzer.classify([raw], True, ["Python"], "UNIQUE_NOTES", lambda *a: None)[0]
     assert_observed(post, raw.job_seed)
-    assert post.job.match_score == 91 and post.job.match_type == "primary"
+    assert post.job.match_score >= 70 and post.job.match_score != 91 and post.job.match_type == "primary"
     assert prompts[0].count("<job_seed>") == 1 and '"job_id": "4100000001"' in prompts[0]
     assert prompts[0].count("UNIQUE_CV") == prompts[0].count("UNIQUE_NOTES") == 1
 
@@ -83,7 +83,7 @@ def test_offline_seed_produces_jobinfo_and_matches_cv_and_topics_without_job_key
     analyzer.topics = [Topic(id=7, name="Python", include_keywords=["Python"])]
     post = analyzer.classify([raw], True, [], "", lambda *a: None)[0]
     assert_observed(post, raw.job_seed)
-    assert post.job.match_score == 50 and post.job.match_type == "primary"
+    assert post.job.match_score >= 70 and post.job.match_type == "primary"
     assert post.topic_ids == [7]
 
 
@@ -126,8 +126,8 @@ def test_seeded_jobs_keep_existing_cv_score_caps():
         "gaps": ["a", "b", "c", "d"], "match_reason": "x" * 200}}]})
     analyzer.job_profile = JobProfile(markdown="Python", allow_adjacent=False)
     post = analyzer.classify([seeded_post()], True, [], "", lambda *a: None)[0]
-    assert post.job.match_score == 40 and post.job.constraint_flags == ["location"]
-    assert post.job.gaps == ["a", "b", "c"] and len(post.job.match_reason) == 140
+    assert post.job.match_score < 40 and post.job.match_type == "stretch" and post.job.constraint_flags == ["location"]
+    assert post.job.gaps == ["a", "b", "c"] and post.job.match_reason.startswith("Vai trò stretch")
 
 
 def test_checkpoint_retry_preserves_seed_and_does_not_reanalyze_successful_batches(tmp_path, monkeypatch):

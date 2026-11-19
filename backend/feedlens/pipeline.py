@@ -238,8 +238,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     if hasattr(analyzer, "language"):
         analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
     owner = (db.get_run(run_id) or {}).get("user_id")
-    if req.job_mode:
-        analyzer.job_profile = load_profile(db, owner)
+    analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
     needs_ai = analyzer.label != HeuristicAnalyzer.label
     completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
