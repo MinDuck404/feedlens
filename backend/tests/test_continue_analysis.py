@@ -96,6 +96,74 @@ def test_offline_completed_run_can_reanalyze_every_post_with_fake_ai(cloud, monk
     assert api.db().get_run(rid)["digest"]["overall"]
 
 
+def test_completed_ai_run_can_reanalyze_and_resume_only_new_ai_checkpoints(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    database = api.db()
+    user_id = database.get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook", ai_provider="openai", job_mode=True, keywords=["Python"])
+    rid = database.create_run(req, user_id)
+    raw = [RawPost(platform="facebook", source="feed", text=f"Tuyển Python Developer {i}") for i in range(4)]
+    database.save_raw_posts(rid, raw)
+    old_ai = HeuristicAnalyzer()
+    existing = old_ai.classify(raw, True, ["Python"], "", lambda *a: None)
+    for post in existing:
+        post.analyzed_by = "Legacy AI"
+    database.save_batch(rid, existing)
+    database.update_run(rid, status="done", ai_label="Legacy AI", digest=old_ai.digest(existing, True),
+                        request={**req.model_dump(), "analysis_used_ai": True})
+    ids = {p.fingerprint: p.id for p in database.get_posts(rid)}
+
+    class PartialAI(HeuristicAnalyzer):
+        label = "New AI"
+
+        def classify(self, posts, *args):
+            batch = super().classify(posts[:1], *args)
+            batch[0].analyzed_by = self.label
+            batch[0].summary = "CV-aware checkpoint"
+            self.on_batch(batch)
+            raise RuntimeError("429 quota exceeded")
+
+    partial = PartialAI()
+    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: partial)
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+    monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Reanalysis must not scrape"))
+    before = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert before["can_reprocess_ai"] is True
+    assert before["reanalyze_requests_estimate"] > 0
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
+                           json={"ai_provider": "openai", "mode": "reanalyze_all"})
+    assert response.status_code == 200
+    partial_result = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert partial_result["status"] == "analysis_failed"
+    assert partial_result["analysis_counts"] == {"ai": 1, "offline": 0, "pending": 3, "total": 4}
+    assert [p["analyzed"] for p in partial_result["posts"]] == [True, False, False, False]
+    assert {p.fingerprint: p.id for p in database.get_posts(rid)} == ids
+    assert database.get_posts(rid)[0].summary == "CV-aware checkpoint"
+
+    resumed = HeuristicAnalyzer()
+    resumed.label = partial.label
+    seen = []
+    classify = HeuristicAnalyzer.classify
+
+    def resume(posts, *args):
+        seen.extend(p.text for p in posts)
+        result = classify(resumed, posts, *args)
+        for post in result:
+            post.analyzed_by = resumed.label
+        return result
+
+    monkeypatch.setattr(resumed, "classify", resume)
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: resumed)
+    response = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "openai"})
+    assert response.status_code == 200
+    assert seen == [post.text for post in raw[1:]]
+    final = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert final["status"] == "done" and final["analysis_counts"] == {"ai": 4, "offline": 0, "pending": 0, "total": 4}
+    assert {p.fingerprint: p.id for p in database.get_posts(rid)} == ids
+    assert all(post["analyzed"] for post in final["posts"])
+
+
 def test_offline_full_reanalysis_reports_missing_ai_key(cloud):
     client = cloud(); headers = _signup(client)
     user_id = api.db().get_user_by_email("a@x.io").id
@@ -110,16 +178,25 @@ def test_offline_full_reanalysis_reports_missing_ai_key(cloud):
     assert response.json()["code"] == "error.key_missing"
 
 
-def test_only_offline_completed_runs_allow_full_reanalysis(cloud):
+def test_completed_ai_run_can_be_fully_reanalyzed(cloud, monkeypatch):
     client = cloud(); headers = _signup(client)
     user_id = api.db().get_user_by_email("a@x.io").id
     rid = api.db().create_run(RunRequest(platform="facebook", ai_provider="openai"), user_id, status="done")
     api.db().save_raw_posts(rid, [RawPost(platform="facebook", source="feed", text="Already AI analyzed")])
     api.db().update_run(rid, ai_label="OpenAI")
 
+    class FakeAI(HeuristicAnalyzer):
+        label = "OpenAI refreshed"
+
+    fake = FakeAI()
+    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake)
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     response = client.post(f"/api/runs/{rid}/analysis", headers=headers,
                            json={"ai_provider": "openai", "mode": "reanalyze_all"})
-    assert response.status_code == 409
+    assert response.status_code == 200
+    detail = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert detail["status"] == "done" and detail["ai_label"] == fake.label
 
 
 @pytest.mark.parametrize("retry_exhausted", [False, True])
@@ -163,9 +240,9 @@ def test_interrupted_ai_upgrade_continues_only_offline_posts(cloud, monkeypatch,
     checkpoint = database.get_posts(rid)[0]
     assert database.get_run(rid)["status"] == "analysis_failed"
     partial = client.get(f"/api/runs/{rid}", headers=headers).json()
-    assert partial["analysis_counts"] == {"ai": 1, "offline": 2, "pending": 0, "total": 3}
+    assert partial["analysis_counts"] == {"ai": 1, "offline": 0, "pending": 2, "total": 3}
     assert partial["can_continue_analysis"] is True
-    assert partial["ai_label"] != fake.label
+    assert partial["ai_label"] == fake.label
     response = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "openai"})
     assert response.status_code == 200
     assert fake.seen == [[p.text for p in raw], [p.text for p in raw[1:]]]
@@ -173,10 +250,10 @@ def test_interrupted_ai_upgrade_continues_only_offline_posts(cloud, monkeypatch,
     assert saved[0].id == checkpoint.id and saved[0].summary == "AI checkpoint"
     detail = client.get(f"/api/runs/{rid}", headers=headers).json()
     assert detail["analysis_counts"] == {"ai": 1 if retry_exhausted else 3,
-                                          "offline": 2 if retry_exhausted else 0, "pending": 0, "total": 3}
-    assert [p.analyzed_by for p in saved] == ([fake.label, "offline", "offline"] if retry_exhausted else [fake.label] * 3)
+                                          "offline": 0, "pending": 2 if retry_exhausted else 0, "total": 3}
+    assert [p.analyzed_by for p in saved] == ([fake.label, "pending", "pending"] if retry_exhausted else [fake.label] * 3)
     assert detail["status"] == ("analysis_failed" if retry_exhausted else "done")
-    assert (detail["ai_label"] == fake.label) is not retry_exhausted
+    assert detail["ai_label"] == fake.label
     assert detail["can_continue_analysis"] is retry_exhausted
     assert (detail["error_code"] == "error.ai_quota") is retry_exhausted
 
@@ -210,8 +287,8 @@ def test_ai_upgrade_with_no_results_cannot_complete_or_relabel_offline_rows(clou
         assert response.status_code == 200
         result = client.get(f"/api/runs/{rid}", headers=headers).json()
         assert result["status"] == "analysis_failed" and result["digest"] is None
-        assert result["ai_label"] == offline.label
-        assert result["analysis_counts"] == {"ai": 0, "offline": 1, "pending": 0, "total": 1}
+        assert result["ai_label"] == ""
+        assert result["analysis_counts"] == {"ai": 0, "offline": 0, "pending": 1, "total": 1}
         assert result["can_continue_analysis"] is True
 
 

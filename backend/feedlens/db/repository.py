@@ -364,7 +364,7 @@ class Database:
         needs_ai = request.get("analysis_used_ai", request.get("ai_provider") != "offline" and not (
             run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline"))
         completed = {p.fingerprint for p in self.get_posts(run_id)
-                     if not needs_ai or p.analyzed_by not in {"", "offline"}}
+                     if not needs_ai or p.analyzed_by not in {"", "offline", "pending"}}
         return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))
 
     def analysis_counts(self, run_id: int) -> dict[str, int]:
@@ -372,9 +372,12 @@ class Database:
             rows = s.execute(select(PostRow.fingerprint, PostRow.analyzed_by).where(PostRow.run_id == run_id))
             saved = set()
             ai = set()
+            in_progress = set()
             for fingerprint, label in rows:
                 saved.add(fingerprint)
-                if label not in {"", "offline"}:
+                if label == "pending":
+                    in_progress.add(fingerprint)
+                elif label not in {"", "offline", "pending"}:
                     ai.add(fingerprint)
             raw_fingerprints = s.scalar(select(RunRow.raw_fingerprints).where(RunRow.id == run_id))
             if raw_fingerprints is None:
@@ -383,10 +386,23 @@ class Database:
         if fingerprints := set(raw_fingerprints):
             saved.intersection_update(fingerprints)
             ai.intersection_update(fingerprints)
-            pending = len(fingerprints - saved)
+            in_progress.intersection_update(fingerprints)
+            pending = len(fingerprints - saved) + len(in_progress)
         else:
             pending = 0
-        return {"ai": len(ai), "offline": len(saved - ai), "pending": pending, "total": len(saved) + pending}
+        offline = len(saved - ai - in_progress)
+        return {"ai": len(ai), "offline": offline, "pending": pending, "total": len(ai) + offline + pending}
+
+    def mark_posts_pending(self, run_id: int) -> None:
+        with self.Session.begin() as s:
+            rows = s.scalars(select(PostRow).where(PostRow.run_id == run_id))
+            for row in rows:
+                row.analyzed_by = "pending"
+                row.category, row.summary, row.job = "other", "", None
+                row.topic_ids, row.topic_reason = [], ""
+            run = s.get(RunRow, run_id)
+            if run:
+                run.ai_label = ""
 
     def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         """Checkpoint completed batches without replacing IDs used by applied-job markers."""
@@ -406,8 +422,10 @@ class Database:
                 row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
             run = s.get(RunRow, run_id)
             if run and rows:
-                run.ai_label = " + ".join(sorted({r.analyzed_by if r.analyzed_by != "offline" else "bộ lọc từ khóa offline"
-                                                 for r in rows.values()}))
+                labels = {r.analyzed_by if r.analyzed_by != "offline" else "bộ lọc từ khóa offline"
+                          for r in rows.values() if r.analyzed_by != "pending"}
+                if labels:
+                    run.ai_label = " + ".join(sorted(labels))
             self._keep_job_seeds(s, run_id, posts)
 
     def _keep_job_seeds(self, session, run_id: int, posts: list[AnalyzedPost]) -> None:
@@ -484,6 +502,7 @@ class Database:
                 raw = raw_by_fp.get(row.fingerprint)
                 if raw:
                     p.sponsored, p.job_seed = raw.sponsored, raw.job_seed
+                p.analyzed = row.analyzed_by != "pending"
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
             if raw_by_fp:

@@ -452,6 +452,57 @@ test("interrupted AI upgrades show real coverage and offer only remaining posts"
   } finally { harness.close(); React.useContext = originalContext; api.run = originalRun; api.providers = originalProviders; }
 });
 
+test("completed AI runs offer confirmed reanalysis with an estimated request count", async () => {
+  const RunView = require("../src/components/RunView.tsx").default;
+  const originalRun = api.run, originalProviders = api.providers, originalRetry = api.retryAnalysis;
+  const originalContext = React.useContext, originalConfirm = window.confirm;
+  const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value;
+  context.close(); React.useContext = () => value;
+  const prompts = [], requests = [];
+  let allowed = false;
+  window.confirm = (message) => { prompts.push(message); return allowed; };
+  api.providers = async () => [];
+  api.run = async () => ({ id: 14, status: "done", ai_label: "Gemini", can_continue_analysis: false,
+    can_reanalyze_ai: false, can_reprocess_ai: true, reanalyze_requests_estimate: 28,
+    analysis_counts: { ai: 1200, offline: 0, pending: 0, total: 1200 },
+    request: { platform: "facebook", source_type: "group", ai_provider: "gemini", ai_model: "gemini-3.5-flash-lite" },
+    created_at: "2026-11-14T12:00:00Z", digest: { overall: "Done", categories: [], action_items: [] }, posts: [] });
+  api.retryAnalysis = async (...args) => requests.push(args);
+  const harness = hooks(RunView), props = { runId: 14, tab: "digest", meta: {}, onTab() {}, onDeleted() {} };
+  try {
+    harness.render(props); await tick();
+    const tree = harness.render(props);
+    let retryNode;
+    const visit = (node) => {
+      if (!React.isValidElement(node)) return;
+      if (node.type.name === "RetryAnalysis" && node.props.reanalyzeAll) retryNode = node;
+      React.Children.forEach(node.props.children, visit);
+    };
+    visit(tree); assert.ok(retryNode);
+    const retryHarness = hooks(retryNode.type);
+    try {
+      const retryTree = retryHarness.render(retryNode.props);
+      await tick();
+      let button;
+      const findButton = (node) => {
+        if (!React.isValidElement(node)) return;
+        if (typeof node.props.onClick === "function") button = node;
+        React.Children.forEach(node.props.children, findButton);
+      };
+      findButton(retryHarness.render(retryNode.props)); assert.ok(button);
+      await button.props.onClick();
+      assert.equal(requests.length, 0);
+      assert.ok(prompts[0].includes("1,200") && prompts[0].includes("28"));
+      allowed = true;
+      await button.props.onClick();
+      assert.deepEqual(requests, [[14, "auto", "gemini-3.5-flash-lite", "reanalyze_all"]]);
+    } finally { retryHarness.close(); }
+  } finally {
+    harness.close(); React.useContext = originalContext; window.confirm = originalConfirm;
+    api.run = originalRun; api.providers = originalProviders; api.retryAnalysis = originalRetry;
+  }
+});
+
 test("theme preference applies explicit overrides and restores system styling before render", () => {
   const vm = require("node:vm");
   const html = fs.readFileSync(require.resolve("../index.html"), "utf8");

@@ -195,6 +195,9 @@ export interface Run {
   posts_version?: number;
   can_continue_analysis?: boolean;
   can_reanalyze_ai?: boolean;
+  can_reprocess_ai?: boolean;
+  reanalyze_requests_estimate?: number;
+  reanalysis_active?: boolean;
   id: number;
   created_at: string;
   request: RunRequest;

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import threading
 import time
@@ -25,6 +26,7 @@ from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, R
 BATCH_SIZE = 60
 CLASSIFY_OUTPUT_TOKENS_PER_ITEM = 120
 JOB_OUTPUT_TOKENS_PER_ITEM = 180
+CLASSIFY_OUTPUT_SAFETY_TOKENS = 820
 PARALLEL_BATCHES = 4  # số lô gửi AI cùng lúc
 MAX_POST_CHARS = 3000  # bài cực dài bị cắt để giữ chi phí mỗi lô ổn định
 ProgressFn = Callable[[int, str], None]
@@ -42,6 +44,28 @@ def system_prompt(language: str = "vi") -> str:
         f"Viết mọi phần chữ trong kết quả (summary, highlights, overall, action_items, title, match_reason...) "
         f"bằng {lang}, dù bài gốc viết bằng ngôn ngữ nào. Giữ nguyên tên riêng, tên công ty, số liệu."
     )
+
+
+def classification_batch_size(job_mode: bool, keywords: list[str], profile: str, topic_count: int = 0,
+                              known_jobs: bool = False, has_cv: bool = False) -> int:
+    per_item = JOB_OUTPUT_TOKENS_PER_ITEM if known_jobs or job_mode or keywords or profile or has_cv else CLASSIFY_OUTPUT_TOKENS_PER_ITEM
+    per_item += 40 if topic_count else 0
+    return min(BATCH_SIZE, max(1, (MAX_OUTPUT - CLASSIFY_OUTPUT_SAFETY_TOKENS) // per_item))
+
+
+def estimate_classification_requests(posts: list[RawPost], job_mode: bool, keywords: list[str], profile: str,
+                                     topic_count: int = 0) -> int:
+    unique = {post.fingerprint: post for post in posts}
+    groups = (sum(post.job_seed is not None for post in unique.values()),
+              sum(post.job_seed is None for post in unique.values()))
+    return sum(math.ceil(count / classification_batch_size(job_mode, keywords, profile, topic_count, known_jobs))
+               for known_jobs, count in ((True, groups[0]), (False, groups[1])) if count)
+
+
+def estimate_classification_requests_for_count(post_count: int, job_mode: bool, keywords: list[str], profile: str,
+                                               topic_count: int = 0, has_cv: bool = False) -> int:
+    size = classification_batch_size(job_mode, keywords, profile, topic_count, has_cv=has_cv)
+    return math.ceil(post_count / size) if post_count else 0
 
 
 SYSTEM = system_prompt("vi")
@@ -399,12 +423,8 @@ class LLMAnalyzer:
         context_tokens = (len(job_ctx) + len(topic_ctx) + len(system_prompt(self.language))) // 3 + MAX_OUTPUT + 150
         batches = []
         for known_jobs in (False, True):
-            per_item = (JOB_OUTPUT_TOKENS_PER_ITEM if known_jobs or job_mode or keywords or profile
-                        else CLASSIFY_OUTPUT_TOKENS_PER_ITEM)
-            if topics:
-                per_item += 40
-            # Leave room for JSON framing and model output that exceeds the per-item estimate.
-            batch_size = min(BATCH_SIZE, max(1, (MAX_OUTPUT * 9 // 10) // per_item))
+            batch_size = classification_batch_size(job_mode, keywords, profile, len(topics), known_jobs,
+                                                   has_cv=cv_profile is not None)
             indexed = [(i, p) for i, p in enumerate(posts) if (p.job_seed is not None) == known_jobs]
             batch, tokens = [], context_tokens
             for item in indexed:

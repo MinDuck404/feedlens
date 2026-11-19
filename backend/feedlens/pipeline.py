@@ -241,11 +241,15 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
     needs_ai = analyzer.label != HeuristicAnalyzer.label
+    request = (db.get_run(run_id) or {}).get("request", {})
     completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
-                                         if not needs_ai or p.analyzed_by not in {"", "offline"}]
+                                         if not needs_ai or p.analyzed_by not in {"", "offline", "pending"}]
     unique = {p.fingerprint: p for p in raw}
     known = {p.fingerprint for p in completed} & unique.keys()
     pending = [p for fp, p in unique.items() if fp not in known]
+    if reanalyze_all and not request.get("reanalysis_active"):
+        db.mark_posts_pending(run_id)
+        db.update_run(run_id, request={**request, "reanalysis_active": True, "analysis_used_ai": True})
     prog.update(phase="analyzing", done=len(known), target=len(unique),
                 message=f"{analyzer.label} đang đọc {len(pending)} bài…")
 
@@ -272,7 +276,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     add_timings(db, run_id, summary=time.monotonic() - started)
     request = db.get_run(run_id)["request"]
     db.update_run(run_id, status="done", error=None, digest=digest,
-                  request={**request, "analysis_used_ai": needs_ai})
+                  request={**request, "analysis_used_ai": needs_ai, "reanalysis_active": False})
     prog.update(phase="done", message="Hoàn tất")
 
 

@@ -111,6 +111,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
   const when = parseTimestamp(run.created_at);
   const canContinue = canContinueAnalysis(run);
   const canReanalyze = canReanalyzeOffline(run);
+  const canReprocess = !!run.can_reprocess_ai;
   const failed = run.status === "error" || run.status === "analysis_failed";
   const counts = run.analysis_counts;
 
@@ -153,7 +154,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
       <hr className="rule-double mt-4" />
       {(q.platform === "reddit" || q.platform === "x") && <p className="mt-3 text-xs leading-relaxed text-ink-soft" role="note">{t(q.platform === "reddit" ? "cmp.warning.redditPolicy" : "cmp.warning.xPolicy")}</p>}
 
-      {failed || canContinue || canReanalyze ? (
+      {failed || canContinue || canReanalyze || canReprocess ? (
         <>
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
@@ -161,7 +162,8 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
-        {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
+        {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
+        {canReprocess && <details className="paper-card mt-5 rounded-2xl border border-accent/30 p-5 text-left"><summary className="interactive-tap cursor-pointer font-headline text-xl">{t("run.reprocessAI")}</summary><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.analysis_counts?.total ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 })}</p>{run.reanalysis_active && counts?.pending ? <p role="status" className="mt-2 text-sm text-warning">{t("run.reanalysisPending", { n: counts.pending })}</p> : null}<RetryAnalysis key={`reprocess-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></details>}
         {run.status === "done" && run.digest ? <Done run={run} meta={meta} tab={tab} setTab={setTab} /> : !!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
         </>
       ) : run.status !== "done" || !run.digest ? (
@@ -275,6 +277,7 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
   const resumeAI = !reanalyzeAll && run.request.ai_provider !== "offline";
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
   const submit = async () => {
+    if (reanalyzeAll && !window.confirm(t("run.confirmReanalyzeAI", { n: run.analysis_counts?.total ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 }))) return;
     setBusy(true); setError("");
     try { await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue"); onStarted(); }
     catch (e) { setError((e as Error).message); }

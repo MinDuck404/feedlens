@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import browser
-from .analyzer import HeuristicAnalyzer
+from .analyzer import HeuristicAnalyzer, estimate_classification_requests_for_count
 from .ai import (PROVIDERS, forget_models, list_models, pick_default, provider_status, resolve_provider_key,
                  user_keys)
 from .auth import CurrentUser, agent_user, current_user, issue_token, misconfigured
@@ -35,6 +35,7 @@ from .db import Database, EmailTaken
 from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
 from .messages import error_code, progress_message
+from .job_profile import load_profile
 from .cookies import CookieError, cookie_hint, parse_cookies
 from .pipeline import PROGRESS, _platform_locks, fail_run, run_cap, start_analysis, start_ingest, start_run, start_server_run
 from .ai.registry import preferred_provider
@@ -480,11 +481,22 @@ def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = Tr
     counts = db().analysis_counts(run_id)
     active = r["status"] in {"pending", "queued", "scraping", "analyzing"}
     can_continue = not active and db().can_continue_analysis(run_id)
+    analysis_used_ai = r["request"].get("analysis_used_ai", r.get("ai_label") not in {"", HeuristicAnalyzer.label})
+    can_reprocess_ai = (not active and analysis_used_ai and r["status"] in {"done", "analysis_failed"}
+                        and counts["total"] > 0)
+    topic_count = len(db().list_topics(user.id, enabled_only=True)) if not active else 0
+    has_cv = load_profile(db(), user.id) is not None if not active else bool(r["request"].get("job_mode"))
     result = {**r, "progress": progress_message(PROGRESS.get(run_id)),
               "posts_version": counts["offline"] + 2 * counts["ai"],
               "analysis_counts": counts,
               "can_continue_analysis": can_continue,
-              "can_reanalyze_ai": not can_continue and r["status"] == "done" and r.get("ai_label") == HeuristicAnalyzer.label and r.get("collected", 0) > 0,
+              "can_reanalyze_ai": (not can_continue and not analysis_used_ai and r["status"] == "done"
+                                   and counts["total"] > 0),
+              "can_reprocess_ai": can_reprocess_ai,
+              "reanalyze_requests_estimate": estimate_classification_requests_for_count(
+                  counts["total"], r["request"].get("job_mode", False), r["request"].get("keywords", []),
+                  r["request"].get("profile", ""), topic_count, has_cv=has_cv),
+              "reanalysis_active": bool(r["request"].get("reanalysis_active")),
               "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None}
     if posts:
         result["posts"] = [p.model_dump() for p in db().get_posts(run_id, include_raw=True)]
@@ -502,8 +514,8 @@ def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current
     r = _own_run(run_id, user)
     raw = db().get_analysis_posts(run_id)
     reanalyze_all = body.mode == "reanalyze_all"
-    if reanalyze_all and (r["status"] != "done" or r.get("ai_label") != HeuristicAnalyzer.label):
-        raise HTTPException(409, "Chỉ lượt đã hoàn tất bằng bộ lọc offline mới có thể gửi lại toàn bộ bài cho AI.")
+    if reanalyze_all and (r["status"] not in {"done", "analysis_failed"} or not raw):
+        raise HTTPException(409, "Lượt này chưa có bài đã lưu để phân tích lại bằng AI.")
     if not db().can_continue_analysis(run_id, reanalyze_all=reanalyze_all):
         raise HTTPException(409, "Lượt này không có bài chờ phân tích lại.")
     req = RunRequest(**{**r["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model})
@@ -512,12 +524,19 @@ def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current
         raise HTTPException(400, "Chưa có API key AI. Thêm key trong phần Cài đặt để phân tích bằng AI.")
     if not db().claim_analysis(run_id, req):
         raise HTTPException(409, "Lượt này đang được phân tích.")
-    if "scrape_report" in r["request"]:
-        db().update_run(run_id, request={**req.model_dump(), "scrape_report": r["request"]["scrape_report"]})
-    db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
     if reanalyze_all:
+        request = {**req.model_dump(), "analysis_used_ai": True, "reanalysis_active": True}
+        if "scrape_report" in r["request"]:
+            request["scrape_report"] = r["request"]["scrape_report"]
+        db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
+        db().mark_posts_pending(run_id)
+        db().update_run(run_id, request=request)
         start_analysis(db(), run_id, req, raw, user.id, reanalyze_all=True)
     else:
+        metadata = {key: r["request"][key] for key in ("scrape_report", "analysis_used_ai", "reanalysis_active")
+                    if key in r["request"]}
+        db().update_run(run_id, request={**req.model_dump(), **metadata})
+        db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
         start_analysis(db(), run_id, req, raw, user.id)
     return {"ok": True}
 
