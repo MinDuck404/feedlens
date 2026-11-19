@@ -173,6 +173,32 @@ def test_profile_location_conflict_is_not_applied_to_remote_jobs():
 
     assert _location_conflict("HCM or remote", "Hà Nội", "onsite") is True
     assert _location_conflict("HCM or remote", "Hà Nội", "remote") is False
+    assert _location_conflict("HCM", "Chưa rõ", "onsite") is False
+    assert _location_conflict("HCM", "Q.12, TP.HCM", "onsite") is False
+    assert _location_conflict("các vùng lân cận HCM or remote", "Bình Dương", "onsite") is False
+    assert _location_conflict("HCM", "Bình Dương", "onsite") is True
+
+
+def test_score_drops_a_wrong_ai_location_flag_when_the_place_fits():
+    from feedlens.analyzer import _score_job
+
+    profile = JobProfile(markdown="", primary_roles=["Backend Developer"])
+    fits = JobInfo(title="IT Helpdesk", location="Q.12, TP.HCM", work_mode="onsite", match_type="primary",
+                   constraint_flags=["location"])
+    assert "location" not in _score_job(fits, profile, "junior", 1, "HCM").constraint_flags
+    elsewhere = JobInfo(title="Dev", location="Hà Nội", work_mode="onsite", match_type="primary")
+    assert "location" in _score_job(elsewhere, profile, "junior", 1, "HCM").constraint_flags
+    unknown = JobInfo(title="Dev", location="Chưa rõ", work_mode="onsite", match_type="primary",
+                      constraint_flags=["location"])
+    assert "location" in _score_job(unknown, profile, "junior", 1, "HCM").constraint_flags  # code can't tell: keep AI flag
+
+
+def test_location_extraction_requires_a_recognized_location():
+    from feedlens.analyzer import _extract_location
+
+    assert _extract_location("làm việc tại một trong những công ty startup hàng đầu") == ""
+    assert "hcm" in _extract_location("📍 Địa điểm: Q.12, TP.HCM")
+    assert "ha noi" in _extract_location("Office: Cầu Giấy, Hà Nội")
 
 
 def test_llm_trusts_semantic_primary_for_variant_role_titles():

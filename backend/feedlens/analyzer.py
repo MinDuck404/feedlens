@@ -652,36 +652,102 @@ def _job_salary(text: str) -> str:
 
 
 def _location_conflict(preferences: str, location: str, work_mode: str = "") -> bool:
-    if not preferences or not location or _work_mode_value(work_mode) == "remote":
+    if _work_mode_value(work_mode) == "remote":
         return False
-    def fold(value):
-        value = unicodedata.normalize("NFKD", value.casefold().replace("đ", "d"))
-        return "".join(char for char in value if not unicodedata.combining(char))
-
-    pref, place = fold(preferences), fold(location)
-    if any(term in place for term in ("toan quoc", "vietnam", "viet nam")):
+    expected = _location_regions(preferences)
+    actual = _location_regions(location)
+    if not expected or not actual or actual & expected:
         return False
-    if any(word in pref for word in ("hcm", "tp.hcm", "hochiminh", "saigon")):
-        return not any(word in place for word in ("hcm", "ho chi minh", "hochiminh", "saigon"))
-    if any(word in pref for word in ("ha noi", "hanoi")):
-        return not any(word in place for word in ("ha noi", "hanoi"))
-    return False
+    if "hcm" in expected and _nearby_locations_allowed(preferences):
+        if actual <= _HCM_NEIGHBOR_REGIONS:
+            return False
+    return True
 
 
 def _extract_location(text: str) -> str:
-    match = re.search(r"(?i)(?:địa điểm|location|working in|làm việc tại)\s*[:：-]?\s*([^\n,;|]+)", text)
-    return match[1].strip() if match else ""
+    regions = []
+    for line in text.splitlines():
+        folded = _fold_location(line)
+        anchored = re.search(r"(?:dia diem|noi lam viec|location|workplace|office|working (?:in|at)|lam viec tai|lam viec o)", folded)
+        bracket = re.search(r"\[([^\]]+)\]", line)
+        candidate = line if anchored else bracket[1] if bracket else ""
+        if candidate and _location_regions(candidate):
+            regions.extend(sorted(_location_regions(candidate)))
+    if not regions:
+        return ""
+    return ", ".join(dict.fromkeys(regions))
+
+
+def _fold_location(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value.casefold().replace("đ", "d"))
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+
+_UNKNOWN_LOCATIONS = {"", "chua ro", "khong neu", "khong ro", "n a", "na", "unknown", "unspecified",
+                      "not specified", "khong co", "negotiable"}
+_HCM_DISTRICTS = {"quan 1", "quan 2", "quan 3", "quan 4", "quan 5", "quan 6", "quan 7", "quan 8",
+                  "quan 9", "quan 10", "quan 11", "quan 12", "q 1", "q 2", "q 3", "q 4", "q 5",
+                  "q 6", "q 7", "q 8", "q 9", "q 10", "q 11", "q 12", "thu duc", "binh thanh",
+                  "go vap", "tan binh", "tan phu", "phu nhuan", "binh tan", "hoc mon", "cu chi",
+                  "nha be", "can gio", "binh chanh", "thu thiem", "binh chieu", "an phu"}
+_HCM_NEIGHBOR_REGIONS = {"binh duong", "dong nai", "long an", "tay ninh", "ba ria vung tau", "tien giang"}
+_LOCATION_ALIASES = {
+    "hcm": ("hcm", "tp hcm", "tphcm", "ho chi minh", "ho chi minh city", "sai gon", "saigon"),
+    "ha noi": ("ha noi", "hanoi", "ha noi city"),
+    "can tho": ("can tho",), "da nang": ("da nang",), "hai phong": ("hai phong",),
+    "an giang": ("an giang",), "ba ria vung tau": ("ba ria vung tau", "vung tau"),
+    "bac giang": ("bac giang",), "bac kan": ("bac kan",), "bac lieu": ("bac lieu",),
+    "bac ninh": ("bac ninh",), "ben tre": ("ben tre",), "binh dinh": ("binh dinh",),
+    "binh duong": ("binh duong",), "binh phuoc": ("binh phuoc",), "binh thuan": ("binh thuan",),
+    "ca mau": ("ca mau",), "cao bang": ("cao bang",), "dak lak": ("dak lak", "daklak"),
+    "dak nong": ("dak nong", "daknong"), "dien bien": ("dien bien",), "dong nai": ("dong nai",),
+    "dong thap": ("dong thap",), "gia lai": ("gia lai",), "ha giang": ("ha giang",),
+    "ha nam": ("ha nam",), "ha tinh": ("ha tinh",), "hai duong": ("hai duong",),
+    "hau giang": ("hau giang",), "hoa binh": ("hoa binh",), "hung yen": ("hung yen",),
+    "khanh hoa": ("khanh hoa", "nha trang"), "kien giang": ("kien giang",), "kon tum": ("kon tum",),
+    "lai chau": ("lai chau",), "lam dong": ("lam dong", "da lat"), "lang son": ("lang son",),
+    "lao cai": ("lao cai",), "long an": ("long an",), "nam dinh": ("nam dinh",),
+    "nghe an": ("nghe an",), "ninh binh": ("ninh binh",), "ninh thuan": ("ninh thuan",),
+    "phu tho": ("phu tho",), "phu yen": ("phu yen",), "quang binh": ("quang binh",),
+    "quang nam": ("quang nam",), "quang ngai": ("quang ngai",), "quang ninh": ("quang ninh",),
+    "quang tri": ("quang tri",), "soc trang": ("soc trang",), "son la": ("son la",),
+    "tay ninh": ("tay ninh",), "thai binh": ("thai binh",), "thai nguyen": ("thai nguyen",),
+    "thanh hoa": ("thanh hoa",), "thua thien hue": ("thua thien hue", "hue"),
+    "tien giang": ("tien giang",), "tra vinh": ("tra vinh",), "tuyen quang": ("tuyen quang",),
+    "vinh long": ("vinh long",), "vinh phuc": ("vinh phuc",), "yen bai": ("yen bai",),
+    "singapore": ("singapore",), "bangkok": ("bangkok",), "kuala lumpur": ("kuala lumpur",),
+}
+
+
+def _location_regions(value: str) -> set[str]:
+    folded = _fold_location(value)
+    if folded in _UNKNOWN_LOCATIONS or any(marker in folded for marker in ("chua ro", "khong neu", "n a", "not specified")):
+        return set()
+    regions = set()
+    if any(re.search(r"(?<!\w)" + re.escape(area) + r"(?!\w)", folded) for area in _HCM_DISTRICTS):
+        regions.add("hcm")
+    for region, aliases in _LOCATION_ALIASES.items():
+        for alias in aliases:
+            pattern = r"(?<!\w)" + re.escape(_fold_location(alias)) + r"(?!\w)"
+            if re.search(pattern, folded):
+                regions.add(region)
+                break
+    return regions
+
+
+def _nearby_locations_allowed(preferences: str) -> bool:
+    folded = _fold_location(preferences)
+    return any(term in folded for term in ("lan can", "ben canh", "nearby", "surrounding", "neighboring"))
 
 
 def _work_mode_value(value: str) -> str:
     folded = value.casefold()
-    if any(term in folded for term in ("remote", "wfh", "từ xa", "work from home")):
-        return "remote"
-    if any(term in folded for term in ("hybrid", "kết hợp", "mix")):
-        return "hybrid"
-    if any(term in folded for term in ("onsite", "on-site", "văn phòng", "office", "tại chỗ")):
-        return "onsite"
-    return ""
+    remote = any(term in folded for term in ("remote", "wfh", "từ xa", "work from home"))
+    onsite = any(term in folded for term in ("onsite", "on-site", "văn phòng", "office", "tại chỗ"))
+    if any(term in folded for term in ("hybrid", "kết hợp", "mix")) or (remote and onsite):
+        return "hybrid"  # e.g. "Onsite / WFH on Fridays" is hybrid, not remote
+    return "remote" if remote else "onsite" if onsite else ""
 
 
 def _work_mode_conflict(preferred: list[str], actual: str) -> bool:
@@ -700,9 +766,16 @@ def _score_job(job: JobInfo, profile: JobProfile, user_level: str, user_years: f
     job.constraint_flags = list(dict.fromkeys(job.constraint_flags))
 
     preferences = " ".join(profile.criteria.locations) + " " + notes
-    location = job.location or _extract_location(source_text)
-    if _location_conflict(preferences, location, job.work_mode) and "location" not in job.constraint_flags:
-        job.constraint_flags.append("location")
+    location = job.location if _location_regions(job.location) else _extract_location(source_text)
+    if _location_conflict(preferences, location, job.work_mode):
+        if "location" not in job.constraint_flags:
+            job.constraint_flags.append("location")
+    elif _location_regions(preferences) & _location_regions(location) or (
+            "hcm" in _location_regions(preferences) and _nearby_locations_allowed(preferences)
+            and _location_regions(location) and _location_regions(location) <= _HCM_NEIGHBOR_REGIONS):
+        # Code can tell the place fits: drop a location flag the AI set by mistake. Remote jobs keep
+        # an AI flag, which may mean "remote only for residents of another country".
+        job.constraint_flags = [flag for flag in job.constraint_flags if flag != "location"]
     if _work_mode_conflict(profile.criteria.work_modes, job.work_mode) and "work_mode" not in job.constraint_flags:
         job.constraint_flags.append("work_mode")
 
