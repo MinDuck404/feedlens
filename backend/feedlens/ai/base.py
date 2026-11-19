@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -11,6 +12,20 @@ MAX_OUTPUT_TOKENS = 8192  # Shared with quota reservations; provider output must
 
 class AIError(RuntimeError):
     pass
+
+
+class AIOutputTruncated(AIError):
+    """The model stopped at its output limit or returned invalid JSON."""
+
+
+def decode_output(text: str) -> dict:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        raise AIOutputTruncated("AI returned invalid JSON") from None
+    if not isinstance(data, dict):
+        raise AIOutputTruncated("AI output must be a JSON object")
+    return data
 
 
 @dataclass(frozen=True)

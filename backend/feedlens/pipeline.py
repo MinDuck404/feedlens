@@ -221,12 +221,12 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
                 _REPORT_FLUSH.reset(flush_token)
                 scrape_report.setdefault("timings", {})["scrape_total"] = round(time.monotonic() - started, 3)
                 save_scrape_report(db, run_id, req, scrape_report)
-        _analyze(db, run_id, req, raw, analyzer, report)
+        _analyze(db, run_id, req, raw, analyzer)
     except Exception as e:  # noqa: BLE001 — lỗi được ghi lại cho UI
         _fail(db, run_id, e)
 
 
-def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer, report,
+def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer,
              reanalyze_all: bool = False) -> None:
     prog = PROGRESS.setdefault(run_id, {})
     db.save_raw_posts(run_id, raw)
@@ -237,7 +237,6 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         analyzer.notify = lambda msg: prog.update(message=msg)
     if hasattr(analyzer, "language"):
         analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
-    prog.update(phase="analyzing", done=0, target=len(raw), message=f"{analyzer.label} đang đọc {len(raw)} bài…")
     owner = (db.get_run(run_id) or {}).get("user_id")
     if req.job_mode:
         analyzer.job_profile = load_profile(db, owner)
@@ -245,17 +244,26 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     needs_ai = analyzer.label != HeuristicAnalyzer.label
     completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
                                          if not needs_ai or p.analyzed_by not in {"", "offline"}]
-    known = {p.fingerprint for p in completed}
-    pending = [p for p in raw if p.fingerprint not in known]
-    analyzer.on_batch = lambda batch: db.save_batch(run_id, batch)
+    unique = {p.fingerprint: p for p in raw}
+    known = {p.fingerprint for p in completed} & unique.keys()
+    pending = [p for fp, p in unique.items() if fp not in known]
+    prog.update(phase="analyzing", done=len(known), target=len(unique),
+                message=f"{analyzer.label} đang đọc {len(pending)} bài…")
+
+    def checkpoint(batch):
+        db.save_batch(run_id, batch)
+        known.update(p.fingerprint for p in batch if not needs_ai or p.analyzed_by not in {"", "offline"})
+        prog.update(done=len(known), message=f"Đã phân tích {len(known)}/{len(unique)}")
+
+    analyzer.on_batch = checkpoint
     if pending:
         started = time.monotonic()
         try:
-            analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, report("analyzing"))
+            analyzed = analyzer.classify(pending, req.job_mode, req.keywords, req.profile, lambda *_: None)
             returned = {post.fingerprint for post in analyzed}
             if any(post.fingerprint not in returned for post in pending):
                 raise RuntimeError("AI chưa đọc hết các bài đã lưu. Bấm gửi tiếp để chỉ gửi những bài AI chưa đọc.")
-            db.save_batch(run_id, analyzed)
+            checkpoint(analyzed)
         finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
             add_timings(db, run_id, analysis=time.monotonic() - started)
     analyzed = db.get_posts(run_id)
@@ -283,13 +291,6 @@ def fail_run(db: Database, run_id: int, message: str) -> None:
 def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None,
                      reanalyze_all: bool = False) -> None:
     """Bài đã được agent trên máy người dùng lướt sẵn; server chỉ phân tích."""
-    prog = PROGRESS.setdefault(run_id, {})
-
-    def report(phase: str):
-        def _fn(n: int, msg: str):
-            prog.update(phase=phase, done=n, target=len(raw), message=msg)
-        return _fn
-
     try:
         if not db.get_raw_posts(run_id):
             if req.only_new:
@@ -297,7 +298,7 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
                 raw = [p for p in raw if p.fingerprint not in known]
             db.save_raw_posts(run_id, raw)
         analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
-        _analyze(db, run_id, req, raw, analyzer, report, reanalyze_all=reanalyze_all)
+        _analyze(db, run_id, req, raw, analyzer, reanalyze_all=reanalyze_all)
     except Exception as e:  # noqa: BLE001
         _fail(db, run_id, e)
 
@@ -354,7 +355,7 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
         finally:
             SERVER_SLOT.release()
         db.set_session_status(user_id, req.platform, "ok", f"Lướt được {len(raw)} bài từ server.")
-        _analyze(db, run_id, req, raw, analyzer, report)
+        _analyze(db, run_id, req, raw, analyzer)
     except CookieInvalid as e:
         db.set_session_status(user_id, req.platform, "invalid", str(e))
         _fail(db, run_id, e)

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
-
-from .base import AIError, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo
+from .base import AIError, AIOutputTruncated, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo, decode_output
 
 # Model OpenAI không dùng được cho chat/văn bản
 _SKIP = ("audio", "realtime", "tts", "transcribe", "image", "embedding", "moderation", "search", "whisper", "dall-e")
@@ -30,11 +28,13 @@ class OpenAIProvider(AIProvider):
                              "schema": schema, "strict": True}},
         )
         if resp.status == "incomplete":
+            if getattr(resp.incomplete_details, "reason", None) == "max_output_tokens":
+                raise AIOutputTruncated("OpenAI output reached max_output_tokens")
             raise AIError(f"OpenAI trả về chưa hoàn chỉnh: {resp.incomplete_details}")
         text = resp.output_text
         if not text:
             raise AIError("OpenAI không trả nội dung (có thể đã từ chối)")
-        return json.loads(text)
+        return decode_output(text)
 
     def list_models(self) -> list[str]:
         models = [m for m in self.client.models.list()

@@ -43,7 +43,8 @@ class Database:
         """Nâng cấp nhẹ cho DB tạo từ phiên bản trước: thêm cột còn thiếu."""
         json_type = "JSONB" if self.engine.dialect.name == "postgresql" else "JSON"
         wanted = {
-            "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type},
+            "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type,
+                     "raw_fingerprints": json_type},
             "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
             "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''",
                       "analyzed_by": "VARCHAR(120) NOT NULL DEFAULT ''"},
@@ -275,6 +276,9 @@ class Database:
     def update_run(self, run_id: int, **fields: Any) -> None:
         if isinstance(fields.get("digest"), Digest):
             fields["digest"] = fields["digest"].model_dump()
+        if "raw_posts" in fields and "raw_fingerprints" not in fields:
+            fields["raw_fingerprints"] = list(dict.fromkeys(
+                RawPost.model_validate(p).fingerprint for p in fields["raw_posts"] or [] if isinstance(p, dict)))
         with self.Session.begin() as s:
             row = s.get(RunRow, run_id)
             for k, v in fields.items():
@@ -337,7 +341,8 @@ class Database:
 
     # ---------------------------------------------------------------- posts
     def save_raw_posts(self, run_id: int, posts: list[RawPost]) -> None:
-        self.update_run(run_id, raw_posts=[p.model_dump(include=set(RawPost.model_fields)) for p in posts], collected=len(posts))
+        self.update_run(run_id, raw_posts=[p.model_dump(include=set(RawPost.model_fields)) for p in posts],
+                        raw_fingerprints=list(dict.fromkeys(p.fingerprint for p in posts)), collected=len(posts))
 
     def get_raw_posts(self, run_id: int) -> list[RawPost]:
         with self.Session() as s:
@@ -364,13 +369,24 @@ class Database:
 
     def analysis_counts(self, run_id: int) -> dict[str, int]:
         with self.Session() as s:
-            labels = s.execute(select(PostRow.analyzed_by, func.count()).where(PostRow.run_id == run_id)
-                               .group_by(PostRow.analyzed_by)).all()
-            collected = s.scalar(select(RunRow.collected).where(RunRow.id == run_id)) or 0
-        saved = sum(count for _, count in labels)
-        ai = sum(count for label, count in labels if label not in {"", "offline"})
-        total = max(collected, saved)
-        return {"ai": ai, "offline": saved - ai, "pending": total - saved, "total": total}
+            rows = s.execute(select(PostRow.fingerprint, PostRow.analyzed_by).where(PostRow.run_id == run_id))
+            saved = set()
+            ai = set()
+            for fingerprint, label in rows:
+                saved.add(fingerprint)
+                if label not in {"", "offline"}:
+                    ai.add(fingerprint)
+            raw_fingerprints = s.scalar(select(RunRow.raw_fingerprints).where(RunRow.id == run_id))
+            if raw_fingerprints is None:
+                raw = s.scalar(select(RunRow.raw_posts).where(RunRow.id == run_id)) or []
+                raw_fingerprints = [RawPost.model_validate(p).fingerprint for p in raw]
+        if fingerprints := set(raw_fingerprints):
+            saved.intersection_update(fingerprints)
+            ai.intersection_update(fingerprints)
+            pending = len(fingerprints - saved)
+        else:
+            pending = 0
+        return {"ai": len(ai), "offline": len(saved - ai), "pending": pending, "total": len(saved) + pending}
 
     def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         """Checkpoint completed batches without replacing IDs used by applied-job markers."""
@@ -405,6 +421,7 @@ class Database:
                 if p.job_seed:
                     raw[p.fingerprint] = p.model_dump(include=set(RawPost.model_fields))
             run.raw_posts = list(raw.values())
+            run.raw_fingerprints = list(raw)
 
     def known_fingerprints(self, platform: str, user_id: int | None = None) -> set[str]:
         q = (select(PostRow.fingerprint).join(RunRow)
@@ -469,10 +486,9 @@ class Database:
                     p.sponsored, p.job_seed = raw.sponsored, raw.job_seed
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
-            raw = self.get_raw_posts(run_id)
-            if raw:
-                return [by_fingerprint.get(p.fingerprint) or AnalyzedPost(**p.model_dump(), id=-(i + 1), analyzed=False)
-                        for i, p in enumerate(raw)]
+            if raw_by_fp:
+                return [by_fingerprint.get(fp) or AnalyzedPost(**p.model_dump(), id=-(i + 1), analyzed=False)
+                        for i, (fp, p) in enumerate(raw_by_fp.items())]
         return posts
 
 

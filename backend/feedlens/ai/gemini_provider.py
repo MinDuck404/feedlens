@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 import os
 
-from .base import AIError, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo
+from .base import AIError, AIOutputTruncated, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo, decode_output
 
 TIMEOUT_MS = 180_000
 
@@ -36,10 +35,12 @@ class GeminiProvider(AIProvider):
                 response_json_schema=schema,
             ),
         )
+        reason = resp.candidates[0].finish_reason if resp.candidates else "unknown"
+        if reason == "MAX_TOKENS":
+            raise AIOutputTruncated("Gemini output reached MAX_TOKENS")
         if not resp.text:
-            reason = resp.candidates[0].finish_reason if resp.candidates else "unknown"
             raise AIError(f"Gemini không trả nội dung (finish_reason={reason})")
-        return json.loads(resp.text)
+        return decode_output(resp.text)
 
     def list_models(self) -> list[str]:
         out = []

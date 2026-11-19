@@ -113,7 +113,7 @@ def test_profile_once_per_batch_and_adjacent_cap(allow, enabled, flags, score):
     fake = SimpleNamespace(complete_json=complete, model="fake", info=SimpleNamespace(name="Fake"))
     analyzer = LLMAnalyzer(fake)
     analyzer.job_profile = JobProfile(markdown="UNIQUE_CV_MARKER Python", allow_adjacent=allow, adjacent_roles=[{"role": "QA", "reason": "API skills", "enabled": enabled}])
-    posts = [RawPost(platform="x", source="s", text=f"Hiring QA tester {i}") for i in range(21)]
+    posts = [RawPost(platform="x", source="s", text=f"Hiring QA tester {i}") for i in range(61)]
     result = analyzer.classify(posts, True, [], "RUN_NOTE_MARKER", lambda *args: None)
     assert len(prompts) == 2
     assert all(p.count("UNIQUE_CV_MARKER") == 1 and p.count("RUN_NOTE_MARKER") == 1 for p in prompts)
@@ -144,7 +144,7 @@ def test_job_fixtures_through_pipeline_with_fake_provider(tmp_path, profile_id):
     req = RunRequest(platform="facebook", job_mode=True, profile="Extra notes", ai_provider="offline")
     rid = db.create_run(req, uid)
     raw = [RawPost(platform="facebook", source=r["source_group"], text=r["raw_text"]) for r in rows]
-    pipeline._analyze(db, rid, req, raw, analyzer, lambda phase: lambda *args: None)
+    pipeline._analyze(db, rid, req, raw, analyzer)
     assert db.get_run(rid, uid)["status"] == "done"
     posts = db.get_posts(rid)
     assert len(posts) == 10

@@ -1,3 +1,4 @@
+import json
 import re
 from types import SimpleNamespace
 
@@ -348,6 +349,46 @@ def test_quota_error_on_omitted_item_retry_preserves_successful_items(cloud, mon
     assert detail["analysis_counts"] == {"ai": 1, "offline": 0, "pending": 1, "total": 2}
     assert detail["posts"][0]["summary"] == "AI summary"
     assert detail["can_continue_analysis"] is True
+
+
+@pytest.mark.parametrize("broken_singleton", [False, True])
+def test_truncated_classification_splits_batches_and_keeps_all_posts(cloud, monkeypatch, broken_singleton):
+    client = cloud(); headers = _signup(client)
+    database = api.db()
+    user_id = database.get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook", ai_provider="openai", job_mode=True, keywords=["Python"])
+    rid = database.create_run(req, user_id)
+    raw = [RawPost(platform="facebook", source="feed", text=f"Tuyển Python Developer vị trí {i}. Lương 25 triệu.")
+           for i in range(4)]
+    calls = []
+
+    def reply(system, prompt, schema, effort):
+        if schema is not CLASSIFY_SCHEMA:
+            return {"overall": "Summary", "categories": [], "action_items": []}
+        items = re.findall(r'<post id="(\d+)"[^>]*>\n([^\n]+)', prompt)
+        posts = [body for _, body in items]
+        calls.append(posts)
+        if len(posts) > 2 or (broken_singleton and raw[-1].text in posts):
+            return json.loads('{"items": [')
+        return {"items": [{"id": int(i), "category": "job", "summary": "AI summary", "is_job": True,
+                          "job": {"title": "Python Developer", "match_score": 82}} for i, _ in items]}
+
+    provider = SimpleNamespace(info=SimpleNamespace(name="OpenAI"), model="test-lite", complete_json=reply)
+    analyzer = LLMAnalyzer(provider)
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: analyzer)
+    pipeline.execute_analysis(database, rid, req, raw, user_id)
+
+    expected = [raw, raw[:2], raw[2:]] + ([raw[2:3], raw[3:]] if broken_singleton else [])
+    detail = client.get(f"/api/runs/{rid}", headers=headers).json()
+    assert calls == [[p.text for p in batch] for batch in expected]
+    assert detail["status"] == "done"
+    assert detail["analysis_counts"] == {"ai": 4 - broken_singleton, "offline": int(broken_singleton),
+                                          "pending": 0, "total": 4}
+    assert detail["can_continue_analysis"] is broken_singleton
+    assert [p["text"] for p in detail["posts"]] == [p.text for p in raw]
+    if broken_singleton:
+        assert detail["posts"][-1]["analyzed_by"] == "offline"
+        assert detail["posts"][-1]["job"]["salary"] == "25 triệu"
 
 
 # =====================================================================

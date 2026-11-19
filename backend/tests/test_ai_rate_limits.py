@@ -1,10 +1,15 @@
 """AI quá tải / hết hạn mức: chờ đúng thời gian nhà cung cấp yêu cầu, không thử lại vô ích,
 và các lô chạy song song không đổi model dự phòng chồng lên nhau."""
 import threading
+from types import SimpleNamespace as Obj
 
 import pytest
 
 import feedlens.analyzer as an
+from feedlens.ai.anthropic_provider import AnthropicProvider
+from feedlens.ai.base import AIOutputTruncated
+from feedlens.ai.gemini_provider import GeminiProvider
+from feedlens.ai.openai_provider import OpenAIProvider
 from feedlens.analyzer import LLMAnalyzer
 from tests.test_core import SAMPLE, FakeProvider
 
@@ -12,6 +17,27 @@ PER_MINUTE = ("429 RESOURCE_EXHAUSTED. Quota exceeded for metric: generate_conte
               "limit: 15, quotaId: GenerateRequestsPerMinutePerProjectPerModel-FreeTier. Please retry in 37.4s.")
 PER_DAY = ("429 RESOURCE_EXHAUSTED. Quota exceeded for metric: generate_content_free_tier_requests, "
            "limit: 20, quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier. Please retry in 5h12m.")
+
+
+@pytest.mark.parametrize("provider_class", [GeminiProvider, OpenAIProvider, AnthropicProvider])
+@pytest.mark.parametrize("truncated", [True, False])
+def test_providers_report_output_limit_and_invalid_json(provider_class, truncated):
+    text = "{}" if truncated else '{"items": ['
+    provider = object.__new__(provider_class)
+    provider.model = "test-model"
+    if provider_class is GeminiProvider:
+        provider.genai = Obj(types=Obj(GenerateContentConfig=Obj))
+        response = Obj(text=text, candidates=[Obj(finish_reason="MAX_TOKENS" if truncated else "STOP")])
+        provider.client = Obj(models=Obj(generate_content=lambda **kwargs: response))
+    elif provider_class is OpenAIProvider:
+        response = Obj(output_text=text, status="incomplete" if truncated else "completed",
+                       incomplete_details=Obj(reason="max_output_tokens") if truncated else None)
+        provider.client = Obj(responses=Obj(create=lambda **kwargs: response))
+    else:
+        response = Obj(content=[Obj(type="text", text=text)], stop_reason="max_tokens" if truncated else "end_turn")
+        provider.client = Obj(beta=Obj(messages=Obj(create=lambda **kwargs: response)))
+    with pytest.raises(AIOutputTruncated):
+        provider.complete_json("system", "prompt", {})
 
 
 def test_waits_the_delay_the_provider_asks_for(monkeypatch):

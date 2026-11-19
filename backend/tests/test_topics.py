@@ -67,9 +67,9 @@ def test_llm_sends_topics_once_per_batch_and_drops_unknown_ids():
 
     analyzer, prompts = fake_llm(handler)
     analyzer.topics = topics
-    raw = [RawPost(platform="facebook", source="g", text=f"post {i}") for i in range(25)]
+    raw = [RawPost(platform="facebook", source="g", text=f"post {i}") for i in range(61)]
     out = analyzer.classify(raw, False, [], "", lambda n, m: None)
-    assert len(prompts) == 2  # 2 lô (20 + 5)
+    assert len(prompts) == 2
     assert all(p.count("UNIQUE_TOPIC_MARKER") == 1 for p, _ in prompts)
     assert out[0].topic_ids == [5] and out[0].topic_reason == "about skills"
     assert out[1].topic_ids == [] and out[1].topic_reason == ""

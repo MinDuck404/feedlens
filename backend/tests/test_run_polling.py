@@ -1,7 +1,8 @@
 """Polling metadata never serializes the run's full post corpus."""
 import pytest
 
-from feedlens import api
+from feedlens import api, pipeline
+from feedlens.analyzer import HeuristicAnalyzer
 from feedlens.models import AnalyzedPost, RawPost, RunRequest
 from tests.test_cloud import cloud, _signup
 
@@ -48,3 +49,48 @@ def test_light_detail_500_posts_is_small_and_version_tracks_checkpoints(cloud):
     terminal = client.get(f"/api/runs/{rid}?posts=0", headers=headers).json()
     assert terminal["can_continue_analysis"] is True and terminal["error_code"] == "error.ai_auth"
     assert "posts" not in terminal
+
+
+def test_resumed_analysis_reports_unique_progress_and_only_sends_missing_posts(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    db = api.db()
+    uid = db.get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook", ai_provider="openai")
+    rid = db.create_run(req, uid, status="analysis_failed")
+    raw = [RawPost(platform="facebook", source="feed", text=f"Observed post {i}") for i in (1, 2, 2, 3)]
+    db.save_raw_posts(rid, raw)
+    db.save_batch(rid, [AnalyzedPost(**raw[0].model_dump(), analyzed_by="Fake AI")])
+    db.save_batch(rid, [AnalyzedPost(**raw[-1].model_dump(), analyzed_by="offline")])
+
+    auth = f"/api/runs/{rid}"
+    before = client.get(auth, headers=headers).json()
+    assert before["analysis_counts"] == {"ai": 1, "offline": 1, "pending": 1, "total": 3}
+    assert len(before["posts"]) == 3
+
+    class FakeAI(HeuristicAnalyzer):
+        label = "Fake AI"
+        notify = None
+
+        def classify(self, posts, *args):
+            assert [p.text for p in posts] == [raw[1].text, raw[-1].text]
+            self.notify("Đang chờ hạn mức phút của Fake AI (fake-model): 8 giây")
+            waiting = client.get(f"{auth}?posts=0", headers=headers).json()["progress"]
+            assert (waiting["done"], waiting["target"]) == (1, 3)
+            assert waiting["message_code"] == "progress.quota_wait"
+            result = super().classify(posts, *args)
+            result[1].analyzed_by = "offline"  # Still omitted by AI after retry.
+            self.on_batch(result)
+            checkpoint = client.get(f"{auth}?posts=0", headers=headers).json()
+            assert (checkpoint["progress"]["done"], checkpoint["progress"]["target"]) == (2, 3)
+            assert checkpoint["analysis_counts"]["ai"] == 2
+            return result
+
+    monkeypatch.setattr(api, "_check_ai", lambda *a: "openai")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: FakeAI())
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+    assert client.post(f"{auth}/analysis", headers=headers, json={"ai_provider": "openai"}).status_code == 200
+    detail = client.get(auth, headers=headers).json()
+    assert detail["status"] == "done"
+    assert detail["analysis_counts"] == {"ai": 2, "offline": 1, "pending": 0, "total": 3}
+    assert (detail["progress"]["done"], detail["progress"]["target"]) == (2, 3)
+    assert detail["collected"] == 4

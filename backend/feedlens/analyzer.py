@@ -15,13 +15,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
+from .ai.base import AIOutputTruncated
 from .ai.registry import KeyCredential
 from .ai.scheduler import Candidate, MAX_OUTPUT, QuotaScheduler, scheduler_for
 from .job_profile import JobProfile, matching_context
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
 
-BATCH_SIZE = 20
-MISSING_ITEM_BATCH_SIZE = 5
+BATCH_SIZE = 60
+CLASSIFY_OUTPUT_TOKENS_PER_ITEM = 120
+JOB_OUTPUT_TOKENS_PER_ITEM = 180
 PARALLEL_BATCHES = 4  # số lô gửi AI cùng lúc
 MAX_POST_CHARS = 3000  # bài cực dài bị cắt để giữ chi phí mỗi lô ổn định
 ProgressFn = Callable[[int, str], None]
@@ -351,15 +353,30 @@ class LLMAnalyzer:
             return res
 
         def run_batch(batch: list[tuple[int, RawPost]]) -> tuple[dict[int, AnalyzedPost], Exception | None]:
-            res = classify_batch(batch)
-            missing = [(index, post) for index, post in batch if index not in res]
-            for start in range(0, len(missing), MISSING_ITEM_BATCH_SIZE):
+            res: dict[int, AnalyzedPost] = {}
+            malformed = set()
+
+            def request(items: list[tuple[int, RawPost]]) -> None:
                 try:
-                    res.update(classify_batch(missing[start:start + MISSING_ITEM_BATCH_SIZE]))
-                except Exception as error:
-                    # Keep successful results from this batch even when its retry hits a quota error.
-                    return res, error
-            remaining = [(index, post) for index, post in missing if index not in res]
+                    res.update(classify_batch(items))
+                except (AIOutputTruncated, json.JSONDecodeError):
+                    if len(items) == 1:
+                        malformed.add(items[0][0])
+                        return
+                    midpoint = len(items) // 2
+                    request(items[:midpoint])
+                    request(items[midpoint:])
+
+            try:
+                request(batch)
+                missing = [(index, post) for index, post in batch if index not in res and index not in malformed]
+                if missing:
+                    request(missing)
+            except Exception as error:
+                # Preserve successful results if a later request hits a quota error.
+                return res, error
+
+            remaining = [(index, post) for index, post in batch if index not in res]
             if remaining:
                 offline = HeuristicAnalyzer()
                 offline.job_profile, offline.topics = cv_profile, topics
@@ -368,17 +385,24 @@ class LLMAnalyzer:
             return res, None
 
         # Các lô độc lập nhau -> gửi song song để nhanh hơn, giữ nguyên thứ tự bài
-        tpms = [self.scheduler.limits(c).tpm for c in self.candidates if not c.disabled and self.scheduler.limits(c).tpm]
-        context_tokens = (len(job_ctx) + len(topic_ctx) + len(system_prompt(self.language))) // 3 + MAX_OUTPUT
+        limits = [self.scheduler.limits(c).tpm for c in self.candidates if not c.disabled]
+        tpm = min((limit for limit in limits if limit is not None and limit > 0), default=None)
+        context_tokens = (len(job_ctx) + len(topic_ctx) + len(system_prompt(self.language))) // 3 + MAX_OUTPUT + 150
         batches = []
         for known_jobs in (False, True):
+            per_item = (JOB_OUTPUT_TOKENS_PER_ITEM if known_jobs or job_mode or keywords or profile
+                        else CLASSIFY_OUTPUT_TOKENS_PER_ITEM)
+            if topics:
+                per_item += 40
+            # Leave room for JSON framing and model output that exceeds the per-item estimate.
+            batch_size = min(BATCH_SIZE, max(1, (MAX_OUTPUT * 9 // 10) // per_item))
             indexed = [(i, p) for i, p in enumerate(posts) if (p.job_seed is not None) == known_jobs]
             batch, tokens = [], context_tokens
             for item in indexed:
                 p = item[1]
                 estimate = (len(p.text[:MAX_POST_CHARS]) + len(p.author) + len(p.source)
                             + (len(p.job_seed.model_dump_json()) if p.job_seed else 0)) // 3 + 50
-                if batch and (len(batch) >= BATCH_SIZE or tpms and tokens + estimate > min(tpms) // 3):
+                if batch and (len(batch) >= batch_size or tpm is not None and tokens + estimate > tpm // 3):
                     batches.append(batch)
                     batch, tokens = [], context_tokens
                 batch.append(item); tokens += estimate

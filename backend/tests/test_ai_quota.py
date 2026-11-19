@@ -30,6 +30,59 @@ class Provider:
         return {"ok": True}
 
 
+@pytest.mark.parametrize("job_mode,tpm,count,expected_batches", [
+    (False, 250_000, 1200, 20),
+    (True, 250_000, 1200, 30),
+    (True, 30_000, 100, None),
+])
+def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode, tpm, count, expected_batches, monkeypatch):
+    import re
+    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.models import RawPost
+
+    clock = Clock()
+    provider = Provider("gemini-3.5-flash-lite", clock)
+    scheduler = QuotaScheduler(default_limits=lambda *a: Limits(tpm=tpm))
+    analyzer = LLMAnalyzer(provider, scheduler=scheduler)
+    sizes = []
+
+    def reply(prompt, schema, effort):
+        ids = re.findall(r'<post id="(\d+)"', prompt)
+        sizes.append(len(ids))
+        return {"items": [{"id": int(i), "category": "news", "summary": "Read", "is_job": False} for i in ids]}
+
+    monkeypatch.setattr(analyzer, "_json_call", reply)
+    raw = [RawPost(platform="facebook", source="feed", text=f"Post {i} " + "a" * 600) for i in range(count)]
+    assert len(analyzer.classify(raw, job_mode, [], "", lambda *a: None)) == count
+    assert sum(sizes) == count and max(sizes) <= 60
+    if expected_batches:
+        assert len(sizes) == expected_batches and max(sizes) > 20
+    else:
+        assert max(sizes) < 20
+
+
+def test_omitted_items_from_a_large_batch_share_one_retry(monkeypatch):
+    import re
+    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.models import RawPost
+
+    analyzer = LLMAnalyzer(Provider("gemini-3.5-flash-lite", Clock()))
+    calls = []
+
+    def reply(prompt, schema, effort):
+        items = re.findall(r'<post id="(\d+)"[^>]+>\n(Post \d+)', prompt)
+        calls.append([body for _, body in items])
+        return {"items": [{"id": int(i), "category": "news", "summary": "Read", "is_job": False}
+                          for i, _ in (items[:20] if len(calls) == 1 else items)]}
+
+    monkeypatch.setattr(analyzer, "_json_call", reply)
+    raw = [RawPost(platform="facebook", source="feed", text=f"Post {i}") for i in range(40)]
+    result = analyzer.classify(raw, True, [], "", lambda *a: None)
+    assert calls == [[p.text for p in raw], [p.text for p in raw[20:]]]
+    assert [p.text for p in result] == [p.text for p in raw]
+    assert all(p.analyzed_by == analyzer.label for p in result)
+
+
 def test_twenty_five_batches_never_exceed_five_requests_per_minute():
     clock = Clock()
     provider = Provider("gemini-3.8-flash", clock)

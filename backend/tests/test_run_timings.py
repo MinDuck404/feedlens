@@ -43,7 +43,7 @@ def test_local_run_records_scrape_analysis_and_summary(db, monkeypatch):
 def test_ingested_run_gets_analysis_timings_without_scrape_report(db):
     req = RunRequest(platform="facebook")
     run_id = db.create_run(req)
-    pipeline._analyze(db, run_id, req, POSTS, HeuristicAnalyzer(), lambda phase: (lambda n, m: None))
+    pipeline._analyze(db, run_id, req, POSTS, HeuristicAnalyzer())
     t = timings(db, run_id)
     assert set(t) >= {"analysis", "summary"} and "scrape_total" not in t
 
