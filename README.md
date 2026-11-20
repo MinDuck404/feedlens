@@ -16,7 +16,7 @@ Then AI sorts the posts, summarizes each topic, and picks out the jobs that fit 
 
 [Quick start](#quick-start) · [Features](#features) · [How it works](#how-it-works) · [Choosing an AI](#choosing-an-ai) · [Self-hosting](#self-hosting-in-the-cloud) · [Caveats](#caveats)
 
-<img src="docs/screenshots/hero-digest-light.png" alt="The digest page of a run, laid out like a printed newspaper" width="900">
+<img src="docs/screenshots/en/hero-digest-light.png" alt="The digest page of a run, laid out like a printed newspaper" width="900">
 
 </div>
 
@@ -44,12 +44,12 @@ Job groups, community groups, and news feeds post hundreds of items a day, and m
 
 <table>
   <tr>
-    <td width="62%"><img src="docs/screenshots/posts-dark.png" alt="Post list in dark mode"></td>
-    <td width="38%"><img src="docs/screenshots/mobile-dark.png" alt="Mobile layout"></td>
+    <td width="62%"><img src="docs/screenshots/en/posts-dark.png" alt="Post list in dark mode"></td>
+    <td width="38%"><img src="docs/screenshots/en/mobile-dark.png" alt="Mobile layout"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/jobs-light.png" alt="Jobs tab with match scores"></td>
-    <td><img src="docs/screenshots/composer-light.png" alt="New run drawer"></td>
+    <td><img src="docs/screenshots/en/jobs-light.png" alt="Jobs tab with match scores"></td>
+    <td><img src="docs/screenshots/en/composer-light.png" alt="New run drawer"></td>
   </tr>
 </table>
 

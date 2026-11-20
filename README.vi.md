@@ -16,7 +16,7 @@ Sau đó AI phân loại bài, tóm tắt theo chủ đề và lọc ra việc l
 
 [Bắt đầu nhanh](#bắt-đầu-nhanh) · [Tính năng](#tính-năng) · [Chọn AI](#chọn-ai) · [Tự host trên cloud](#tự-host-trên-cloud) · [Lưu ý](#lưu-ý)
 
-<img src="docs/screenshots/hero-digest-light.png" alt="Trang tóm tắt của một lượt lướt, trình bày kiểu báo giấy" width="900">
+<img src="docs/screenshots/vi/hero-digest-light.png" alt="Trang tóm tắt của một lượt lướt, trình bày kiểu báo giấy" width="900">
 
 </div>
 
@@ -44,12 +44,12 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 
 <table>
   <tr>
-    <td width="62%"><img src="docs/screenshots/posts-dark.png" alt="Danh sách bài viết, giao diện tối"></td>
-    <td width="38%"><img src="docs/screenshots/mobile-dark.png" alt="Giao diện trên điện thoại"></td>
+    <td width="62%"><img src="docs/screenshots/vi/posts-dark.png" alt="Danh sách bài viết, giao diện tối"></td>
+    <td width="38%"><img src="docs/screenshots/vi/mobile-dark.png" alt="Giao diện trên điện thoại"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/jobs-light.png" alt="Tab việc làm có điểm phù hợp"></td>
-    <td><img src="docs/screenshots/composer-light.png" alt="Ngăn tạo lượt lướt mới"></td>
+    <td><img src="docs/screenshots/vi/jobs-light.png" alt="Tab việc làm có điểm phù hợp"></td>
+    <td><img src="docs/screenshots/vi/composer-light.png" alt="Ngăn tạo lượt lướt mới"></td>
   </tr>
 </table>
 

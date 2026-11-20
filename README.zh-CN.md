@@ -16,7 +16,7 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 
 [快速开始](#快速开始) · [功能](#功能) · [工作原理](#工作原理) · [选择 AI](#选择-ai) · [云端自建](#云端自建) · [注意事项](#注意事项)
 
-<img src="docs/screenshots/hero-digest-light.png" alt="一次浏览的摘要页，采用报纸版式" width="900">
+<img src="docs/screenshots/zh-CN/hero-digest-light.png" alt="一次浏览的摘要页，采用报纸版式" width="900">
 
 </div>
 
@@ -44,12 +44,12 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 
 <table>
   <tr>
-    <td width="62%"><img src="docs/screenshots/posts-dark.png" alt="深色模式下的帖子列表"></td>
-    <td width="38%"><img src="docs/screenshots/mobile-dark.png" alt="手机界面"></td>
+    <td width="62%"><img src="docs/screenshots/zh-CN/posts-dark.png" alt="深色模式下的帖子列表"></td>
+    <td width="38%"><img src="docs/screenshots/zh-CN/mobile-dark.png" alt="手机界面"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/jobs-light.png" alt="带匹配分数的工作标签页"></td>
-    <td><img src="docs/screenshots/composer-light.png" alt="新建浏览面板"></td>
+    <td><img src="docs/screenshots/zh-CN/jobs-light.png" alt="带匹配分数的工作标签页"></td>
+    <td><img src="docs/screenshots/zh-CN/composer-light.png" alt="新建浏览面板"></td>
   </tr>
 </table>
 
