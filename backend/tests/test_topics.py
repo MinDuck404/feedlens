@@ -16,6 +16,31 @@ def fake_llm(handler):
     return LLMAnalyzer(SimpleNamespace(complete_json=complete, model="fake", info=SimpleNamespace(name="Fake"))), prompts
 
 
+def test_retag_skips_pending_rows_before_applying_the_post_limit(cloud, monkeypatch):
+    from feedlens.models import RunRequest
+    client = cloud()
+    _signup(client)
+    db = api.db()
+    uid = db.get_user_by_email("a@x.io").id
+    req = RunRequest(platform="facebook")
+    read_run = db.create_run(req, uid)
+    db.save_posts(read_run, [AnalyzedPost(platform="facebook", source="feed", text="AI read", analyzed_by="Fake AI"),
+                             AnalyzedPost(platform="facebook", source="feed", text="Offline read", analyzed_by="offline")])
+    pending_run = db.create_run(req, uid)
+    db.save_posts(pending_run, [AnalyzedPost(platform="facebook", source="feed", text="Pending reanalysis", analyzed_by="Fake AI")])
+    db.mark_posts_pending(pending_run)
+    db.create_topic(uid, Topic(name="Python"))
+    captured = []
+    analyzer = SimpleNamespace(tag_topics=lambda posts, topics, progress: captured.extend(posts) or {})
+    monkeypatch.setattr(topics_api, "_analyzer", lambda *args: analyzer)
+    monkeypatch.setattr(topics_api, "RETAG_JOBS", {uid: {"state": "running", "done": 0, "total": 0, "error": ""}})
+    topics_api.run_retag(db, uid)
+    assert {p.text for p in captured} == {"AI read", "Offline read"}
+    assert topics_api.RETAG_JOBS[uid]["total"] == 2
+    assert [p.text for p in db.user_posts(uid, limit=1)] == ["Offline read"]
+    assert db.get_posts(pending_run)[0].analyzed is False
+
+
 def test_topic_crud_isolation_and_limit(cloud):
     client = cloud()
     a, b = _signup(client, "t-a@example.test"), _signup(client, "t-b@example.test")

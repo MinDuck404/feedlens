@@ -627,7 +627,7 @@ class Database:
 
     def user_posts(self, user_id: int, limit: int = 2000) -> list[AnalyzedPost]:
         """Bài đã phân tích của user, mới nhất trước (dùng để gắn chủ đề lại)."""
-        q = (select(PostRow).join(RunRow).where(RunRow.user_id == user_id, self.representative_posts_filter())
+        q = (select(PostRow).join(RunRow).where(RunRow.user_id == user_id, PostRow.analyzed_by != "pending", self.representative_posts_filter())
              .order_by(PostRow.id.desc()).limit(limit))
         with self.Session() as s:
             return [AnalyzedPost(id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text,
