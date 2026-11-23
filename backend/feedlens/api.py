@@ -37,7 +37,7 @@ from .models import CATEGORIES, RawPost, RunRequest
 from .messages import error_code, progress_message
 from .job_profile import load_profile
 from .cookies import CookieError, cookie_hint, parse_cookies
-from .pipeline import PROGRESS, _platform_locks, fail_run, run_cap, start_analysis, start_ingest, start_run, start_server_run
+from .pipeline import PROGRESS, _platform_locks, fail_run, request_stop, run_cap, start_analysis, start_ingest, start_run, start_server_run
 from .ai.registry import preferred_provider
 
 app = FastAPI(title="FeedLens API", version="0.4.0")
@@ -543,6 +543,22 @@ class AnalysisBody(BaseModel):
     ai_provider: str = Field("auto", max_length=40)
     ai_model: str = Field("", max_length=200)
     mode: Literal["continue", "reanalyze_all"] = "continue"
+
+
+@private.post("/runs/{run_id}/analysis/stop", status_code=202)
+def stop_analysis(run_id: int, body: AnalysisBody | None = None, user: User = Depends(current_user)):
+    run = _own_run(run_id, user)
+    if run["status"] != "analyzing":
+        raise HTTPException(409, "AI analysis is not running.")
+    replacement = None
+    if body is not None:
+        if body.mode != "continue":
+            raise HTTPException(422, "Model changes must continue saved analysis.")
+        replacement = RunRequest(**{**run["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model})
+        _check_ai(replacement, user.id)
+    if not request_stop(run_id, replacement):
+        raise HTTPException(409, "AI analysis is not running or is already stopping.")
+    return {"ok": True, "stopping": True, "will_continue": replacement is not None}
 
 
 @private.post("/runs/{run_id}/analysis")

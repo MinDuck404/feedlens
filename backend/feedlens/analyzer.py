@@ -269,6 +269,9 @@ class LLMAnalyzer:
         self.fallback_models = list(fallback_models or [])
         self.notify: Callable[[str], None] = lambda msg: None  # pipeline gắn vào để báo trạng thái lên web
         self.language = "vi"  # pipeline đặt theo RunRequest.language
+        self.stop_event = None
+        self.on_state = lambda state: None
+        self._call_context = threading.local()
         self._switch_lock = threading.Lock()  # các lô chạy song song: chỉ một lô được đổi model
         self.scheduler = scheduler or QuotaScheduler()
         if candidates is None:
@@ -289,10 +292,14 @@ class LLMAnalyzer:
     def complete_json(self, system: str, prompt: str, schema: dict, effort: str = "low") -> dict:
         """Schedule all AI work, including Ask's task-specific system prompts."""
         def selected(candidate):
+            self._call_context.label = f"{candidate.client.info.name} ({candidate.model})"
             with self._switch_lock:
                 self.provider = candidate.client
+        def state(value):
+            self.on_state({**value, **getattr(self._call_context, "batch", {})})
         return self.scheduler.complete_json(self.candidates, system, prompt, schema, effort,
-                                            self.notify, retry_base=RETRY_BASE_SECONDS, on_selected=selected)
+                                            self.notify, retry_base=RETRY_BASE_SECONDS, on_selected=selected,
+                                            stop_event=self.stop_event, on_state=state)
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
                  profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
@@ -355,7 +362,7 @@ class LLMAnalyzer:
             prompt = f"{instructions}{job_ctx}{topic_ctx}\n\n<posts>\n{body}\n</posts>"
             data = self._json_call(prompt, schema, effort="low")
             by_id = {it["id"]: it for it in data.get("items", [])}
-            label = self.label
+            label = getattr(self._call_context, "label", self.label)
             res = {}
             for i, (index, p) in enumerate(batch):
                 it = by_id.get(i)
@@ -385,7 +392,8 @@ class LLMAnalyzer:
                                           topic_reason=(it.get("topic_reason") or "")[:100] if tids else "")
             return res
 
-        def run_batch(batch: list[tuple[int, RawPost]]) -> tuple[dict[int, AnalyzedPost], Exception | None]:
+        def run_batch(batch: list[tuple[int, RawPost]], number: int) -> tuple[dict[int, AnalyzedPost], Exception | None]:
+            self._call_context.batch = {"batch": number, "batches": len(batches)}
             res: dict[int, AnalyzedPost] = {}
             malformed = set()
 
@@ -441,7 +449,7 @@ class LLMAnalyzer:
         done = 0
         errors = []
         with ThreadPoolExecutor(max_workers=min(self.scheduler.parallelism(self.candidates), len(batches) or 1)) as pool:
-            futures = [pool.submit(run_batch, batch) for batch in batches]
+            futures = [pool.submit(run_batch, batch, number) for number, batch in enumerate(batches, 1)]
             for fut in as_completed(futures):
                 try:
                     batch, error = fut.result()
@@ -950,7 +958,7 @@ def get_analyzer(provider: str | None, model: str | None, keys, user_id: int = 0
             continue
         for candidate_model in resolve_models(user_id, key, credential.api_key, model):
             candidates.append(Candidate(credential.id, get_provider(key, candidate_model, credential.api_key),
-                                        credential.priority, credential.tier))
+                                        credential.priority, credential.tier, key_label=credential.label))
     database = getattr(keys, "db", None)
     scheduler = scheduler_for(database) if database is not None else QuotaScheduler()
     return LLMAnalyzer(candidates[0].client, candidates=candidates, scheduler=scheduler)

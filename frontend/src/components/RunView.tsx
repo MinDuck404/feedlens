@@ -114,6 +114,8 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
   const canReprocess = !!run.can_reprocess_ai;
   const failed = run.status === "error" || run.status === "analysis_failed";
   const counts = run.analysis_counts;
+  const activeAI = run.status === "analyzing" ? run.progress?.ai : undefined;
+  const readBy = activeAI?.model ? `${activeAI.provider} (${activeAI.model})` : run.ai_label;
 
   const remove = async () => {
     if (!confirm(t("run.confirmDelete"))) return;
@@ -131,7 +133,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
         <h1 className="mx-auto max-w-[32ch] font-headline text-2xl leading-tight font-semibold text-balance [overflow-wrap:anywhere] sm:text-3xl md:text-4xl">{title}</h1>
         <p className="mt-4 text-xs leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
           {when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}
-          {run.ai_label && t("run.readBy", { ai: run.ai_label })}
+          {readBy && t("run.readBy", { ai: readBy })}
         </p>
         {!!counts?.total && <p role="status" className="mt-2 text-sm text-ink-soft">{t("run.analysisCounts", counts)}{counts.pending > 0 && ` ${t("run.analysisPending", { n: counts.pending })}`}</p>}
         {run.request?.scrape_report && <ScrapeReportLine report={run.request.scrape_report} groups={savedGroupsFor(prefs, run.request)} />}
@@ -157,10 +159,11 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
       {failed || canContinue || canReanalyze || canReprocess ? (
         <>
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
-          <p className="font-semibold text-danger">{t(run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
+          <p className="font-semibold text-danger">{t(run.error_code === "error.analysis_stopped" ? "run.aiPaused" : run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
           {run.error_code === "error.browser_missing" && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center text-sm text-link underline">{t("plat.downloadChrome")}</a>}
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
+          {run.progress?.ai?.state === "exhausted" && run.progress.ai.daily && <p className="mt-2 text-sm">{t("run.dailyQuotaExhausted")}</p>}
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
@@ -168,7 +171,8 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
         {run.status === "done" && run.digest ? <Done run={run} meta={meta} tab={tab} setTab={setTab} /> : !!run.posts?.length && <section className="mt-8"><h2 className="mb-5 font-headline text-2xl">{t("run.savedPosts")}</h2><PostList posts={run.posts} filter={null} setFilter={() => {}} name={cat} /></section>}
         </>
       ) : run.status !== "done" || !run.digest ? (
-        <InProgress run={run} />
+        <><InProgress run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} />
+        {run.status === "analyzing" && !!run.posts?.length && <Done run={run} meta={meta} tab={tab} setTab={setTab} />}</>
       ) : (
         <Done run={run} meta={meta} tab={tab} setTab={setTab} />
       )}
@@ -268,7 +272,7 @@ function ScrapeReportLine({ report, groups }: { report: ScrapeReport; groups: Sa
   );
 }
 
-function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onStarted: () => void; reanalyzeAll?: boolean }) {
+function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false }: { run: Run; onStarted: () => void; reanalyzeAll?: boolean; switching?: boolean }) {
   const { t } = useI18n();
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const [provider, setProvider] = useState(reanalyzeAll ? "auto" : run.request.ai_provider || "auto");
@@ -280,7 +284,11 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
   const submit = async () => {
     if (reanalyzeAll && !window.confirm(t("run.confirmReanalyzeAI", { n: run.analysis_counts?.total ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 }))) return;
     setBusy(true); setError("");
-    try { await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue"); onStarted(); }
+    try {
+      if (switching) await api.stopAnalysis(run.id, { ai_provider: provider, ai_model: model });
+      else await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue");
+      onStarted();
+    }
     catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   };
@@ -295,14 +303,24 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false }: { run: Run; onS
       </Select></label>
       {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <Button busy={busy} onClick={submit}>{t(reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
+      <Button disabled={switching && run.progress?.stop_requested} busy={busy} onClick={submit}>{t(switching ? "run.switchAndContinue" : reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
     </fieldset>
   </div>;
 }
 
-function InProgress({ run }: { run: Run }) {
+function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
   const p = run.progress;
-  const { t } = useI18n();
+  const { t, locale, lang } = useI18n();
+  const [changing, setChanging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const ai = p?.ai;
+  const stop = async () => {
+    setBusy(true); setError("");
+    try { await api.stopAnalysis(run.id); onStarted(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
   const pct = p?.target ? Math.min(100, Math.round((p.done / p.target) * 100)) : 0;
   const phase = run.status === "pending" ? t("run.phase.pending")
     : run.status === "scraping" ? t("run.phase.scraping") : run.status === "analyzing" ? t("run.phase.analyzing") : t("run.phase.preparing");
@@ -312,7 +330,22 @@ function InProgress({ run }: { run: Run }) {
       <div role="progressbar" aria-label={phase} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} className="mt-4 h-1.5 overflow-hidden rounded-full bg-sunken">
         <div className="h-full w-full origin-left rounded-full bg-accent transition-transform duration-[var(--duration-normal)] ease-[var(--ease-micro)] motion-reduce:transition-none" style={{ transform: `scaleX(${pct / 100})` }} />
       </div>
-      <p className="mt-2 text-sm text-ink-soft">{p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>
+      {ai && <div className="mt-3 space-y-2 text-sm text-ink-soft" role="status">
+        {ai.model && <p className="[overflow-wrap:anywhere]">{ai.provider} · {ai.model} · {ai.key_label || t("run.environmentKey")}</p>}
+        {p?.stop_requested ? <p>{t("run.stoppingAI")}</p>
+          : ai.state === "quota_wait" ? <p>{t("run.quotaRetryAt")} {ai.retry_at && <time dateTime={new Date(ai.retry_at * 1000).toISOString()}>{new Date(ai.retry_at * 1000).toLocaleTimeString(locale)}</time>}</p>
+          : ai.state === "sending" ? <p>{ai.batch ? t("run.sendingBatch", { n: ai.batch, total: ai.batches ?? 1 }) : t("run.writingSummary")}</p>
+          : ai.state === "switching" ? <p>{ai.next_model ? t("run.switchingTo", { model: ai.next_model }) : t("run.noFallback")}</p>
+          : ai.state === "exhausted" ? <p>{t(ai.daily ? "run.dailyQuotaExhausted" : "error.ai_quota")}</p> : null}
+        <p>{t("run.readCount", { done: p?.done ?? 0, target: p?.target ?? run.collected })}{!!p?.eta_seconds && ` · ${t("run.estimatedRemaining", { time: formatDuration(p.eta_seconds, lang) })}`}</p>
+      </div>}
+      {!ai && <p className="mt-2 text-sm text-ink-soft">{p?.stop_requested ? t("run.stoppingAI") : p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>}
+      {run.status === "analyzing" && <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="secondary" busy={busy} disabled={!!p?.stop_requested} onClick={stop}>{t("run.stopAI")}</Button>
+        <Button variant="ghost" disabled={!!p?.stop_requested} onClick={() => setChanging(!changing)} aria-expanded={changing}>{t("run.changeModel")}</Button>
+      </div>}
+      {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
+      {changing && <RetryAnalysis run={run} switching onStarted={onStarted} />}
     </div>
   );
 }
@@ -343,6 +376,7 @@ function Done({ run, meta, tab: requested, setTab }: {
 }) {
   const posts = run.posts ?? [];
   const d = run.digest!;
+  const partial = run.status !== "done" || !d;
   const [filters, setFilters] = useState(() => runPostFiltersFromHash(window.location?.hash ?? ""));
   const { category: filter, topicId } = filters;
   const panel = useRef<HTMLDivElement>(null);
@@ -377,18 +411,18 @@ function Done({ run, meta, tab: requested, setTab }: {
     return () => { alive = false; };
   }, [run.id, run.digest]);
   const jobs = useMemo(
-    () => posts.filter((p) => p.job || p.job_seed).map((p) => ({ ...p, ...jobPresentation(p) })).sort((a, b) => b.job!.match_score - a.job!.match_score),
-    [posts],
+    () => posts.filter((p) => (!partial || p.analyzed !== false) && (p.job || p.job_seed)).map((p) => ({ ...p, ...jobPresentation(p) })).sort((a, b) => b.job!.match_score - a.job!.match_score),
+    [posts, partial],
   );
   const counts = useMemo(() => {
     const m = new Map<string, number>();
-    posts.forEach((p) => m.set(p.category, (m.get(p.category) ?? 0) + 1));
+    posts.filter((p) => p.analyzed !== false).forEach((p) => m.set(p.category, (m.get(p.category) ?? 0) + 1));
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [posts]);
   const { t, cat, lang } = useI18n();
   void meta;  // tên loại bài lấy theo ngôn ngữ giao diện thay vì meta.categories (tiếng Việt)
   const name = cat;
-  const tab: Tab = requested === "jobs" && !jobs.length && run.request.mode !== "jobs" ? "digest" : requested;
+  const tab: Tab = partial && (requested === "digest" || requested === "jobs" && !jobs.length) ? "posts" : requested === "jobs" && !jobs.length && run.request.mode !== "jobs" ? "digest" : requested;
 
   const categoryBar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -433,7 +467,7 @@ function Done({ run, meta, tab: requested, setTab }: {
       </div></section>}
 
       <nav data-run-tabs className="mt-3 flex gap-1 border-b border-line" role="tablist" aria-label={t("run.composition")}>
-        {([["digest", t("tab.digest")], ...(jobs.length ? [["jobs", t("tab.jobs", { n: jobs.length })]] : []), ["posts", t("tab.posts")]] as [Tab, string][])
+        {([...(partial ? [] : [["digest", t("tab.digest")]]), ...(jobs.length ? [["jobs", t("tab.jobs", { n: jobs.length })]] : []), ["posts", t("tab.posts")]] as [Tab, string][])
           .map(([k, l], index, tabs) => (
             <button key={k} id={`run-${run.id}-tab-${k}`} role="tab" aria-selected={tab === k}
               aria-controls={`run-${run.id}-panel`} tabIndex={tab === k ? 0 : -1} onClick={() => setTab(k)}
@@ -741,7 +775,7 @@ function ReadingPost({ p, name, topics }: { p: Post; name: (c: string) => string
       <article>
         <h3 className="max-w-[38ch] font-headline text-2xl leading-snug font-semibold sm:text-3xl">{p.summary || p.text.slice(0, 100)}</h3>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs leading-relaxed text-ink-soft">
-          <span className="font-medium" style={{ color: categoryTone(p.category) }}>{p.analyzed === false ? t("run.rawPost") : name(p.category)}</span>
+          <span className="font-medium" style={{ color: categoryTone(p.category) }}>{p.analyzed === false ? t("run.aiUnread") : name(p.category)}</span>
           <span>{p.source}</span>
           <span>{p.author || t("posts.unknownAuthor")}</span>
           {p.sponsored && <span className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-soft">{t("posts.sponsored")}</span>}

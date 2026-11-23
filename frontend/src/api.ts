@@ -114,6 +114,8 @@ export const api = {
   deleteRun: (id: number) => call(`/api/runs/${id}`, { method: "DELETE" }),
   retryAnalysis: (id: number, ai_provider: string, ai_model: string, mode: "continue" | "reanalyze_all" = "continue") =>
     call(`/api/runs/${id}/analysis`, { method: "POST", body: JSON.stringify({ ai_provider, ai_model, mode }) }),
+  stopAnalysis: (id: number, replacement?: { ai_provider: string; ai_model: string }) =>
+    call(`/api/runs/${id}/analysis/stop`, { method: "POST", ...(replacement ? { body: JSON.stringify(replacement) } : {}) }),
   /** Tải file xuất kèm token (thẻ <a href> thường không gửi được header Authorization). */
   download: async (id: number, fmt: "md" | "csv" | "json") => {
     const r = await raw(`/api/runs/${id}/export?fmt=${fmt}`);

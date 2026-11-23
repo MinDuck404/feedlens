@@ -39,6 +39,7 @@ class KeyCredential:
     priority: int = 0
     tier: str = "free"
     source: str = "db"
+    label: str = ""
 
 
 class KeyList(list):
@@ -63,7 +64,7 @@ def user_keys(db, user_id: int) -> UserKeys:
             continue
         val = decrypt(row.ciphertext)
         if val:
-            credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier))
+            credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier, label=row.label))
     if not settings.is_cloud:
         for k in PROVIDERS:
             if not any(c.provider == k for c in credentials) and (v := _env_key(k)):

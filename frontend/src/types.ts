@@ -187,6 +187,20 @@ export interface Digest {
 }
 
 export interface Progress {
+  ai?: {
+    state: "sending" | "quota_wait" | "switching" | "exhausted" | "error" | "stopped";
+    provider?: string;
+    provider_id?: string;
+    model?: string;
+    key_label?: string;
+    batch?: number;
+    batches?: number;
+    retry_at?: number;
+    next_model?: string;
+    daily?: boolean;
+  };
+  stop_requested?: boolean;
+  eta_seconds?: number;
   phase: string;
   done: number;
   target: number;

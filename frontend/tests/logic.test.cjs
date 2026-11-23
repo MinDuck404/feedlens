@@ -8,7 +8,7 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow, SidebarBody };";
-    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost };";
+    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -29,6 +29,25 @@ const { groupName, parseTimestamp, serialWriter, isRemoteText } = require("../sr
 const i18n = require("../src/i18n.tsx");
 const { api, ApiError } = require("../src/api.ts");
 const React = require("react");
+
+test("analyzing view exposes actual model, quota retry time and stop/change controls", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { InProgress, Done } = require("../src/components/RunView.tsx");
+  const run = { id: 9, status: "analyzing", request: { platform: "facebook" }, digest: null,
+    progress: { phase: "analyzing", done: 1, target: 2, ai: { state: "quota_wait", provider: "Gemini", model: "actual", key_label: "Work key", retry_at: 2000000000 } },
+    posts: [{ id: 1, fingerprint: "a", category: "news", summary: "Read", text: "Read text", analyzed: true, source: "Feed", platform: "facebook", topic_ids: [] },
+      { id: -2, fingerprint: "b", category: "other", text: "Raw waiting text", analyzed: false, source: "Feed", platform: "facebook", topic_ids: [] }] };
+  const render = (element) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null, element));
+  const progress = render(React.createElement(InProgress, { run, onStarted() {} }));
+  assert.ok(progress.includes("actual") && progress.includes("Work key"));
+  assert.ok(progress.includes(i18n.translate("run.stopAI")));
+  assert.ok(progress.includes(i18n.translate("run.changeModel")));
+  assert.ok(progress.includes("<time"));
+  const posts = render(React.createElement(Done, { run, meta: {}, tab: "digest", setTab() {} }));
+  assert.ok(posts.includes("Raw waiting text"));
+  assert.ok(posts.includes(i18n.translate("run.aiUnread").replaceAll("'", "&#x27;")));
+  assert.ok(!posts.includes('id="run-9-tab-digest"'));
+});
 
 // Exercise hook-based async logic through render/effect/cleanup without browser layout.
 function hooks(component) {

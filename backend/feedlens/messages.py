@@ -3,6 +3,10 @@ import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if "analysis stopped by user" in message:
+        return "error.analysis_stopped"
+    if "AI analysis is not running" in message:
+        return "error.analysis_not_running"
     if any(fragment in message.lower() for fragment in (
         "browser not found", "executable doesn't exist", "executable does not exist",
         "chromium distribution", "please run the following command to download new browsers",

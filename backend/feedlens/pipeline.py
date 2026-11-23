@@ -7,6 +7,7 @@ from contextvars import ContextVar
 from typing import Callable
 
 from .ai.registry import preferred_provider, user_key_list
+from .ai.scheduler import AnalysisStopped, check_stopped
 from .analyzer import HeuristicAnalyzer, get_analyzer
 from .config import settings
 from .db import Database
@@ -20,6 +21,19 @@ from .source_modes import allocate_targets, normalize, total_target as planned_t
 PROGRESS: dict[int, dict] = {}
 _platform_locks: dict[str, threading.Lock] = {p: threading.Lock() for p in SCRAPERS}
 _REPORT_FLUSH: ContextVar[Callable[[dict], None] | None] = ContextVar("_report_flush", default=None)
+_CONTROLS: dict[int, dict] = {}
+_CONTROL_LOCK = threading.Lock()
+
+
+def request_stop(run_id: int, replacement: RunRequest | None = None) -> bool:
+    with _CONTROL_LOCK:
+        control = _CONTROLS.get(run_id)
+        if control is None or control["stop"].is_set():
+            return False
+        control["replacement"] = replacement
+        control["stop"].set()
+        PROGRESS.setdefault(run_id, {}).update(stop_requested=True)
+        return True
 
 
 def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
@@ -247,6 +261,16 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         raise RuntimeError("Không lấy được bài nào — kiểm tra đăng nhập hoặc selector của nền tảng.")
     if hasattr(analyzer, "notify"):
         analyzer.notify = lambda msg: prog.update(message=msg)
+    control = _CONTROLS.get(run_id)
+    stop_event = control["stop"] if control else None
+    if hasattr(analyzer, "stop_event"):
+        analyzer.stop_event = stop_event
+        def state_changed(state):
+            identity = {key: value for key, value in prog.get("ai", {}).items()
+                        if key in {"provider", "provider_id", "model", "key_label"}}
+            prog.update(ai={**identity, **state})
+        analyzer.on_state = state_changed
+    check_stopped(stop_event)
     if hasattr(analyzer, "language"):
         analyzer.language = req.language  # AI viết tóm tắt theo ngôn ngữ giao diện người dùng
     owner = (db.get_run(run_id) or {}).get("user_id")
@@ -262,6 +286,8 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         db.update_run(run_id, request={**request, "reanalysis_active": True, "analysis_used_ai": True})
     prog.update(phase="analyzing", done=len(known), target=len(unique),
                 message=f"{analyzer.label} đang đọc {len(pending)} bài…")
+    started_analysis = time.monotonic()
+    initially_read = len(known)
 
     def checkpoint(batch):
         inherited = []
@@ -272,6 +298,9 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         db.save_batch(run_id, [*batch, *inherited])
         known.update(p.fingerprint for p in batch if not needs_ai or p.analyzed_by not in {"", "offline"})
         prog.update(done=len(known), message=f"Đã phân tích {len(known)}/{len(unique)}")
+        newly_read = len(known) - initially_read
+        if newly_read:
+            prog["eta_seconds"] = round((time.monotonic() - started_analysis) / newly_read * (len(unique) - len(known)))
 
     analyzer.on_batch = checkpoint
     checkpoint([p for p in completed if p.fingerprint in known])
@@ -283,12 +312,17 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
             if any(post.fingerprint not in returned for post in pending):
                 raise RuntimeError("AI chưa đọc hết các bài đã lưu. Bấm gửi tiếp để chỉ gửi những bài AI chưa đọc.")
             checkpoint(analyzed)
+        except Exception:
+            check_stopped(stop_event)
+            raise
         finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
             add_timings(db, run_id, analysis=time.monotonic() - started)
+    check_stopped(stop_event)
     analyzed = [p for p in db.get_posts(run_id) if p.analyzed]
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
     started = time.monotonic()
     digest = analyzer.digest(analyzed, req.job_mode)
+    check_stopped(stop_event)
     add_timings(db, run_id, summary=time.monotonic() - started)
     request = db.get_run(run_id)["request"]
     db.update_run(run_id, status="done", error=None, digest=digest,
@@ -297,7 +331,8 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
 
 
 def _fail(db: Database, run_id: int, e: Exception) -> None:
-    traceback.print_exc()
+    if not isinstance(e, AnalysisStopped):
+        traceback.print_exc()
     fail_run(db, run_id, str(e))
 
 
@@ -305,6 +340,10 @@ def fail_run(db: Database, run_id: int, message: str) -> None:
     status = "analysis_failed" if db.get_raw_posts(run_id) else "error"
     db.update_run(run_id, status=status, error=message[:2000])
     PROGRESS.setdefault(run_id, {}).update(phase=status, message=message[:300])
+    if "analysis stopped by user" in message:
+        PROGRESS[run_id]["ai"] = {**PROGRESS[run_id].get("ai", {}), "state": "stopped"}
+    elif PROGRESS[run_id].get("ai", {}).get("state") != "exhausted":
+        PROGRESS[run_id]["ai"] = {**PROGRESS[run_id].get("ai", {}), "state": "error"}
 
 
 def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], user_id: int | None,
@@ -324,7 +363,27 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
 
 def _spawn(target, run_id: int, *args) -> None:
     PROGRESS[run_id] = {"phase": "queued", "done": 0, "target": 0, "message": "Đang chờ…"}
-    threading.Thread(target=target, args=(*args,), daemon=True).start()
+    control = {"stop": threading.Event(), "replacement": None}
+    with _CONTROL_LOCK:
+        _CONTROLS[run_id] = control
+
+    def worker():
+        try:
+            target(*args)
+        finally:
+            with _CONTROL_LOCK:
+                if _CONTROLS.get(run_id) is control:
+                    _CONTROLS.pop(run_id, None)
+                replacement = control["replacement"]
+            if replacement is not None:
+                database = args[0]
+                run = database.get_run(run_id)
+                if run and run["status"] == "analysis_failed" and database.claim_analysis(run_id, replacement):
+                    metadata = {key: run["request"][key] for key in ("scrape_report", "analysis_used_ai", "reanalysis_active")
+                                if key in run["request"]}
+                    database.update_run(run_id, request={**replacement.model_dump(), **metadata}, error=None)
+                    start_analysis(database, run_id, replacement, database.get_analysis_posts(run_id), run.get("user_id"))
+    threading.Thread(target=worker, daemon=True).start()
 
 
 def start_run(db: Database, req: RunRequest, user_id: int | None = None) -> int:
@@ -395,7 +454,7 @@ def start_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPost
             known = db.known_fingerprints(req.platform, user_id)
             raw = [p for p in raw if p.fingerprint not in known]
         db.save_raw_posts(run_id, raw)
-    db.update_run(run_id, status="analyzing", collected=len(raw))
+    db.update_run(run_id, status="analyzing", collected=len(raw), error=None)
     _spawn(execute_analysis, run_id, db, run_id, req, raw, user_id, reanalyze_all)
 
 

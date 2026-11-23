@@ -19,6 +19,16 @@ class QuotaExhausted(AIError):
     pass
 
 
+class AnalysisStopped(AIError):
+    def __init__(self):
+        super().__init__("AI analysis stopped by user; saved posts can be continued.")
+
+
+def check_stopped(stop_event):
+    if stop_event is not None and stop_event.is_set():
+        raise AnalysisStopped()
+
+
 def pacific_day(now: datetime | None = None) -> str:
     return (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("America/Los_Angeles")).date().isoformat()
 
@@ -30,6 +40,13 @@ class Candidate:
     priority: int = 0
     tier: str = "free"
     disabled: bool = False
+    key_label: str = ""
+
+    def progress(self, state, **details):
+        return {"state": state, "provider": self.client.info.name,
+                "provider_id": getattr(self.client.info, "key", ""), "model": self.model,
+                "key_label": self.key_label or (f"#{self.key_id}" if isinstance(self.key_id, int) else ""),
+                **details}
 
     @property
     def model(self):
@@ -87,8 +104,9 @@ class QuotaScheduler:
             return c.priority, -remaining
         return sorted((c for c in candidates if not c.disabled), key=rank)
 
-    def acquire(self, candidates, est_tokens, notify=lambda message: None):
+    def acquire(self, candidates, est_tokens, notify=lambda message: None, *, stop_event=None, on_state=lambda state: None):
         while True:
+            check_stopped(stop_event)
             with self.lock:
                 day, now = pacific_day(self.now()), self.clock()
                 for candidate in self._ordered(candidates, day):
@@ -124,9 +142,16 @@ class QuotaScheduler:
                     window.append((now, est_tokens))
                     return candidate
                 else:
+                    on_state({"state": "exhausted", "daily": all(
+                        self.daily_exhausted(c, day) or self.limits(c).rpd is not None and
+                        self.daily_requests(c, day) >= self.limits(c).rpd for c in candidates)})
                     raise QuotaExhausted("AI quota exhausted: every enabled key/model has exhausted its daily allowance or cannot fit this request.")
+            on_state(candidate.progress("quota_wait", retry_at=time.time() + wait, wait_seconds=wait))
             notify(f"Đang chờ hạn mức phút của {candidate.client.info.name} ({candidate.model}): {wait:.0f} giây")
-            self.sleep(max(0.001, wait))
+            if stop_event is not None:
+                stop_event.wait(max(0.001, wait))
+            else:
+                self.sleep(max(0.001, wait))
 
     def parallelism(self, candidates):
         with self.lock:
@@ -142,12 +167,14 @@ class QuotaScheduler:
             return min(4, max(1, limits.rpm - used)) if limits.rpm is not None else 4
 
     def complete_json(self, candidates, system, prompt, schema, effort="low", notify=lambda message: None,
-                      retry_base=3.0, on_selected=lambda candidate: None):
+                      retry_base=3.0, on_selected=lambda candidate: None, *, stop_event=None, on_state=lambda state: None):
         attempts = defaultdict(int)
         est_tokens = (len(system) + len(prompt)) // 3 + MAX_OUTPUT
         while True:
-            candidate = self.acquire(candidates, est_tokens, notify)
+            candidate = self.acquire(candidates, est_tokens, notify, stop_event=stop_event, on_state=on_state)
+            check_stopped(stop_event)
             on_selected(candidate)
+            on_state(candidate.progress("sending"))
             try:
                 result = candidate.client.complete_json(system, prompt, schema, effort)
                 attempts.pop(candidate.pair, None)
@@ -191,8 +218,11 @@ class QuotaScheduler:
                     else:
                         raise
                 if candidate.disabled or daily:
-                    remaining = self._ordered(candidates, pacific_day(self.now()))
+                    day = pacific_day(self.now())
+                    remaining = [c for c in self._ordered(candidates, day) if not self.daily_exhausted(c, day)
+                                 and (self.limits(c).rpd is None or self.daily_requests(c, day) < self.limits(c).rpd)]
                     next_model = remaining[0].model if remaining else "key/model dự phòng"
+                    on_state(candidate.progress("switching", next_model=remaining[0].model if remaining else ""))
                     notify(f"{candidate.model} không còn dùng được, chuyển sang {next_model}…")
 
 
