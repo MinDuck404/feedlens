@@ -62,6 +62,7 @@ def test_login_api_missing_browser_returns_error_without_ghost_profile(cloud, mo
 def test_login_worker_runtime_error_is_reported_not_swallowed(cloud, monkeypatch, tmp_path):
     client = cloud(mode="local")
     local_state(monkeypatch, tmp_path)
+    monkeypatch.setattr(browser, "find_chrome", lambda: "chrome")
     monkeypatch.setattr(browser, "detect_browser", lambda *a, **k: browser.BrowserInfo("chrome", "chrome"))
     monkeypatch.setattr(api.threading, "Thread", ImmediateThread)
     monkeypatch.setattr(browser, "interactive_login", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("profile locked")))

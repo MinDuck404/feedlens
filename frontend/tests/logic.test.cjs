@@ -7,7 +7,7 @@ const ts = require("typescript");
 for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
-    if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow };";
+    if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow, SidebarBody };";
     if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
@@ -412,6 +412,20 @@ test("match type filtering preserves legacy jobs and isolates primary, adjacent 
   assert.deepEqual(types.filter((type) => matchesJobType(type, "none")), ["none", null, undefined]);
 });
 
+test("browser notices appear once above all account rows while platform errors stay local", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { SidebarBody } = require("../src/components/Sidebar.tsx");
+  const base = ["facebook", "linkedin", "x", "reddit"].map((key) => ({ key, name: key, logged_in: null, has_profile: false, login_state: "idle" }));
+  const render = (change) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
+    React.createElement(SidebarBody, { cloud: false, platforms: base.map((p) => ({ ...p, ...change })), runs: [], page: "home", onOpenSettings() {}, onPlatformChanged() {} })));
+  for (const state of [{ missing: true }, { browser: "msedge" }, { browser: "chromium", oauth_limited: true }]) {
+    const html = render(state);
+    assert.equal((html.match(/href="https:\/\/www.google.com\/chrome\/"/g) || []).length, 1);
+    assert.equal((html.match(/<button\b[^>]*aria-label="Sign in:/g) || []).length, 4);
+  }
+  assert.ok(render({ missing: true }).includes(i18n.translate("plat.browserMissing")));
+});
+
 test("browser login errors, download links and Edge/Chromium notes remain visible with recovery actions", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
   const { PlatformRow } = require("../src/components/Sidebar.tsx");
@@ -419,16 +433,15 @@ test("browser login errors, download links and Edge/Chromium notes remain visibl
   const render = (p) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
     React.createElement(PlatformRow, { p: { ...base, ...p }, onChanged() {}, onLogin() {} })));
   const missing = render({ missing: true });
-  assert.ok(missing.includes(i18n.translate("error.browser_missing")));
-  assert.ok(missing.includes('href="https://www.google.com/chrome/"'));
+  assert.ok(!missing.includes('href="https://www.google.com/chrome/"'));
   assert.equal((missing.match(/<button\b/g) || []).length, 3);
   const failed = render({ login_error: "profile locked", login_error_code: "error.browser_failed" });
   assert.ok(failed.includes('title="profile locked"'));
   assert.ok(failed.includes(i18n.translate("error.browser_failed")));
   const edge = render({ browser: "msedge" });
-  assert.ok(edge.includes(i18n.translate("plat.edgeNote")));
+  assert.ok(!edge.includes(i18n.translate("plat.edgeNote")));
   const chromium = render({ browser: "chromium", oauth_limited: true });
-  assert.ok(chromium.includes(i18n.translate("plat.chromiumNote")));
+  assert.ok(!chromium.includes(i18n.translate("plat.chromiumNote")));
 });
 
 test("background session checks show a spinner and suppress reconnect until complete", () => {

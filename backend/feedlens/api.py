@@ -123,7 +123,7 @@ def health():
 
 
 def _browser_installed() -> bool:
-    return not browser.browser_status()["missing"]
+    return not browser.browser_status(headless=True)["missing"]
 
 
 @public.get("/meta")
@@ -381,10 +381,11 @@ def platforms(user: User = Depends(current_user)):
     if settings.is_cloud:
         return []
     _start_session_checks()
+    browser_states = browser.browser_statuses()
     return [{"key": k, "name": v.name, "logged_in": _session_cache.get(k),
              "has_profile": browser.profile_dir(k).exists(),
              "checking": k in _session_checks,
-             **browser.browser_status(k),
+             **browser_states[k],
              "login_error": _login_errors.get(k),
              "login_error_code": ("error.browser_missing" if error_code(_login_errors[k]) == "error.browser_missing"
                                   else "error.browser_failed") if k in _login_errors else None,
@@ -395,8 +396,10 @@ def platforms(user: User = Depends(current_user)):
 async def check(p: str, user: User = Depends(current_user)):
     _local_only()
     _platform_or_404(p)
-    ok = await run_in_threadpool(_check_platform, p)
-    return {"logged_in": ok}
+    await run_in_threadpool(browser.clear_browser_status_cache)
+    state = await run_in_threadpool(browser.browser_status, p)
+    ok = None if state["missing"] else await run_in_threadpool(_check_platform, p)
+    return {"logged_in": ok, **state}
 
 
 @private.post("/platforms/{p}/login")
@@ -404,6 +407,7 @@ def login_platform(p: str, user: User = Depends(current_user)):
     _local_only()
     _platform_or_404(p)
     if _login_state.get(p) != "waiting":
+        browser.clear_browser_status_cache()
         try:
             browser.detect_browser(p)
         except browser.BrowserNotFoundError as e:
@@ -419,6 +423,7 @@ def login_platform(p: str, user: User = Depends(current_user)):
                 _login_errors[p] = str(e)[:1500]
                 _session_cache[p] = None
             finally:
+                browser.clear_browser_status_cache()
                 _session_checks.pop(p, None)
                 _login_state[p] = "idle"
         threading.Thread(target=worker, daemon=True).start()
@@ -433,6 +438,7 @@ def logout_platform(p: str, user: User = Depends(current_user)):
         browser.logout(p)
         _session_cache[p] = False
         _login_errors.pop(p, None)
+        browser.clear_browser_status_cache()
     return {"ok": True}
 
 

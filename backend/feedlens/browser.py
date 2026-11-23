@@ -9,8 +9,9 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
@@ -64,7 +65,8 @@ def _profile_browser(platform: str) -> str | None:
     return "chrome" if pdir.exists() and any(pdir.iterdir()) else None
 
 
-def detect_browser(platform: str | None = None, *, native_only: bool = False, playwright=None) -> BrowserInfo:
+def detect_browser(platform: str | None = None, *, native_only: bool = False, playwright=None,
+                   headless: bool = False, native_paths: dict | None = None) -> BrowserInfo:
     """Choose an installed browser while keeping existing profiles on their original browser."""
     affinity = _profile_browser(platform) if platform else None
     channel = getattr(settings, "browser_channel", "chrome")
@@ -72,29 +74,68 @@ def detect_browser(platform: str | None = None, *, native_only: bool = False, pl
     for name, finder in (("chrome", find_chrome), ("msedge", find_edge)):
         if wanted and wanted != name:
             continue
-        if path := finder():
+        path = native_paths.get(name) if native_paths is not None else finder()
+        if path:
             return BrowserInfo(name, path)
     if not native_only and wanted in {None, "chromium"}:
         if playwright is None:
             with sync_playwright() as pw:
-                return _playwright_browser(pw)
-        return _playwright_browser(playwright)
+                return _playwright_browser(pw, headless=headless)
+        return _playwright_browser(playwright, headless=headless)
     raise BrowserNotFoundError(wanted or "Chrome/Edge")
 
 
-def _playwright_browser(pw) -> BrowserInfo:
+def _playwright_browser(pw, *, headless: bool = False) -> BrowserInfo:
     path = pw.chromium.executable_path
     if Path(path).is_file():
         return BrowserInfo("chromium", path, oauth_limited=True)
+    if headless:
+        # --only-shell installs a sibling of Chromium at the same Playwright revision.
+        for parent in Path(path).parents:
+            if parent.name.startswith("chromium-"):
+                shell = parent.with_name(parent.name.replace("chromium-", "chromium_headless_shell-", 1))
+                for candidate in shell.glob("*/*"):
+                    if candidate.name in {"chrome-headless-shell", "chrome-headless-shell.exe", "headless_shell", "headless_shell.exe"} and candidate.is_file():
+                        return BrowserInfo("chromium", str(candidate), oauth_limited=True)
+                break
     raise BrowserNotFoundError()
 
 
-def browser_status(platform: str | None = None) -> dict:
+def browser_status(platform: str | None = None, *, headless: bool = False, playwright=None, native_paths: dict | None = None) -> dict:
     try:
-        info = detect_browser(platform)
+        info = detect_browser(platform, headless=headless, playwright=playwright, native_paths=native_paths)
         return {"browser": info.name, "oauth_limited": info.oauth_limited, "missing": False}
     except BrowserNotFoundError:
         return {"browser": None, "oauth_limited": False, "missing": True}
+
+
+_STATUS_TTL = 15
+_status_cache = None
+_status_lock = threading.Lock()
+
+
+def clear_browser_status_cache() -> None:
+    global _status_cache
+    with _status_lock:
+        _status_cache = None
+
+
+def browser_statuses() -> dict[str, dict]:
+    """Share discovery across all account rows and polling requests; manual actions refresh it."""
+    global _status_cache
+    affinities = tuple(_profile_browser(p) for p in PLATFORMS)
+    channel = getattr(settings, "browser_channel", "chrome")
+    key = (str(settings.profiles_dir), channel, affinities,
+           *(os.getenv(k) for k in ("FEEDLENS_CHROME_PATH", "PLAYWRIGHT_BROWSERS_PATH", "PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")))
+    with _status_lock:
+        if _status_cache and _status_cache[0] == key and time.monotonic() < _status_cache[1]:
+            return _status_cache[2]
+        native = {"chrome": find_chrome(), "msedge": find_edge()}
+        needs_playwright = not any(native.values()) or channel == "chromium" or "chromium" in affinities
+        with sync_playwright() if needs_playwright else nullcontext(None) as pw:
+            statuses = {p: browser_status(p, playwright=pw, native_paths=native) for p in PLATFORMS}
+        _status_cache = (key, time.monotonic() + _STATUS_TTL, statuses)
+        return statuses
 
 
 def warn_if_no_native_browser() -> None:
@@ -102,6 +143,7 @@ def warn_if_no_native_browser() -> None:
         detect_browser(native_only=True)
     except BrowserNotFoundError:
         print("Warning: Chrome/Edge not found. Install Chrome: https://www.google.com/chrome/. FeedLens will still start; Playwright Chromium has limited Google/Apple login support.")
+        print("Chưa tìm thấy Chrome/Edge. Bạn vẫn có thể mở FeedLens; tải Chrome tại https://www.google.com/chrome/ để đăng nhập.")
 
 
 def _remember_browser(pdir: Path, info: BrowserInfo) -> None:
@@ -197,7 +239,7 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
     pdir = profile_dir(platform)
     existed = pdir.exists()
     with sync_playwright() as pw:
-        selected = detect_browser(platform, playwright=pw)
+        selected = detect_browser(platform, playwright=pw, headless=headless)
         kwargs = dict(
             user_data_dir=str(pdir),
             headless=headless,

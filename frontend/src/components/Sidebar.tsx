@@ -10,7 +10,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { describeRunSource } from "../logic";
 import { serverMessage, useI18n, type Key } from "../i18n";
@@ -273,6 +273,7 @@ function SidebarBody({
           <h2 className="mb-1 font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-soft">
             {t("sb.accounts")}
           </h2>
+          <BrowserNotice platforms={platforms} />
           <ul className="divide-y divide-line rounded-xl border border-line bg-surface/50 px-3">
             {FALLBACK_PLATFORMS.map((fallback) => platforms.find((p) => p.key === fallback.key) ?? fallback).map((p) => (
               <PlatformRow
@@ -393,6 +394,19 @@ function SidebarBody({
   );
 }
 
+function BrowserNotice({ platforms }: { platforms: PlatformState[] }) {
+  const { t } = useI18n();
+  const missing = platforms.some((p) => p.missing || p.login_error_code === "error.browser_missing");
+  const limited = platforms.some((p) => p.oauth_limited);
+  const edge = platforms.some((p) => p.browser === "msedge");
+  if (!missing && !limited && !edge) return null;
+  const message = missing ? (platforms.some((p) => p.has_profile) ? "plat.browserSessionMissing" : "plat.browserMissing")
+    : limited ? "plat.chromiumNote" : "plat.edgeNote";
+  return <p role={missing ? "alert" : "note"} className={`mb-2 text-xs leading-relaxed ${missing ? "text-danger" : "text-ink-soft"}`}>
+    {t(message)}{" "}<a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-link underline">{t("plat.downloadChrome")}</a>
+  </p>;
+}
+
 /** Compact account row; invalid sessions remain visible below the actions. */
 function PlatformRow({
   p,
@@ -418,7 +432,7 @@ function PlatformRow({
     try {
       await api.platformAction(p.key, a);
     } catch (e) {
-      setActionError((e as Error).message);
+      setActionError(e instanceof ApiError && e.code === "error.browser_missing" ? null : (e as Error).message);
     }
     setBusy(false);
     onChanged();
@@ -465,9 +479,7 @@ function PlatformRow({
         </div>
       </div>
       {invalid && <p className="pb-2 pl-4 text-xs leading-relaxed text-danger">{t("plat.sessionInvalid")}</p>}
-      {(actionError || p.login_error || p.missing) && <p role="alert" title={p.login_error ?? undefined} className="pb-2 pl-4 text-xs leading-relaxed text-danger">{actionError || serverMessage(p.missing ? "error.browser_missing" : p.login_error_code ?? undefined, p.login_error ?? "")}</p>}
-      {p.missing && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center pl-4 text-xs text-link underline">{t("plat.downloadChrome")}</a>}
-      {!p.missing && (p.browser === "msedge" || p.oauth_limited) && <p className="pb-2 pl-4 text-xs leading-relaxed text-ink-soft">{t(p.oauth_limited ? "plat.chromiumNote" : "plat.edgeNote")}</p>}
+      {(actionError || (p.login_error && p.login_error_code !== "error.browser_missing")) && <p role="alert" title={p.login_error ?? undefined} className="pb-2 pl-4 text-xs leading-relaxed text-danger">{actionError || serverMessage(p.login_error_code ?? undefined, p.login_error ?? "")}</p>}
     </li>
   );
 }

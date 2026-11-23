@@ -34,7 +34,7 @@ def cookie_page(cookies: list[dict]) -> Iterator:
 
     with sync_playwright() as pw:
         opts = dict(headless=True, args=["--disable-dev-shm-usage", "--disable-gpu", "--mute-audio"])
-        selected = detect_browser(playwright=pw)
+        selected = detect_browser(playwright=pw, headless=True)
         browser = pw.chromium.launch(executable_path=selected.executable_path, **opts)
         try:
             ctx = browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900})
