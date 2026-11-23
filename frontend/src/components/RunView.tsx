@@ -159,7 +159,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
       {failed || canContinue || canReanalyze || canReprocess ? (
         <>
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
-          <p className="font-semibold text-danger">{t(run.error_code === "error.analysis_stopped" ? "run.aiPaused" : run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
+          <p className="font-semibold text-danger">{t(run.error_code === "error.ai_service_paused" ? "run.servicePaused" : run.error_code === "error.analysis_stopped" ? "run.aiPaused" : run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
           {run.error_code === "error.browser_missing" && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center text-sm text-link underline">{t("plat.downloadChrome")}</a>}
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
@@ -321,8 +321,8 @@ function QuotaDiagnostics({ run }: { run: Run }) {
       <p className="text-ink-soft">{t(`run.quotaReason.${item.reason}` as Key, {
         tokens: item.estimated_tokens, limit: (item.reason === "daily_limit" ? item.limit_rpd : item.limit_tpm) ?? 0,
         used: item.requests_today, metric: item.metric ?? "",
-        cause: t(item.kind === "network" ? "run.quotaFailure.network" : item.kind === "rate_limit" ? "run.quotaFailure.rate_limit" : "run.quotaFailure.other"),
-      })}{!!item.status && ` · HTTP ${item.status}`}{item.project_shared && ` · ${t("run.projectQuotaShared")}`}</p>
+        cause: t(item.kind === "service" ? "run.quotaFailure.service" : item.kind === "network" ? "run.quotaFailure.network" : item.kind === "rate_limit" ? "run.quotaFailure.rate_limit" : "run.quotaFailure.other"),
+      })}{!!item.status && ` · HTTP ${item.status}`}{item.project_shared && item.reason !== "service_unavailable" && ` · ${t("run.projectQuotaShared")}`}</p>
     </li>)}</ul>
   </details>;
 }
@@ -336,7 +336,7 @@ function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
   const ai = p?.ai;
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (ai?.state !== "quota_wait" || !ai.retry_at || p?.stop_requested) return;
+    if (!["quota_wait", "service_wait"].includes(ai?.state ?? "") || !ai?.retry_at || p?.stop_requested) return;
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
@@ -363,16 +363,18 @@ function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
         {ai.switched_key && <p>{t("run.sameModelKey", { key: ai.key_label ?? "", model: ai.model ?? "" })}</p>}
         {p?.stop_requested ? <p>{t("run.stoppingAI")}</p>
           : ai.state === "quota_wait" ? <p>{ai.retry_at && <>{t("run.quotaCountdown", { seconds: retryIn })} · </>}{t("run.quotaRetryAt")} {ai.retry_at && <time dateTime={new Date(ai.retry_at * 1000).toISOString()}>{new Date(ai.retry_at * 1000).toLocaleTimeString(locale)}</time>}</p>
+          : ai.state === "service_wait" ? <p>{ai.retry_at && <>{t("run.quotaCountdown", { seconds: retryIn })} · </>}{t("run.serviceWaiting", { provider: ai.provider_id === "gemini" ? t("run.googleAI") : ai.provider ?? "", http: ai.status ? ` (HTTP ${ai.status})` : "" })} {ai.retry_at && <time dateTime={new Date(ai.retry_at * 1000).toISOString()}>{new Date(ai.retry_at * 1000).toLocaleTimeString(locale)}</time>}</p>
+          : ai.state === "service_paused" ? <p>{t("error.ai_service_paused")}</p>
           : ai.state === "sending" ? <p>{ai.batch ? t("run.sendingBatch", { n: ai.batch, total: ai.batches ?? 1 }) : t("run.writingSummary")}</p>
           : ai.state === "output_retry" ? <p>{t("run.outputRetry")}</p>
           : ai.state === "switching" ? <p>{ai.next_model ? t("run.switchingTo", { model: ai.next_model }) : t("run.noFallback")}</p>
           : ai.state === "exhausted" ? <p>{t(ai.daily ? "run.dailyQuotaExhausted" : "error.ai_quota")}</p> : null}
         <p>{t("run.readCount", { done: p?.done ?? 0, target: p?.target ?? run.collected })}{!!p?.eta_seconds && ` · ${t("run.estimatedRemaining", { time: formatDuration(p.eta_seconds, lang) })}`}</p>
         {!!p?.ai_requests && <p>{t("run.requestUsage", { requests: p.ai_requests, saved: p.newly_read ?? 0 })}</p>}
-        {ai.provider_id === "gemini" && (ai.project_shared || ai.state === "quota_wait") && <p>{t(ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
+        {ai.provider_id === "gemini" && ["quota_wait", "exhausted"].includes(ai.state) && <p>{t(ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
       </div>}
       {!ai && <p className="mt-2 text-sm text-ink-soft">{p?.stop_requested ? t("run.stoppingAI") : p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>}
-      {ai?.state === "exhausted" && <QuotaDiagnostics run={run} />}
+      {(ai?.state === "exhausted" || ai?.state === "service_paused") && <QuotaDiagnostics run={run} />}
       {run.status === "analyzing" && <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="secondary" busy={busy} disabled={!!p?.stop_requested} onClick={stop}>{t("run.stopAI")}</Button>
         <Button variant="ghost" disabled={!!p?.stop_requested} onClick={() => setChanging(!changing)} aria-expanded={changing}>{t("run.changeModel")}</Button>

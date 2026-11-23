@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import re
 import json
+import random
+from email.utils import parsedate_to_datetime
 import threading
 import time
 from zoneinfo import ZoneInfo
@@ -34,6 +36,12 @@ class AIConfigurationError(AIError):
     pass
 
 
+class AIServiceUnavailable(AIError):
+    def __init__(self, candidates):
+        self.candidates = candidates
+        super().__init__("AI service temporarily unavailable: retry budget exhausted; saved analysis can be continued.")
+
+
 def check_stopped(stop_event):
     if stop_event is not None and stop_event.is_set():
         raise AnalysisStopped()
@@ -51,6 +59,7 @@ class Candidate:
     tier: str = "free"
     disabled: bool = False
     key_label: str = ""
+    service_deadline: float | None = None
 
     def progress(self, state, **details):
         return {"state": state, "provider": self.client.info.name,
@@ -68,7 +77,7 @@ class Candidate:
 
 
 class QuotaScheduler:
-    def __init__(self, db=None, *, clock=None, sleep=None, now=None, default_limits=default_limits):
+    def __init__(self, db=None, *, clock=None, sleep=None, now=None, default_limits=default_limits, jitter=None):
         self.db = db
         self.clock = clock or time.monotonic
         self.sleep = sleep or time.sleep
@@ -86,9 +95,12 @@ class QuotaScheduler:
         self.model_aliases = {}
         self.last_failures = {}
         self._reservation = threading.local()
+        self.service_until = {}
+        self.service_failures = defaultdict(int)
+        self.jitter = jitter or (lambda seconds: seconds * random.uniform(0.8, 1.2))
 
     def _release_invalid_request(self, candidate, reservation, *, unsent):
-        """Keep reservations atomic, but do not bill client/400 validation failures as daily AI work."""
+        """Refund non-generative failures, retaining the RPM slot for requests sent to the provider."""
         if reservation is None:
             return
         entry, day = reservation
@@ -120,6 +132,8 @@ class QuotaScheduler:
         self.windows[new] = deque(sorted(self.windows[new]))
         if old in self.blocked_until:
             self.blocked_until[new] = max(self.blocked_until.get(new, 0), self.blocked_until.pop(old))
+        if old in self.service_until:
+            self.service_until[new] = max(self.service_until.get(new, 0), self.service_until.pop(old))
         if old in self.learned:
             self.learned[new] = self.learned.pop(old)
         self.daily_blocked.update((new, day) for pair, day in list(self.daily_blocked) if pair == old)
@@ -131,7 +145,8 @@ class QuotaScheduler:
 
     def forget_key(self, key_id):
         with self.lock:
-            for mapping in (self.windows, self.learned, self.blocked_until, self.failures, self.last_failures, self.usage):
+            for mapping in (self.windows, self.learned, self.blocked_until, self.failures, self.last_failures, self.usage,
+                            self.service_until, self.service_failures):
                 for pair in list(mapping):
                     if pair[0] == key_id:
                         mapping.pop(pair, None)
@@ -156,7 +171,7 @@ class QuotaScheduler:
             reason = "zero_quota"
             detail["metric"] = next(name for name, value in (("RPM", limits.rpm), ("TPM", limits.tpm), ("RPD", limits.rpd)) if value == 0)
         elif candidate.disabled:
-            reason = "retry_limit" if failure else "disabled"
+            reason = "service_unavailable" if failure.get("kind") == "service" else "retry_limit" if failure else "disabled"
         elif self.daily_exhausted(candidate, day):
             reason = "provider_daily"
         elif limits.rpd is not None and detail["requests_today"] >= limits.rpd:
@@ -210,6 +225,12 @@ class QuotaScheduler:
                 day, now = pacific_day(self.now()), self.clock()
                 waiting = []
                 selected_model = None
+                service_waiting = False
+                for c in candidates:
+                    if c.service_deadline is not None and now >= c.service_deadline:
+                        c.disabled = True
+                        self.service_until.pop(self.quota_pair(c), None)
+                        self.service_failures.pop(self.quota_pair(c), None)
                 for candidate in self._ordered(candidates, day):
                     limits = self.limits(candidate)
                     if (self.daily_exhausted(candidate, day) or
@@ -219,14 +240,14 @@ class QuotaScheduler:
                         continue  # Waiting cannot make an oversized request fit.
                     if limits.rpm == 0:
                         continue
-                    if selected_model is not None and candidate.model != selected_model:
+                    if selected_model is not None and candidate.model != selected_model and not service_waiting:
                         continue
-                    selected_model = candidate.model
                     pair = self.quota_pair(candidate)
                     window = self.windows[pair]
                     while window and window[0][0] <= now - 60:
                         window.popleft()
                     wait = max(0, self.blocked_until.get(pair, 0) - now)
+                    wait = max(wait, self.service_until.get(pair, 0) - now)
                     if limits.rpm is not None and len(window) >= limits.rpm:
                         if limits.rpm == 0:
                             continue
@@ -239,7 +260,12 @@ class QuotaScheduler:
                                 wait = max(wait, started + 60 - now)
                                 break
                     if wait > 0:
-                        waiting.append((wait, candidate))
+                        service = self.last_failures.get(candidate.pair, {}).get("kind") == "service"
+                        waiting.append((wait, candidate, service))
+                        if service:
+                            service_waiting = True
+                        elif not service_waiting:
+                            selected_model = candidate.model
                         continue
                     check_stopped(stop_event)
                     if self.db is not None and isinstance(candidate.key_id, int):
@@ -254,15 +280,25 @@ class QuotaScheduler:
                     return candidate
                 if not waiting:
                     rejected = [self.rejection(c, est_tokens, day) for c in candidates]
+                    available = [item for item in rejected if item["reason"] not in
+                                 {"provider_daily", "daily_limit", "zero_quota", "invalid_key", "model_missing"}]
+                    if available and all(item["reason"] == "service_unavailable" for item in available):
+                        on_state({"state": "service_paused", "daily": False, "candidates": rejected})
+                        raise AIServiceUnavailable(rejected)
                     on_state({"state": "exhausted", "daily": bool(rejected) and all(
                         item["reason"] in {"provider_daily", "daily_limit"} for item in rejected), "candidates": rejected})
                     message = ("AI request exceeds TPM: split the request or select another model."
                                if rejected and all(c["reason"] == "too_large" for c in rejected) else
                                "AI quota exhausted: no configured key/model can accept this request.")
                     raise QuotaExhausted(message, rejected)
-                wait, candidate = min(waiting, key=lambda item: item[0])
-            on_state(candidate.progress("quota_wait", retry_at=time.time() + wait, wait_seconds=wait))
-            notify(f"Đang chờ hạn mức phút của {candidate.client.info.name} ({candidate.model}): {wait:.0f} giây")
+                wait, candidate, service = min(waiting, key=lambda item: item[0])
+            if service:
+                status = self.last_failures.get(candidate.pair, {}).get("status", 0)
+                on_state(candidate.progress("service_wait", retry_at=time.time() + wait, wait_seconds=wait, status=status))
+                notify(f"{candidate.client.info.name} đang quá tải (HTTP {status}), thử lại sau {wait:.0f} giây")
+            else:
+                on_state(candidate.progress("quota_wait", retry_at=time.time() + wait, wait_seconds=wait))
+                notify(f"Đang chờ hạn mức phút của {candidate.client.info.name} ({candidate.model}): {wait:.0f} giây")
             if stop_event is not None:
                 stop_event.wait(max(0.001, wait))
             else:
@@ -309,11 +345,15 @@ class QuotaScheduler:
                 on_state(candidate.progress(state, model=served, requested_model=candidate.model, switched_key=switched))
 
             try:
+                attempt_started = self.clock()
                 result = candidate.client.complete_json(system, prompt, schema, effort)
                 response_state("received")
                 with self.lock:
                     self.failures.pop(self.quota_pair(candidate), None)
                     self.last_failures.pop(candidate.pair, None)
+                    self.service_until.pop(self.quota_pair(candidate), None)
+                    self.service_failures.pop(self.quota_pair(candidate), None)
+                    candidate.service_deadline = None
                 self.status[candidate.key_id] = "ok"
                 return result
             except (AIOutputTruncated, json.JSONDecodeError):
@@ -322,6 +362,8 @@ class QuotaScheduler:
             except Exception as exc:
                 message = str(exc)
                 status = next((getattr(exc, k, None) for k in ("status_code", "code", "status") if isinstance(getattr(exc, k, None), int)), None)
+                if status is None and (code := re.match(r"\s*(?:HTTP\s+)?(500|502|503|504|529)\b", message, re.I)):
+                    status = int(code[1])
                 if status is None and re.search(r"\b400\b.*INVALID_ARGUMENT", message, re.I):
                     status = 400
                 configuration = status == 400 or isinstance(exc, (TypeError, ValueError))
@@ -336,18 +378,25 @@ class QuotaScheduler:
                 daily = daily_quota_error(message)
                 rate = status == 429 or bool(re.search(r"\b429\b|RESOURCE_EXHAUSTED", message, re.I))
                 missing = status == 404 or bool(re.search(r"\b404\b|model.*(?:not found|not supported|no longer)", message, re.I))
+                service = status in {500, 502, 503, 504, 529} or (not rate and bool(re.search(r"UNAVAILABLE|OVERLOADED|HIGH DEMAND", message, re.I)))
                 transient = (isinstance(exc, (ConnectionError, TimeoutError, OSError)) or status in {408, 500, 502, 503, 504, 529}
                              or bool(re.search(r"UNAVAILABLE|OVERLOADED|TIMEOUT|TIMED OUT|HIGH DEMAND|CONNECTION|CONNECTERROR|GETADDRINFO|DNS|SOCKET", message, re.I)))
                 with self.lock:
+                    if service:
+                        self._release_invalid_request(candidate, reservation, unsent=False)
                     provider = getattr(candidate.client.info, "key", "")
                     if provider == "gemini" and (project := re.search(r"(?:projects/|project[_ ]?id\W+)([\w-]+)", message, re.I)):
                         old = self.quota_pair(candidate)
                         self.key_projects[(provider, candidate.key_id)] = project[1]
                         self._merge_pair(old, self.quota_pair(candidate))
-                        on_state(candidate.progress("quota_wait", project_shared=True))
+                        on_state(candidate.progress("service_wait" if service else "quota_wait", project_shared=True, status=status or 0))
                     pair = self.quota_pair(candidate)
+                    if not service:
+                        candidate.service_deadline = None
+                        self.service_until.pop(pair, None)
+                        self.service_failures.pop(pair, None)
                     self.last_failures[candidate.pair] = {"kind": "auth" if auth else "model_missing" if missing else
-                                                         "daily" if daily else "rate_limit" if rate else "network" if transient else "other",
+                                                         "daily" if daily else "rate_limit" if rate else "service" if service else "network" if transient else "other",
                                                          "status": status or 0}
                     if auth:
                         for c in candidates:
@@ -363,6 +412,26 @@ class QuotaScheduler:
                             self.db.exhaust_ai_usage(candidate.key_id, candidate.model, pacific_day(self.now()))
                     elif missing:
                         candidate.disabled = True
+                    elif service:
+                        candidate.service_deadline = min(candidate.service_deadline or attempt_started + 300, attempt_started + 300)
+                        self.service_failures[pair] += 1
+                        remaining = max(0, candidate.service_deadline - self.clock())
+                        if remaining <= 0 or retry_base == 0 and self.service_failures[pair] >= 7:
+                            candidate.disabled = True
+                            self.service_until.pop(pair, None)
+                            self.service_failures.pop(pair, None)
+                        else:
+                            headers = getattr(getattr(exc, "response", None), "headers", {}) or {}
+                            try:
+                                after = max(0, float(headers.get("retry-after", 0)))
+                            except (ValueError, TypeError):
+                                try:
+                                    after = max(0, (parsedate_to_datetime(headers["retry-after"]) - self.now()).total_seconds())
+                                except (KeyError, ValueError, TypeError, OverflowError):
+                                    after = 0
+                            base = 5 if retry_base == 3 else retry_base
+                            wait = min(remaining, after or max(0, self.jitter(min(80, base * 2 ** min(self.service_failures[pair] - 1, 6)))))
+                            self.service_until[pair] = self.clock() + wait
                     elif rate or transient:
                         self.learned[pair] = learn_limits(message, self.limits(candidate))
                         self.failures[pair] += 1

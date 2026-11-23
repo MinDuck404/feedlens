@@ -354,7 +354,7 @@ def fail_run(db: Database, run_id: int, message: str) -> None:
     PROGRESS.setdefault(run_id, {}).update(phase=status, message=message[:300])
     if "analysis stopped by user" in message:
         PROGRESS[run_id]["ai"] = {**PROGRESS[run_id].get("ai", {}), "state": "stopped"}
-    elif PROGRESS[run_id].get("ai", {}).get("state") != "exhausted":
+    elif PROGRESS[run_id].get("ai", {}).get("state") not in {"exhausted", "service_paused"}:
         PROGRESS[run_id]["ai"] = {**PROGRESS[run_id].get("ai", {}), "state": "error"}
 
 

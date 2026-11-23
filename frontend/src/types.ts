@@ -188,7 +188,8 @@ export interface Digest {
 
 export interface Progress {
   ai?: {
-    state: "preparing" | "sending" | "received" | "output_retry" | "quota_wait" | "switching" | "exhausted" | "error" | "stopped";
+    state: "preparing" | "sending" | "received" | "output_retry" | "quota_wait" | "service_wait" | "service_paused" | "switching" | "exhausted" | "error" | "stopped";
+    status?: number;
     provider?: string;
     provider_id?: string;
     model?: string;
@@ -205,7 +206,7 @@ export interface Progress {
       key_id: number | null;
       key_label: string;
       model: string;
-      reason: "configuration" | "zero_quota" | "too_large" | "invalid_key" | "model_missing" | "retry_limit" | "disabled" | "provider_daily" | "daily_limit" | "reservation_failed";
+      reason: "service_unavailable" | "configuration" | "zero_quota" | "too_large" | "invalid_key" | "model_missing" | "retry_limit" | "disabled" | "provider_daily" | "daily_limit" | "reservation_failed";
       metric?: string;
       estimated_tokens: number;
       limit_tpm: number | null;

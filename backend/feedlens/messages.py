@@ -3,6 +3,8 @@ import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if "AI service temporarily unavailable" in message:
+        return "error.ai_service_paused"
     if "AI request configuration failed" in message:
         return "error.ai_configuration"
     if "AI request exceeds TPM" in message:
@@ -67,6 +69,9 @@ def progress_message(progress: dict | None) -> dict | None:
     if phase not in {"pending", "queued", "scraping", "analyzing", "summarizing", "done", "analysis_failed", "error"}:
         phase = "preparing"
     raw = progress.get("message", "")
+    if m := re.search(r"(.+?) đang quá tải \(HTTP (\d+)\), thử lại sau (\d+) giây", raw):
+        return {**progress, "message_code": "progress.service_wait",
+                "message_vars": {"provider": m[1], "status": int(m[2]), "seconds": int(m[3])}}
     if m := re.search(r"Chuyển sang key (.+?) \(cùng model (.+?)\)", raw):
         return {**progress, "message_code": "progress.key_switch", "message_vars": {"key": m[1], "model": m[2]}}
     # Thông báo của bộ điều phối AI (ai/scheduler.py): mã riêng để giao diện hiện đúng thay vì "Đang phân tích bài".

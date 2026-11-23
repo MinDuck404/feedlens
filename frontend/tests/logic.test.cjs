@@ -61,6 +61,10 @@ test("analyzing view exposes actual model, quota retry time and stop/change cont
   assert.ok(progress.includes(i18n.translate("run.quotaCountdown", { seconds: 30 })));
   assert.ok(progress.includes(i18n.translate("run.requestUsage", { requests: 4, saved: 1 })));
   assert.ok(progress.includes(i18n.translate("run.sharedProjectDetected")));
+  const service = render(React.createElement(InProgress, { run: { ...run, progress: { ...run.progress,
+    ai: { ...run.progress.ai, state: "service_wait", status: 503 } } }, onStarted() {} }));
+  assert.ok(service.includes(i18n.translate("run.serviceWaiting", { provider: "Google (Gemini)", http: " (HTTP 503)" })));
+  assert.ok(!service.includes(i18n.translate("run.quotaRetryAt")));
   const posts = render(React.createElement(Done, { run, meta: {}, tab: "digest", setTab() {} }));
   assert.ok(posts.includes("Raw waiting text"));
   assert.ok(posts.includes(i18n.translate("run.aiUnread").replaceAll("'", "&#x27;")));
