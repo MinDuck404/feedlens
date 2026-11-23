@@ -25,8 +25,6 @@ from .job_profile import JobProfile, matching_context
 from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
 
 BATCH_SIZE = 60
-DEFAULT_WEB_BATCH_SIZE = 5
-MAX_WEB_BATCH_SIZE = 20
 CLASSIFY_OUTPUT_TOKENS_PER_ITEM = 120
 JOB_OUTPUT_TOKENS_PER_ITEM = 180
 CLASSIFY_OUTPUT_SAFETY_TOKENS = 820
@@ -69,15 +67,9 @@ def estimate_classification_requests(posts: list[RawPost], job_mode: bool, keywo
 
 
 def estimate_classification_requests_for_count(post_count: int, job_mode: bool, keywords: list[str], profile: str,
-                                               topic_count: int = 0, has_cv: bool = False,
-                                               batch_limit: int = DEFAULT_WEB_BATCH_SIZE) -> int:
-    size = min(batch_limit, classification_batch_size(job_mode, keywords, profile, topic_count, has_cv=has_cv))
+                                               topic_count: int = 0, has_cv: bool = False) -> int:
+    size = classification_batch_size(job_mode, keywords, profile, topic_count, has_cv=has_cv)
     return math.ceil(post_count / size) if post_count else 0
-
-
-def preferred_batch_size(prefs: dict) -> int:
-    size = prefs.get("ai_batch_size")
-    return size if type(size) is int and 1 <= size <= MAX_WEB_BATCH_SIZE else DEFAULT_WEB_BATCH_SIZE
 
 
 SYSTEM = system_prompt("vi")
@@ -282,8 +274,6 @@ class LLMAnalyzer:
         self.fallback_models = list(fallback_models or [])
         self.notify: Callable[[str], None] = lambda msg: None  # pipeline gắn vào để báo trạng thái lên web
         self.language = "vi"  # pipeline đặt theo RunRequest.language
-        self.recovery_mode = False
-        self.batch_limit = BATCH_SIZE
         self.stop_event = None
         self.on_state = lambda state: None
         self._call_context = threading.local()
@@ -498,7 +488,6 @@ class LLMAnalyzer:
         for known_jobs in (False, True):
             batch_size = classification_batch_size(job_mode, keywords, profile, len(topics), known_jobs,
                                                    has_cv=cv_profile is not None)
-            batch_size = min(batch_size, self.batch_limit)
             indexed = [(i, p) for i, p in enumerate(posts) if (p.job_seed is not None) == known_jobs]
             batch, tokens = [], context_tokens
             for item in indexed:
@@ -514,10 +503,7 @@ class LLMAnalyzer:
         results: list[AnalyzedPost | None] = [None] * len(posts)
         done = 0
         errors = []
-        workers = min(self.scheduler.parallelism(self.candidates), len(batches) or 1)
-        if self.recovery_mode:
-            workers = min(workers, 2)
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        with ThreadPoolExecutor(max_workers=min(self.scheduler.parallelism(self.candidates), len(batches) or 1)) as pool:
             futures = [pool.submit(run_batch, batch, number) for number, batch in enumerate(batches, 1)]
             for fut in as_completed(futures):
                 try:

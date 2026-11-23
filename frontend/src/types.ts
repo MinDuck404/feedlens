@@ -140,7 +140,6 @@ export interface SavedGroup {
 /** Cài đặt lưu theo tài khoản (server chỉ lưu nguyên JSON này). */
 export interface Preferences {
   max_posts?: 500 | 1000 | 2000;
-  ai_batch_size?: number;
   composer?: Partial<RunRequest> & { keywords_text?: string };
   groups?: Partial<Record<Platform, SavedGroup[]>>;
   searches?: Partial<Record<Platform, string>>;

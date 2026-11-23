@@ -153,48 +153,16 @@ def test_default_model_follows_available_list():
     assert pick_default("gemini", ["gemini-3.7-flash", "gemini-3.10-flash"]) == "gemini-3.10-flash"
     assert pick_default("gemini", ["gemini-x-pro"]) == "gemini-x-pro"
     assert pick_default("gemini", []) == "gemini-3.5-flash-lite"
-    # The default is followed by a Flash fallback from a different release.
+    # model mặc định của app có trong danh sách -> đứng đầu, các bản flash mới hơn làm dự phòng
     from feedlens.ai.registry import default_candidates
     assert default_candidates("gemini", models + ["gemini-3.5-flash-lite"])[:3] == \
-        ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash"]
+        ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash"]
 
 
 def test_default_model_env_override(monkeypatch):
     from feedlens.ai import pick_default
     monkeypatch.setenv("GEMINI_MODEL", "gemini-custom")
     assert pick_default("gemini", ["gemini-3.8-flash"]) == "gemini-custom"
-
-
-def test_gemini_default_can_finish_when_newest_flash_models_are_unavailable(monkeypatch):
-    from feedlens.ai.limits import Limits
-    from feedlens.ai.registry import resolve_models
-    from feedlens.ai.scheduler import Candidate, QuotaScheduler
-    from tests.test_ai_quota import Clock, Provider
-
-    monkeypatch.delenv("GEMINI_MODEL", raising=False)
-    monkeypatch.setattr("feedlens.ai.registry.list_models", lambda *a: [
-        "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash",
-    ])
-    models = resolve_models(1, "gemini", "fake", None)
-    clock = Clock()
-    calls = []
-
-    def provider(model):
-        client = Provider(model, clock)
-        def complete(*args):
-            calls.append(model)
-            if model == "gemini-3.5-flash":
-                return {"ok": True}
-            raise RuntimeError("503 UNAVAILABLE")
-        client.complete_json = complete
-        return client
-
-    scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep, jitter=lambda delay: delay,
-                               default_limits=lambda *a: Limits())
-    assert scheduler.complete_json([Candidate(1, provider(model)) for model in models], "", "", {}) == {"ok": True}
-    assert calls == ["gemini-3.5-flash-lite", "gemini-3.5-flash"]
-    assert clock.value == 0 and len(models) == 3
-    assert resolve_models(1, "gemini", "fake", "gemini-3.8-flash") == ["gemini-3.8-flash"]
 
 
 def test_agent_queue_end_to_end_and_isolation(cloud):

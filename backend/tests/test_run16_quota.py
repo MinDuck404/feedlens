@@ -224,7 +224,7 @@ def test_empty_output_does_not_spend_two_requests_for_every_batch(monkeypatch):
     assert len(calls) <= 3
 
 
-def test_220_jobs_with_cv_use_five_post_batches_by_default(tmp_path, monkeypatch):
+def test_220_jobs_with_cv_require_eleven_reads_and_one_digest(tmp_path, monkeypatch):
     from feedlens import pipeline
     from feedlens.db import Database
     from feedlens.job_profile import JobProfile
@@ -248,9 +248,9 @@ def test_220_jobs_with_cv_use_five_post_batches_by_default(tmp_path, monkeypatch
     pipeline.execute_analysis(db, rid, req,
         [RawPost(platform="facebook", source="feed", text=f"Independent post {i}") for i in range(220)], uid)
     assert db.get_run(rid)["status"] == "done"
-    assert sizes.count(5) == 44 and sizes.count(0) == 1
+    assert sizes.count(20) == 11 and sizes.count(0) == 1
     assert sum(p.analyzed for p in db.get_posts(rid)) == 220
-    assert pipeline.PROGRESS[rid]["ai_requests"] == 45
+    assert pipeline.PROGRESS[rid]["ai_requests"] == 12
     assert pipeline.PROGRESS[rid]["newly_read"] == 220
 
 

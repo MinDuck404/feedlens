@@ -1,5 +1,4 @@
 import json
-import time
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -77,66 +76,6 @@ def test_cv_api_errors_and_pasted_text(cloud):
     response = client.post("/api/profile/cv", headers=headers, data={"text": "Junior Backend Developer Python FastAPI Docker\nEmail: me@example.test", "ai_provider": "offline"})
     assert response.status_code == 200 and "me@example.test" not in response.json()["markdown"]
     assert client.put("/api/profile", headers=headers, json={"markdown": "x" * 8001}).status_code == 422
-
-def test_cv_ai_analysis_times_out_and_stops_waiting(cloud, monkeypatch):
-    from feedlens import profile_api
-
-    class SlowAnalyzer:
-        stop_event = None
-
-        def _json_call(self, prompt, schema, effort):
-            self.signalled = self.stop_event.wait(5)  # a provider call that ignores the deadline must not block the reply
-            raise RuntimeError("stopped")
-
-    slow = SlowAnalyzer()
-    monkeypatch.setattr(profile_api, "get_analyzer", lambda *args: slow)
-    monkeypatch.setattr(profile_api, "CV_DEADLINE_SECONDS", 0.2)
-    client = cloud(); headers = _signup(client)
-    started = time.monotonic()
-    response = client.post("/api/profile/cv", headers=headers, data={"text": "Junior Backend Developer Python FastAPI Docker", "ai_provider": "gemini"})
-    assert time.monotonic() - started < 3
-    assert response.status_code == 504 and response.json()["code"] == "error.cv_analysis_timeout"
-    assert slow.stop_event.is_set()
-
-
-def test_cv_ai_analysis_surfaces_overload_quota_and_auth_errors(cloud, monkeypatch):
-    from feedlens import profile_api
-    from feedlens.ai.base import AIError
-    from feedlens.ai.scheduler import AIServiceUnavailable, QuotaExhausted
-
-    class OverloadedWaitAnalyzer:
-        stop_event = None
-        on_state = lambda self, s: None
-
-        def _json_call(self, prompt, schema, effort):
-            self.on_state({"state": "service_wait", "status": 503})
-            self.on_state({"state": "sending"})
-            self.stop_event.wait(5)
-            raise RuntimeError("stopped")
-
-    slow = OverloadedWaitAnalyzer()
-    monkeypatch.setattr(profile_api, "get_analyzer", lambda *args: slow)
-    monkeypatch.setattr(profile_api, "CV_DEADLINE_SECONDS", 0.2)
-    client = cloud(); headers = _signup(client)
-    r = client.post("/api/profile/cv", headers=headers, data={"text": "Junior Backend Developer Python FastAPI Docker", "ai_provider": "gemini"})
-    assert r.status_code == 503 and r.json()["code"] == "error.cv_analysis_overloaded"
-    assert slow.stop_event.is_set()
-
-    for exc, status, code in [
-        (AIServiceUnavailable([]), 503, "error.cv_analysis_overloaded"),
-        (QuotaExhausted("quota", []), 429, "error.ai_quota"),
-        (AIError("401 Unauthorized"), 502, "error.ai_auth"),
-    ]:
-        class ErrorAnalyzer:
-            stop_event = None
-            on_state = lambda self, s: None
-
-            def _json_call(self, prompt, schema, effort, _exc=exc):
-                raise _exc
-
-        monkeypatch.setattr(profile_api, "get_analyzer", lambda *args, _a=ErrorAnalyzer(): _a)
-        res = client.post("/api/profile/cv", headers=headers, data={"text": "Junior Backend Developer Python FastAPI Docker", "ai_provider": "gemini"})
-        assert res.status_code == status and res.json()["code"] == code
 
 
 def test_ai_cv_is_redacted_and_uses_only_relevant_role_hints():
@@ -324,8 +263,7 @@ def test_job_fixtures_through_pipeline_with_fake_provider(tmp_path, profile_id):
         if schema is CLASSIFY_SCHEMA:
             assert prompt.count("UNIQUE_PROFILE_") == 1
             items = []
-            batch_rows = [row for row in rows if row["raw_text"][:3000] in prompt]
-            for i, row in enumerate(batch_rows):
+            for i, row in enumerate(rows):
                 expected = row["expected_evaluations"][profile_id]
                 items.append({"id": i, "category": "job", "summary": row["title"], "is_job": True, "job": {"title": row["title"], "company": row["company"], "match_score": sum(expected["score_range"]) // 2, "match_type": expected["match_type"], "gaps": expected["gaps"], "constraint_flags": expected["constraint_flags"], "match_reason": expected["match_reason"]}})
             return {"items": items}

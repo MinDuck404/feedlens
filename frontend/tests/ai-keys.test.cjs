@@ -130,22 +130,3 @@ test("Settings loads and groups keys, then reloads metadata after mutations", as
     assert.equal(keyCalls, 2); assert.equal(providerCalls, 2); assert.equal(changed, 1);
   } finally { harness.close(); Object.assign(api, original); }
 });
-
-test("General settings default to five posts per AI request and save a smaller batch", async () => {
-  const Settings = require("../src/components/Settings.tsx").default;
-  const original = { ...api }, harness = hooks(Settings);
-  api.providers = async () => [];
-  api.listKeys = async () => [];
-  const saved = [];
-  const props = { meta: { mode: "local" }, me: null, initialTab: "general", prefs: { max_posts: 2000 },
-    onPrefsChange(prefs) { saved.push(prefs); }, onChanged() {}, onClose() {} };
-  try {
-    const select = find(harness.render(props), (node) => node.props["aria-label"] === "set.aiBatchSize");
-    assert.equal(select.props.value, "5");
-    select.props.onChange({ target: { value: "3" } });
-    assert.deepEqual(saved, [{ max_posts: 2000, ai_batch_size: 3 }]);
-    await tick();
-    const updated = find(harness.render({ ...props, prefs: saved[0] }), (node) => node.props["aria-label"] === "set.aiBatchSize");
-    assert.equal(updated.props.value, "3");
-  } finally { harness.close(); Object.assign(api, original); }
-});

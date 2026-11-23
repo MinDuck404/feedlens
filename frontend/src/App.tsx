@@ -323,7 +323,6 @@ function Workspace({ meta, onLogout }: { meta: Meta; onLogout?: () => void }) {
               prefs={prefs}
               tab={route.tab}
               onAnalysisStarted={refreshRuns}
-              onBatchSettings={() => { setSettingsTab("general"); setSettingsOpen(true); }}
               onRerun={(request) => { setRerunRequest(request); setComposerOpen(true); }}
               onTab={(tab) =>
                 navigate({ page: "run", id: route.id, tab }, { replace: true })
