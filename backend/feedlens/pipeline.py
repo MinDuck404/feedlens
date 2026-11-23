@@ -232,7 +232,11 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     prog = PROGRESS.setdefault(run_id, {})
     raw = preserve_post_identities(raw)
     db.save_raw_posts(run_id, raw)
-    groups = group_posts(raw)
+    needs_ai = analyzer.label != HeuristicAnalyzer.label
+    completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
+                                         if p.analyzed and (not needs_ai or p.analyzed_by not in {"", "offline", "pending"})]
+    # Continuing an old run must keep an already-paid-for analysis visible and reusable.
+    groups = group_posts(raw, preferred_fingerprints={p.fingerprint for p in completed})
     db.save_post_groups(run_id, [PostGroup(
         fingerprint=group[0].fingerprint,
         fingerprints=list(dict.fromkeys(p.fingerprint for p in group)),
@@ -248,10 +252,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     owner = (db.get_run(run_id) or {}).get("user_id")
     analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
-    needs_ai = analyzer.label != HeuristicAnalyzer.label
     request = (db.get_run(run_id) or {}).get("request", {})
-    completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
-                                         if not needs_ai or p.analyzed_by not in {"", "offline", "pending"}]
     unique = {group[0].fingerprint: group[0] for group in groups}
     duplicates = {group[0].fingerprint: group[1:] for group in groups}
     known = {p.fingerprint for p in completed} & unique.keys()

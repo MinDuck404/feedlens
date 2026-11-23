@@ -52,7 +52,7 @@ def test_raw_and_successful_batches_survive_failure_and_retry_only_missing(tmp_p
     monkeypatch.setattr(pipeline, "scrape", lambda *args: scrapes.append(True) or raw)
     pipeline.execute_run(db, rid, req)
     assert db.get_run(rid)["status"] == "analysis_failed"
-    completed = {p.fingerprint: p.id for p in db.get_posts(rid)}
+    completed = {p.fingerprint: p.id for p in db.get_posts(rid) if p.analyzed}
     assert len(completed) == 4
     assert sum(p.analyzed for p in db.get_posts(rid, include_raw=True)) == 4
     failed[0] = False

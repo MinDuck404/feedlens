@@ -76,7 +76,8 @@ test("grouped posts show every original source on job and reading cards without 
   }
   assert.equal(render(React.createElement(PostSources, { p: { ...p, sources: undefined } })), "");
   const sameGroup = render(React.createElement(PostSources, { p: { ...p, sources: p.sources.map((s) => ({ ...s, source: "Group A" })) } }));
-  assert.ok(sameGroup.includes(i18n.translate("posts.postedInGroups", { n: 1 })));
+  assert.ok(sameGroup.includes(i18n.translate("posts.postedInSameGroup", { n: 2 })));
+  assert.ok(sameGroup.includes("size-3 shrink-0"));
   const unsafe = render(React.createElement(PostSources, { p: { ...p, sources: [p.sources[0], { source: "Unsafe", url: "javascript:alert(1)" }] } }));
   assert.ok(!unsafe.includes('href="javascript:'));
 });

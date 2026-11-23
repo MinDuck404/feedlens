@@ -193,7 +193,7 @@ def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, m
     run = db.get_run(rid)
     assert run["status"] == "analysis_failed"
     assert error_code(run["error"], analysis_error=True) == "error.ai_quota"
-    assert len(db.get_posts(rid)) == 1 and len(db.get_raw_posts(rid)) == 2
+    assert sum(p.analyzed for p in db.get_posts(rid)) == 1 and len(db.get_raw_posts(rid)) == 2
     with pytest.raises(QuotaExhausted):
         scheduler.acquire(candidates, 1)
     # A process restart must not reset the daily allowance.

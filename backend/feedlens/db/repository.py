@@ -10,7 +10,7 @@ import unicodedata
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Text, cast, create_engine, delete, event, func, inspect, or_, select, text, true
+from sqlalchemy import JSON, Text, case, cast, create_engine, delete, event, func, inspect, or_, select, text, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
@@ -341,8 +341,23 @@ class Database:
 
     # ---------------------------------------------------------------- posts
     def save_raw_posts(self, run_id: int, posts: list[RawPost]) -> None:
-        self.update_run(run_id, raw_posts=[p.model_dump(include=set(RawPost.model_fields)) for p in posts],
-                        raw_fingerprints=list(dict.fromkeys(p.fingerprint for p in posts)), collected=len(posts))
+        from ..post_duplicates import preserve_post_identities
+        posts = preserve_post_identities(posts)
+        with self.Session.begin() as s:
+            # Rekey legacy hash collisions in place before marking rows pending; preserve post IDs.
+            existing = {}
+            for row in s.scalars(select(PostRow).where(PostRow.run_id == run_id).order_by(PostRow.id)):
+                key = (row.platform, row.source, row.url, row.text, row.author)
+                existing.setdefault(key, []).append(row)
+            for p in posts:
+                matching = existing.get((p.platform, p.source, p.url, p.text, p.author), [])
+                if matching:
+                    matching.pop(0).fingerprint = p.fingerprint
+            run = s.get(RunRow, run_id)
+            if run:
+                run.raw_posts = [p.model_dump(include=set(RawPost.model_fields)) for p in posts]
+                run.raw_fingerprints = list(dict.fromkeys(p.fingerprint for p in posts))
+                run.collected = len(posts)
 
     def get_raw_posts(self, run_id: int) -> list[RawPost]:
         with self.Session() as s:
@@ -376,7 +391,7 @@ class Database:
         needs_ai = request.get("analysis_used_ai", request.get("ai_provider") != "offline" and not (
             run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline"))
         completed = {p.fingerprint for p in self.get_posts(run_id)
-                     if not needs_ai or p.analyzed_by not in {"", "offline", "pending"}}
+                     if p.analyzed and (not needs_ai or p.analyzed_by not in {"", "offline", "pending"})}
         return bool(raw) and (not run["digest"] or any(p.fingerprint not in completed for p in raw))
 
     def analysis_counts(self, run_id: int) -> dict[str, int]:
@@ -422,23 +437,26 @@ class Database:
     def save_batch(self, run_id: int, posts: list[AnalyzedPost]) -> None:
         """Checkpoint completed batches without replacing IDs used by applied-job markers."""
         with self.Session.begin() as s:
-            rows = {r.fingerprint: r for r in s.scalars(select(PostRow).where(PostRow.run_id == run_id))}
+            rows = {}
+            for row in s.scalars(select(PostRow).where(PostRow.run_id == run_id)):
+                rows.setdefault(row.fingerprint, []).append(row)
             for p in posts:
-                row = rows.get(p.fingerprint)
-                if row is None:
+                matching = rows.get(p.fingerprint)
+                if not matching:
                     row = PostRow(run_id=run_id, fingerprint=p.fingerprint)
                     s.add(row)
-                    rows[p.fingerprint] = row
-                for key in RawPost.model_fields.keys() - {"job_seed", "storage_key"}:
-                    setattr(row, key, getattr(p, key))
-                row.category, row.summary = p.category, p.summary
-                row.analyzed_by = "offline" if p.analyzed_by in {"", "bộ lọc từ khóa offline"} else p.analyzed_by
-                row.job = p.job.model_dump() if p.job else None
-                row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
+                    matching = rows[p.fingerprint] = [row]
+                for row in matching:
+                    for key in RawPost.model_fields.keys() - {"job_seed", "storage_key"}:
+                        setattr(row, key, getattr(p, key))
+                    row.category, row.summary = p.category, p.summary
+                    row.analyzed_by = "offline" if p.analyzed_by in {"", "bộ lọc từ khóa offline"} else p.analyzed_by
+                    row.job = p.job.model_dump() if p.job else None
+                    row.topic_ids, row.topic_reason = list(p.topic_ids), p.topic_reason
             run = s.get(RunRow, run_id)
             if run and rows:
                 labels = {r.analyzed_by if r.analyzed_by != "offline" else "bộ lọc từ khóa offline"
-                          for r in rows.values() if r.analyzed_by != "pending"}
+                          for matching in rows.values() for r in matching if r.analyzed_by != "pending"}
                 if labels:
                     run.ai_label = " + ".join(sorted(labels))
             self._keep_job_seeds(s, run_id, posts)
@@ -527,8 +545,12 @@ class Database:
         if groups:
             by_fingerprint = {p.fingerprint: p for p in posts}
             posts = []
+            raw_positions = {fp: i for i, fp in enumerate(raw_by_fp)}
             for group in groups:
-                if p := by_fingerprint.get(group.fingerprint):
+                p = by_fingerprint.get(group.fingerprint)
+                if p is None and (raw := raw_by_fp.get(group.fingerprint)) is not None:
+                    p = AnalyzedPost(**raw.model_dump(), id=-(raw_positions[group.fingerprint] + 1), analyzed=False)
+                if p is not None:
                     p.sources = group.sources
                     posts.append(p)
         return posts
@@ -590,9 +612,21 @@ class Database:
                     r.digest = {**r.digest, "topics": [t for t in r.digest["topics"] if t.get("topic_id") != topic_id]}
             return True
 
+    def representative_posts_filter(self):
+        """SQL predicate for queries joining PostRow to RunRow; legacy runs keep every row."""
+        sqlite = self.engine.dialect.name == "sqlite"
+        data = RunRow.post_groups if sqlite else cast(RunRow.post_groups, JSON)
+        kind = func.json_type(data) if sqlite else func.json_typeof(data)
+        array = case((kind == "array", data), else_=None)
+        entries = (func.json_each(array) if sqlite else func.json_array_elements(array)).table_valued("value")
+        fingerprint = (func.json_extract(entries.c.value, "$.fingerprint") if sqlite else
+                       cast(entries.c.value, JSON)["fingerprint"].as_string())
+        groups = select(entries.c.value).select_from(entries).correlate(RunRow, PostRow)
+        return or_(~groups.exists(), groups.where(fingerprint == PostRow.fingerprint).exists())
+
     def user_posts(self, user_id: int, limit: int = 2000) -> list[AnalyzedPost]:
         """Bài đã phân tích của user, mới nhất trước (dùng để gắn chủ đề lại)."""
-        q = (select(PostRow).join(RunRow).where(RunRow.user_id == user_id)
+        q = (select(PostRow).join(RunRow).where(RunRow.user_id == user_id, self.representative_posts_filter())
              .order_by(PostRow.id.desc()).limit(limit))
         with self.Session() as s:
             return [AnalyzedPost(id=r.id, platform=r.platform, source=r.source, author=r.author, text=r.text,
@@ -690,6 +724,7 @@ class Database:
             select(PostRow, RunRow.created_at)
             .join(RunRow, PostRow.run_id == RunRow.id)
             .where(RunRow.user_id == user_id)
+            .where(self.representative_posts_filter())
         )
 
         if platform:

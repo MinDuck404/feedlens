@@ -21,7 +21,7 @@ def test_normalization_removes_decorations_and_tracking_but_keeps_url_identity()
     assert normalize_text("https://[broken #Jobs") == "https broken"
 
 
-@pytest.mark.parametrize("variant", [TEXT, TEXT.replace("Gửi CV", "Vui lòng gửi CV"), "🎉 " + TEXT + " #Hiring #Jobs"])
+@pytest.mark.parametrize("variant", [TEXT, "Vui lòng xem: " + TEXT, "🎉 " + TEXT + " #Hiring #Jobs"])
 def test_copies_share_one_representative_with_all_sources(variant):
     groups = group_posts([post(), post(variant, "Nhóm B", "https://example.test/2")])
     assert len(groups) == 1

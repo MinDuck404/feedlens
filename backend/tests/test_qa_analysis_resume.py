@@ -72,7 +72,7 @@ def test_quota_exhausted_at_different_batches(cloud, monkeypatch, fail_at, expec
     assert detail["can_continue_analysis"] is True
     assert detail["analysis_counts"] == {"ai": expected_ai, "offline": 0, "pending": expected_pending, "total": 6}
 
-    saved_posts = database.get_posts(rid)
+    saved_posts = [p for p in database.get_posts(rid) if p.analyzed]
     assert len(saved_posts) == expected_ai
     for p in saved_posts:
         assert p.analyzed_by == "OpenAI GPT"
@@ -138,7 +138,7 @@ def test_repeated_continue_while_still_exhausted_maintains_counts_and_labels(clo
     assert d3["status"] == "analysis_failed"
     assert d3["analysis_counts"] == {"ai": 2, "offline": 0, "pending": 4, "total": 6}
     assert d3["ai_label"] == "OpenAI GPT"
-    assert len(database.get_posts(rid)) == 2
+    assert sum(p.analyzed for p in database.get_posts(rid)) == 2
 
 
 # =====================================================================

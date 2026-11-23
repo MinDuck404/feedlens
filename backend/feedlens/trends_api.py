@@ -90,7 +90,7 @@ def trends_router(db):
             item.update(counts=[0] * len(timeline), total=0, previous_total=0)
         total_posts = fallback_count = 0
         query = (select(PostRow.category, PostRow.topic_ids, PostRow.posted_at, RunRow.created_at)
-                 .join(RunRow, PostRow.run_id == RunRow.id).where(RunRow.user_id == user.id)
+                 .join(RunRow, PostRow.run_id == RunRow.id).where(RunRow.user_id == user.id, db().representative_posts_filter())
                  .execution_options(yield_per=1000))
         # shortcut: free-form social timestamps require scanning metadata; normalize/index dates when history queries become slow.
         with db().Session() as session:

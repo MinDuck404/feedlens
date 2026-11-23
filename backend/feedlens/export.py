@@ -40,6 +40,12 @@ def to_markdown(run: dict, posts: list[AnalyzedPost]) -> str:
         for p in seeds:
             values = [str(getattr(p.job_seed, key)).replace("|", "\\|").replace("\r", " ").replace("\n", " ") for key in SEED_FIELDS]
             lines.append("| " + " | ".join(values) + " |")
+    grouped = [p for p in posts if len(p.sources) > 1]
+    if grouped:
+        lines += ["", "## Original sources"]
+        for p in grouped:
+            lines += ["", f"### {p.summary or p.source}"]
+            lines += [f"- {source.source}: {source.url}" for source in p.sources]
     return "\n".join(lines)
 
 
@@ -48,10 +54,13 @@ def to_csv(posts: list[AnalyzedPost], run: dict | None = None) -> str:
     w = csv.writer(buf)
     req = (run or {}).get("request", {})
     extended = bool(req.get("mode") or any(p.job_seed for p in posts))
+    grouped = any(len(p.sources) > 1 for p in posts)
     headers = ["category", "source", "author", "summary", "url", "job_title", "company",
                "location", "salary", "work_mode", "contact", "match_score", "text"]
     if extended:
         headers += ["mode", "options"] + [f"job_seed_{key}" for key in SEED_FIELDS]
+    if grouped:
+        headers += ["sources"]
     w.writerow(headers)
     for p in posts:
         j = p.job
@@ -62,6 +71,8 @@ def to_csv(posts: list[AnalyzedPost], run: dict | None = None) -> str:
         if extended:
             row += [req.get("mode") or "", json.dumps(req.get("options") or {}, ensure_ascii=False, sort_keys=True)]
             row += [getattr(p.job_seed, key) if p.job_seed else "" for key in SEED_FIELDS]
+        if grouped:
+            row += [json.dumps([source.model_dump() for source in p.sources], ensure_ascii=False)]
         w.writerow(row)
     return "﻿" + buf.getvalue()  # BOM để Excel đọc đúng tiếng Việt
 

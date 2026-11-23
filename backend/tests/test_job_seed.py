@@ -150,7 +150,7 @@ def test_checkpoint_retry_preserves_seed_and_does_not_reanalyze_successful_batch
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: analyzer)
     pipeline.execute_analysis(db, rid, req, raw, None)
     assert db.get_run(rid)["status"] == "analysis_failed"
-    completed = {p.fingerprint: p.id for p in db.get_posts(rid)}
+    completed = {p.fingerprint: p.id for p in db.get_posts(rid) if p.analyzed}
     assert len(completed) == 4
     assert sum(p.analyzed for p in db.get_posts(rid, include_raw=True)) == 4
     assert all(p.job_seed is not None for p in db.get_posts(rid, include_raw=True))

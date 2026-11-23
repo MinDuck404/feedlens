@@ -640,9 +640,9 @@ function PostSources({ p }: { p: Post }) {
   if (sources.length < 2) return null;
   const groups = new Set(sources.map((source) => source.source));
   return <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-soft">
-    <span>{t("posts.postedInGroups", { n: groups.size })}</span>
+    <span>{t(groups.size === 1 ? "posts.postedInSameGroup" : "posts.postedInGroups", { n: groups.size === 1 ? sources.length : groups.size })}</span>
     {sources.map((source, index) => /^https?:\/\//i.test(source.url)
-      ? <a key={`${source.source}-${source.url}`} href={source.url} target="_blank" rel="noopener noreferrer" aria-label={`${source.source || t("posts.openOriginal")} · ${index + 1}`} className="inline-flex min-h-10 items-center gap-1 text-link underline underline-offset-4">{source.source || t("posts.openOriginal")}<ExternalLink aria-hidden="true" className="size-3" /></a>
+      ? <a key={`${source.source}-${source.url}`} href={source.url} target="_blank" rel="noopener noreferrer" aria-label={`${source.source || t("posts.openOriginal")} · ${index + 1}`} className="inline-flex min-h-10 items-center gap-1 text-link underline underline-offset-4">{source.source || t("posts.openOriginal")}<ExternalLink aria-hidden="true" className="size-3 shrink-0" /></a>
       : <span key={`${source.source}-${index}`}>{source.source}</span>)}
   </div>;
 }

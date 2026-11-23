@@ -47,6 +47,10 @@ def _same_post(a: RawPost, b: RawPost, left: str, right: str) -> bool:
         return False
     # A tiny role/technology replacement can describe a different vacancy even in a long template.
     for tag, i, j, k, l in word_matcher.get_opcodes():
+        if tag == "insert" and i not in {0, len(words_a)}:
+            return False
+        if tag == "delete" and k not in {0, len(words_b)}:
+            return False
         if tag == "replace":
             old, new = " ".join(words_a[i:j]), " ".join(words_b[k:l])
             if SequenceMatcher(None, old, new, autojunk=False).ratio() < 0.75:
@@ -54,14 +58,15 @@ def _same_post(a: RawPost, b: RawPost, left: str, right: str) -> bool:
     return True
 
 
-def group_posts(posts: list[RawPost]) -> list[list[RawPost]]:
-    """Longest text represents each group; ties keep collection order. No transitive merging."""
+def group_posts(posts: list[RawPost], preferred_fingerprints: set[str] | None = None) -> list[list[RawPost]]:
+    """Prefer completed analyses, then longest text; ties keep collection order."""
+    preferred_fingerprints = preferred_fingerprints or set()
     groups: list[list[RawPost]] = []
     normalized: list[str] = []
     observations = set()
     # Compare every member to its representative, so chains cannot join dissimilar endpoints.
-    for post in sorted(posts, key=lambda item: -len(item.text)):
-        observation = (post.platform, post.source, post.url, post.text,
+    for post in sorted(posts, key=lambda item: (item.fingerprint not in preferred_fingerprints, -len(item.text))):
+        observation = (post.platform, post.source, post.url, post.text, post.author,
                        post.job_seed.job_id if post.job_seed else "")
         if observation in observations:
             continue
@@ -82,16 +87,16 @@ def group_posts(posts: list[RawPost]) -> list[list[RawPost]]:
 def preserve_post_identities(posts: list[RawPost]) -> list[RawPost]:
     """Disambiguate legacy 500-character hashes without changing existing identities."""
     seen: set[str] = set()
-    observations: dict[tuple[str, str, str, str, str], RawPost] = {}
+    observations: dict[tuple[str, str, str, str, str, str], RawPost] = {}
     result = []
     for post in posts:
-        observation = (post.platform, post.source, post.url, post.text,
+        observation = (post.platform, post.source, post.url, post.text, post.author,
                        post.job_seed.job_id if post.job_seed else "")
         if observation in observations:
             result.append(observations[observation])
             continue
         if post.fingerprint in seen:
-            identity = f"{post.fingerprint}|{post.source}|{post.url}|{post.text}"
+            identity = f"{post.fingerprint}|{post.source}|{post.url}|{post.text}|{post.author}"
             post = post.model_copy(update={"storage_key": hashlib.sha1(identity.encode()).hexdigest()})
         seen.add(post.fingerprint)
         observations[observation] = post
