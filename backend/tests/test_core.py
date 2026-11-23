@@ -181,7 +181,7 @@ def test_llm_analyzer_retries_transient_errors(monkeypatch):
             raise RuntimeError("400 INVALID_ARGUMENT")
 
     calls.clear()
-    with pytest.raises(RuntimeError, match="INVALID_ARGUMENT"):
+    with pytest.raises(RuntimeError, match="configuration"):
         LLMAnalyzer(Broken()).classify(SAMPLE, False, [], "", lambda *x: None)
     assert len(calls) == 1  # lỗi không tạm thời thì không thử lại
 

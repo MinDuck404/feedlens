@@ -201,6 +201,20 @@ export interface Progress {
     requested_model?: string;
     switched_key?: boolean;
     project_shared?: boolean;
+    candidates?: {
+      key_id: number | null;
+      key_label: string;
+      model: string;
+      reason: "configuration" | "zero_quota" | "too_large" | "invalid_key" | "model_missing" | "retry_limit" | "disabled" | "provider_daily" | "daily_limit" | "reservation_failed";
+      metric?: string;
+      estimated_tokens: number;
+      limit_tpm: number | null;
+      limit_rpd: number | null;
+      requests_today: number;
+      project_shared: boolean;
+      kind?: string;
+      status?: number;
+    }[];
   };
   stop_requested?: boolean;
   eta_seconds?: number;

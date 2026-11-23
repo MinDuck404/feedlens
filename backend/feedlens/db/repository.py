@@ -177,7 +177,9 @@ class Database:
             row = ApiKeyRow(user_id=user_id, provider=provider, ciphertext=ciphertext, hint=hint,
                             label=label, tier=tier, priority=0 if priority is None else priority + 1)
             s.add(row); s.flush()
-            return row
+        if hasattr(self, "_quota_scheduler"):
+            self._quota_scheduler.forget_key(row.id)  # A deleted SQLite row ID may be reused for a different credential.
+        return row
 
     def update_key(self, user_id, key_id, changes) -> bool:
         with self.Session.begin() as s:
@@ -230,6 +232,15 @@ class Database:
             return False
         with self.Session.begin() as s:
             return s.execute(statement).rowcount > 0
+
+    def release_ai_usage(self, key_id, model, day, tokens) -> None:
+        """Undo a reservation for a rejected configuration, without resetting other requests or exhaustion."""
+        from sqlalchemy import update
+        with self.Session.begin() as s:
+            s.execute(update(AIUsageRow).where(AIUsageRow.key_id == key_id, AIUsageRow.model == model,
+                                              AIUsageRow.day == day).values(
+                requests=case((AIUsageRow.requests > 0, AIUsageRow.requests - 1), else_=0),
+                tokens=case((AIUsageRow.tokens >= tokens, AIUsageRow.tokens - tokens), else_=0)))
 
     # ---------------------------------------------------------------- cookie mạng xã hội
     def upsert_session(self, user_id: int, platform: str, ciphertext: str, hint: str) -> None:

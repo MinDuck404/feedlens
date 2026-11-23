@@ -165,6 +165,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
           {run.progress?.ai?.state === "exhausted" && run.progress.ai.daily && <p className="mt-2 text-sm">{t("run.dailyQuotaExhausted")}</p>}
           {run.error_code === "error.ai_quota" && run.progress?.ai?.provider_id === "gemini" && <p className="mt-2 text-sm">{t(run.progress.ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
+          <QuotaDiagnostics run={run} />
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
@@ -309,6 +310,23 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false
   </div>;
 }
 
+function QuotaDiagnostics({ run }: { run: Run }) {
+  const { t } = useI18n();
+  const candidates = run.progress?.ai?.candidates;
+  if (!candidates?.length) return null;
+  return <details open className="mt-3 text-sm">
+    <summary className="interactive-tap cursor-pointer font-medium">{t("run.quotaDetails", { n: candidates.length })}</summary>
+    <ul className="mt-2 divide-y divide-line">{candidates.map((item, index) => <li key={`${item.key_id}-${item.model}-${index}`} className="py-2 [overflow-wrap:anywhere]">
+      <p className="font-medium">{item.key_label || t("run.environmentKey")} · {item.model}</p>
+      <p className="text-ink-soft">{t(`run.quotaReason.${item.reason}` as Key, {
+        tokens: item.estimated_tokens, limit: (item.reason === "daily_limit" ? item.limit_rpd : item.limit_tpm) ?? 0,
+        used: item.requests_today, metric: item.metric ?? "",
+        cause: t(item.kind === "network" ? "run.quotaFailure.network" : item.kind === "rate_limit" ? "run.quotaFailure.rate_limit" : "run.quotaFailure.other"),
+      })}{!!item.status && ` · HTTP ${item.status}`}{item.project_shared && ` · ${t("run.projectQuotaShared")}`}</p>
+    </li>)}</ul>
+  </details>;
+}
+
 function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
   const p = run.progress;
   const { t, locale, lang } = useI18n();
@@ -354,6 +372,7 @@ function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
         {ai.provider_id === "gemini" && (ai.project_shared || ai.state === "quota_wait") && <p>{t(ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
       </div>}
       {!ai && <p className="mt-2 text-sm text-ink-soft">{p?.stop_requested ? t("run.stoppingAI") : p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>}
+      {ai?.state === "exhausted" && <QuotaDiagnostics run={run} />}
       {run.status === "analyzing" && <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="secondary" busy={busy} disabled={!!p?.stop_requested} onClick={stop}>{t("run.stopAI")}</Button>
         <Button variant="ghost" disabled={!!p?.stop_requested} onClick={() => setChanging(!changing)} aria-expanded={changing}>{t("run.changeModel")}</Button>

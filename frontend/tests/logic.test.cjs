@@ -8,7 +8,7 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow, SidebarBody };";
-    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done };";
+    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done, QuotaDiagnostics };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -29,6 +29,20 @@ const { groupName, parseTimestamp, serialWriter, isRemoteText } = require("../sr
 const i18n = require("../src/i18n.tsx");
 const { api, ApiError } = require("../src/api.ts");
 const React = require("react");
+
+test("quota diagnostics identify each key/model and distinguish zero quota from oversized requests", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { QuotaDiagnostics } = require("../src/components/RunView.tsx");
+  const run = { progress: { ai: { candidates: [
+    { key_label: "Fresh project", model: "lite", reason: "zero_quota", metric: "RPM", status: 429 },
+    { key_label: "Old project", model: "flash", reason: "too_large", estimated_tokens: 35000, limit_tpm: 30000, project_shared: true }
+  ] } } };
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null, React.createElement(QuotaDiagnostics, { run })));
+  assert.ok(html.includes("Fresh project") && html.includes("Old project") && html.includes("lite") && html.includes("flash"));
+  assert.ok(html.includes(i18n.translate("run.quotaReason.zero_quota", { metric: "RPM" }).replaceAll("'", "&#x27;")));
+  assert.ok(html.includes(i18n.translate("run.quotaReason.too_large", { tokens: 35000, limit: 30000 })));
+  assert.ok(html.includes(i18n.translate("run.projectQuotaShared")));
+});
 
 test("analyzing view exposes actual model, quota retry time and stop/change controls", () => {
   const { renderToStaticMarkup } = require("react-dom/server");

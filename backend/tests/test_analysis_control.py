@@ -154,7 +154,8 @@ def test_daily_exhaustion_is_terminal_and_explicit():
     states = []
     with pytest.raises(Exception, match="quota exhausted"):
         scheduler.complete_json([Candidate(1, provider)], "", "", {}, on_state=states.append)
-    assert states == [{"state": "exhausted", "daily": True}]
+    assert len(states) == 1 and states[0]["state"] == "exhausted"
+    assert states[0]["daily"] is False and states[0]["candidates"][0]["reason"] == "zero_quota"
 
 
 def test_scheduler_reports_fallback_identity_without_credentials():

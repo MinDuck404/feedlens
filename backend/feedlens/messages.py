@@ -3,6 +3,10 @@ import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if "AI request configuration failed" in message:
+        return "error.ai_configuration"
+    if "AI request exceeds TPM" in message:
+        return "error.ai_request_too_large"
     if "AI returned empty analysis" in message:
         return "error.ai_empty_output"
     if "AI output repeatedly invalid/truncated" in message:

@@ -5,6 +5,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import re
+import json
 import threading
 import time
 from zoneinfo import ZoneInfo
@@ -16,12 +17,21 @@ MAX_OUTPUT = MAX_OUTPUT_TOKENS
 
 
 class QuotaExhausted(AIError):
-    pass
+    def __init__(self, message, candidates=None):
+        self.candidates = candidates or []
+        details = "; ".join(f"{c['key_label'] or 'Environment key'} / {c['model']}: {c['reason']}"
+                            + (f" ({c['metric']}=0)" if c.get("metric") else "")
+                            for c in self.candidates)
+        super().__init__(f"{message} {details}".strip())
 
 
 class AnalysisStopped(AIError):
     def __init__(self):
         super().__init__("AI analysis stopped by user; saved posts can be continued.")
+
+
+class AIConfigurationError(AIError):
+    pass
 
 
 def check_stopped(stop_event):
@@ -74,6 +84,28 @@ class QuotaScheduler:
         self.failures = defaultdict(int)
         self.key_projects = {}
         self.model_aliases = {}
+        self.last_failures = {}
+        self._reservation = threading.local()
+
+    def _release_invalid_request(self, candidate, reservation, *, unsent):
+        """Keep reservations atomic, but do not bill client/400 validation failures as daily AI work."""
+        if reservation is None:
+            return
+        entry, day = reservation
+        with self.lock:
+            if self.db is not None and isinstance(candidate.key_id, int):
+                self.db.release_ai_usage(candidate.key_id, candidate.model, day, entry[1])
+            else:
+                usage = self.usage[(candidate.key_id, candidate.model, day)]
+                usage[0], usage[1] = max(0, usage[0] - 1), max(0, usage[1] - entry[1])
+            window = self.windows[self.quota_pair(candidate)]
+            for index, value in enumerate(window):
+                if value is entry:
+                    if unsent:
+                        del window[index]
+                    else:
+                        window[index] = (entry[0], 0)  # HTTP 400 used a request slot, but generated no tokens.
+                    break
 
     def quota_pair(self, candidate):
         provider = getattr(candidate.client.info, "key", "")
@@ -99,12 +131,41 @@ class QuotaScheduler:
 
     def forget_key(self, key_id):
         with self.lock:
-            for mapping in (self.windows, self.learned, self.blocked_until):
+            for mapping in (self.windows, self.learned, self.blocked_until, self.failures, self.last_failures, self.usage):
                 for pair in list(mapping):
                     if pair[0] == key_id:
                         mapping.pop(pair, None)
             self.daily_blocked = {entry for entry in self.daily_blocked if entry[0][0] != key_id}
             self.status.pop(key_id, None)
+            for identity in list(self.key_projects):
+                if identity[1] == key_id:
+                    self.key_projects.pop(identity, None)
+
+    def rejection(self, candidate, est_tokens, day):
+        limits = self.limits(candidate)
+        failure = self.last_failures.get(candidate.pair, {})
+        project = self.key_projects.get((getattr(candidate.client.info, "key", ""), candidate.key_id))
+        detail = {"key_id": candidate.key_id if isinstance(candidate.key_id, int) else None,
+                  "key_label": candidate.progress("")["key_label"], "model": candidate.model,
+                  "project_shared": bool(project), "estimated_tokens": est_tokens,
+                  "limit_tpm": limits.tpm, "limit_rpd": limits.rpd,
+                  "requests_today": self.daily_requests(candidate, day), **failure}
+        if candidate.disabled and failure.get("kind") in {"auth", "model_missing"}:
+            reason = "invalid_key" if failure["kind"] == "auth" else "model_missing"
+        elif 0 in (limits.rpm, limits.tpm, limits.rpd):
+            reason = "zero_quota"
+            detail["metric"] = next(name for name, value in (("RPM", limits.rpm), ("TPM", limits.tpm), ("RPD", limits.rpd)) if value == 0)
+        elif candidate.disabled:
+            reason = "retry_limit" if failure else "disabled"
+        elif self.daily_exhausted(candidate, day):
+            reason = "provider_daily"
+        elif limits.rpd is not None and detail["requests_today"] >= limits.rpd:
+            reason = "daily_limit"
+        elif limits.tpm is not None and est_tokens > limits.tpm:
+            reason = "too_large"
+        else:
+            reason = "reservation_failed"
+        return {**detail, "reason": reason}
 
     def daily_requests(self, candidate, day):
         provider = getattr(candidate.client.info, "key", "")
@@ -187,13 +248,18 @@ class QuotaScheduler:
                     else:
                         usage = self.usage[(candidate.key_id, candidate.model, day)]
                         usage[0] += 1; usage[1] += est_tokens
-                    window.append((now, est_tokens))
+                    entry = (now, est_tokens)
+                    window.append(entry)
+                    self._reservation.current = (entry, day)
                     return candidate
                 if not waiting:
-                    on_state({"state": "exhausted", "daily": all(
-                        self.daily_exhausted(c, day) or self.limits(c).rpd is not None and
-                        self.daily_requests(c, day) >= self.limits(c).rpd for c in candidates)})
-                    raise QuotaExhausted("AI quota exhausted: every enabled key/model has exhausted its daily allowance or cannot fit this request.")
+                    rejected = [self.rejection(c, est_tokens, day) for c in candidates]
+                    on_state({"state": "exhausted", "daily": bool(rejected) and all(
+                        item["reason"] in {"provider_daily", "daily_limit"} for item in rejected), "candidates": rejected})
+                    message = ("AI request exceeds TPM: split the request or select another model."
+                               if rejected and all(c["reason"] == "too_large" for c in rejected) else
+                               "AI quota exhausted: no configured key/model can accept this request.")
+                    raise QuotaExhausted(message, rejected)
                 wait, candidate = min(waiting, key=lambda item: item[0])
             on_state(candidate.progress("quota_wait", retry_at=time.time() + wait, wait_seconds=wait))
             notify(f"Đang chờ hạn mức phút của {candidate.client.info.name} ({candidate.model}): {wait:.0f} giây")
@@ -224,6 +290,7 @@ class QuotaScheduler:
             previous = ordered[0] if ordered else None
         while True:
             candidate = self.acquire(candidates, est_tokens, notify, stop_event=stop_event, on_state=on_state)
+            reservation = getattr(self._reservation, "current", None)
             check_stopped(stop_event)
             switched = previous is not None and candidate.key_id != previous.key_id and candidate.model == previous.model
             if switched:
@@ -246,17 +313,28 @@ class QuotaScheduler:
                 response_state("received")
                 with self.lock:
                     self.failures.pop(self.quota_pair(candidate), None)
+                    self.last_failures.pop(candidate.pair, None)
                 self.status[candidate.key_id] = "ok"
                 return result
-            except AIOutputTruncated:
+            except (AIOutputTruncated, json.JSONDecodeError):
                 response_state("output_retry")
                 raise
             except Exception as exc:
                 message = str(exc)
                 status = next((getattr(exc, k, None) for k in ("status_code", "code", "status") if isinstance(getattr(exc, k, None), int)), None)
+                if status is None and re.search(r"\b400\b.*INVALID_ARGUMENT", message, re.I):
+                    status = 400
+                configuration = status == 400 or isinstance(exc, (TypeError, ValueError))
+                if configuration:
+                    self._release_invalid_request(candidate, reservation, unsent=status is None)
+                    detail = {**self.rejection(candidate, est_tokens, pacific_day(self.now())),
+                              "reason": "configuration", "status": status or 0}
+                    on_state(candidate.progress("error", candidates=[detail]))
+                    raise AIConfigurationError(f"AI request configuration failed for {candidate.client.info.name} ({candidate.model})"
+                                               + (f"; HTTP {status}" if status else "; client validation failed")) from None
                 auth = status in {401, 403} or bool(re.search(r"\b(?:401|403)\b|UNAUTHENTICATED|invalid api.?key", message, re.I))
                 daily = daily_quota_error(message)
-                rate = status == 429 or "429" in message or "RESOURCE_EXHAUSTED" in message.upper()
+                rate = status == 429 or bool(re.search(r"\b429\b|RESOURCE_EXHAUSTED", message, re.I))
                 missing = status == 404 or bool(re.search(r"\b404\b|model.*(?:not found|not supported|no longer)", message, re.I))
                 transient = (isinstance(exc, (ConnectionError, TimeoutError, OSError)) or status in {408, 500, 502, 503, 504, 529}
                              or bool(re.search(r"UNAVAILABLE|OVERLOADED|TIMEOUT|TIMED OUT|HIGH DEMAND|CONNECTION|CONNECTERROR|GETADDRINFO|DNS|SOCKET", message, re.I)))
@@ -268,6 +346,9 @@ class QuotaScheduler:
                         self._merge_pair(old, self.quota_pair(candidate))
                         on_state(candidate.progress("quota_wait", project_shared=True))
                     pair = self.quota_pair(candidate)
+                    self.last_failures[candidate.pair] = {"kind": "auth" if auth else "model_missing" if missing else
+                                                         "daily" if daily else "rate_limit" if rate else "network" if transient else "other",
+                                                         "status": status or 0}
                     if auth:
                         for c in candidates:
                             if c.key_id == candidate.key_id:
