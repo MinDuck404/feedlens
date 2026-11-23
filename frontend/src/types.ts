@@ -155,6 +155,7 @@ export interface Job {
 }
 
 export interface Post {
+  sources?: { source: string; url: string }[];
   job_seed?: JobSeed | null;
   topic_ids?: number[];
   topic_reason?: string;

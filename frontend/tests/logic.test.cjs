@@ -8,6 +8,7 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow };";
+    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -58,6 +59,27 @@ function hooks(component) {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+
+test("grouped posts show every original source on job and reading cards without increasing job counts", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { JobsBoard, ReadingPost, PostSources } = require("../src/components/RunView.tsx");
+  const p = { id: 8, text: "Job text", summary: "Python developer", category: "job", source: "Group A", author: "Recruiter", url: "https://example.test/1",
+    job: { title: "Python developer", company: "Acme", match_score: 90, work_mode: "remote" },
+    sources: [{ source: "Group A", url: "https://example.test/1" }, { source: "Group B", url: "https://example.test/2" }] };
+  const render = (element) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null, element));
+  for (const element of [React.createElement(JobsBoard, { jobs: [p], runId: 1 }), React.createElement(ReadingPost, { p, name: () => "Jobs", topics: [] })]) {
+    const html = render(element);
+    assert.ok(html.includes(i18n.translate("posts.postedInGroups", { n: 2 })));
+    assert.ok(html.includes('href="https://example.test/1"'));
+    assert.ok(html.includes('href="https://example.test/2"'));
+    assert.equal((html.match(/<li\b/g) || []).length, 1);
+  }
+  assert.equal(render(React.createElement(PostSources, { p: { ...p, sources: undefined } })), "");
+  const sameGroup = render(React.createElement(PostSources, { p: { ...p, sources: p.sources.map((s) => ({ ...s, source: "Group A" })) } }));
+  assert.ok(sameGroup.includes(i18n.translate("posts.postedInGroups", { n: 1 })));
+  const unsafe = render(React.createElement(PostSources, { p: { ...p, sources: [p.sources[0], { source: "Unsafe", url: "javascript:alert(1)" }] } }));
+  assert.ok(!unsafe.includes('href="javascript:'));
+});
 
 test("malformed and Unicode saved group names render without crashing", () => {
   assert.equal(groupName("https://facebook.com/groups/bad%"), "bad%");

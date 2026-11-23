@@ -633,6 +633,19 @@ function JobsBoard({ jobs, runId }: { jobs: Post[]; runId: number }) {
   );
 }
 
+function PostSources({ p }: { p: Post }) {
+  const { t } = useI18n();
+  const sources = p.sources ?? [];
+  if (sources.length < 2) return null;
+  const groups = new Set(sources.map((source) => source.source));
+  return <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-soft">
+    <span>{t("posts.postedInGroups", { n: groups.size })}</span>
+    {sources.map((source, index) => /^https?:\/\//i.test(source.url)
+      ? <a key={`${source.source}-${source.url}`} href={source.url} target="_blank" rel="noopener noreferrer" aria-label={`${source.source || t("posts.openOriginal")} · ${index + 1}`} className="inline-flex min-h-10 items-center gap-1 text-link underline underline-offset-4">{source.source || t("posts.openOriginal")}<ExternalLink aria-hidden="true" className="size-3" /></a>
+      : <span key={`${source.source}-${index}`}>{source.source}</span>)}
+  </div>;
+}
+
 function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onApplied: () => void }) {
   const presentation = jobPresentation(p);
   const j = presentation.job!;
@@ -661,6 +674,7 @@ function JobCard({ p, applied, onApplied }: { p: Post; applied: boolean; onAppli
           <p className="mt-0.5 text-sm text-ink-soft">
             {j.company || t("job.unknownCompany")}<span className="mx-1.5">/</span>{p.source}
           </p>
+          <PostSources p={p} />
           {tags.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {tags.map((tg) => (
@@ -732,6 +746,7 @@ function ReadingPost({ p, name, topics }: { p: Post; name: (c: string) => string
           {p.sponsored && <span className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-soft">{t("posts.sponsored")}</span>}
         </div>
         {!!p.topic_ids?.length && <ul className="mt-3 flex flex-wrap gap-2" aria-label={t("topics.title")}>{p.topic_ids.map((id) => topics.find((topic) => topic.id === id)).filter((topic): topic is Topic => !!topic).map((topic) => <li key={topic.id}><span tabIndex={p.topic_reason ? 0 : undefined} title={p.topic_reason} aria-label={p.topic_reason ? `${topic.name}: ${p.topic_reason}` : topic.name} className="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs" style={{ color: topicColor(topic.color), borderColor: topicColor(topic.color) }}><span className="size-1.5 shrink-0 rounded-full bg-current" />{topic.name}</span></li>)}</ul>}
+        <PostSources p={p} />
         <p id={`post-${p.id}-text`} className={`prose-reading mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] ${expanded ? "" : "line-clamp-3"}`}>{p.text}</p>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <button type="button" aria-expanded={expanded} aria-controls={`post-${p.id}-text`} onClick={() => setExpanded((v) => !v)}

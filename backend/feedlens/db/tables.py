@@ -85,6 +85,7 @@ class RunRow(Base):
     digest: Mapped[Optional[dict]] = mapped_column(JSON)
     raw_posts: Mapped[Optional[list]] = mapped_column(JSON)
     raw_fingerprints: Mapped[Optional[list[str]]] = mapped_column(JSON)
+    post_groups: Mapped[Optional[list[dict]]] = mapped_column(JSON)
 
     posts: Mapped[list["PostRow"]] = relationship(back_populates="run", cascade="all, delete-orphan",
                                                   order_by="PostRow.id")

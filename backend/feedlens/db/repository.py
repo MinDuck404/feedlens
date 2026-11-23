@@ -14,7 +14,7 @@ from sqlalchemy import JSON, Text, cast, create_engine, delete, event, func, ins
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
-from ..models import AnalyzedPost, Digest, JobInfo, JobSeed, RawPost, RunRequest, Topic
+from ..models import AnalyzedPost, Digest, JobInfo, JobSeed, PostGroup, RawPost, RunRequest, Topic
 from .tables import AIUsageRow, JobProfileRow, ApiKeyRow, Base, PlatformSessionRow, PostRow, RunRow, TopicRow, UserRow
 
 LOCAL_EMAIL = "local@feedlens"
@@ -44,7 +44,7 @@ class Database:
         json_type = "JSONB" if self.engine.dialect.name == "postgresql" else "JSON"
         wanted = {
             "runs": {"user_id": "INTEGER REFERENCES users(id) ON DELETE CASCADE", "raw_posts": json_type,
-                     "raw_fingerprints": json_type},
+                     "raw_fingerprints": json_type, "post_groups": json_type},
             "users": {"preferences": json_type, "default_ai_provider": "VARCHAR(20)"},
             "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''",
                       "analyzed_by": "VARCHAR(120) NOT NULL DEFAULT ''"},
@@ -349,6 +349,14 @@ class Database:
             row = s.get(RunRow, run_id)
             return [RawPost(**p) for p in (row.raw_posts or [])] if row else []
 
+    def save_post_groups(self, run_id: int, groups: list[PostGroup]) -> None:
+        self.update_run(run_id, post_groups=[group.model_dump() for group in groups])
+
+    def get_post_groups(self, run_id: int) -> list[PostGroup]:
+        with self.Session() as s:
+            row = s.get(RunRow, run_id)
+            return [PostGroup.model_validate(group) for group in (row.post_groups or [])] if row else []
+
     def get_analysis_posts(self, run_id: int) -> list[RawPost]:
         # Older runs may have analyzed rows but no raw_posts snapshot; their original text is still usable.
         return self.get_raw_posts(run_id) or [RawPost.model_validate(p.model_dump()) for p in self.get_posts(run_id)]
@@ -360,6 +368,10 @@ class Database:
         raw = self.get_analysis_posts(run_id)
         if reanalyze_all:
             return bool(raw)
+        groups = self.get_post_groups(run_id)
+        if groups:
+            representatives = {group.fingerprint for group in groups}
+            raw = [p for p in raw if p.fingerprint in representatives]
         request = run["request"]
         needs_ai = request.get("analysis_used_ai", request.get("ai_provider") != "offline" and not (
             run["status"] == "done" and run["ai_label"] == "bộ lọc từ khóa offline"))
@@ -384,6 +396,9 @@ class Database:
                 raw = s.scalar(select(RunRow.raw_posts).where(RunRow.id == run_id)) or []
                 raw_fingerprints = [RawPost.model_validate(p).fingerprint for p in raw]
         if fingerprints := set(raw_fingerprints):
+            groups = self.get_post_groups(run_id)
+            if groups:
+                fingerprints = {group.fingerprint for group in groups}
             saved.intersection_update(fingerprints)
             ai.intersection_update(fingerprints)
             in_progress.intersection_update(fingerprints)
@@ -414,7 +429,7 @@ class Database:
                     row = PostRow(run_id=run_id, fingerprint=p.fingerprint)
                     s.add(row)
                     rows[p.fingerprint] = row
-                for key in RawPost.model_fields.keys() - {"job_seed"}:
+                for key in RawPost.model_fields.keys() - {"job_seed", "storage_key"}:
                     setattr(row, key, getattr(p, key))
                 row.category, row.summary = p.category, p.summary
                 row.analyzed_by = "offline" if p.analyzed_by in {"", "bộ lọc từ khóa offline"} else p.analyzed_by
@@ -501,13 +516,21 @@ class Database:
             for row, p in zip(rows, posts):
                 raw = raw_by_fp.get(row.fingerprint)
                 if raw:
-                    p.sponsored, p.job_seed = raw.sponsored, raw.job_seed
+                    p.sponsored, p.job_seed, p.storage_key = raw.sponsored, raw.job_seed, raw.storage_key
                 p.analyzed = row.analyzed_by != "pending"
+        groups = self.get_post_groups(run_id)
         if include_raw:
             by_fingerprint = {p.fingerprint: p for p in posts}
             if raw_by_fp:
-                return [by_fingerprint.get(fp) or AnalyzedPost(**p.model_dump(), id=-(i + 1), analyzed=False)
-                        for i, (fp, p) in enumerate(raw_by_fp.items())]
+                posts = [by_fingerprint.get(fp) or AnalyzedPost(**p.model_dump(), id=-(i + 1), analyzed=False)
+                         for i, (fp, p) in enumerate(raw_by_fp.items())]
+        if groups:
+            by_fingerprint = {p.fingerprint: p for p in posts}
+            posts = []
+            for group in groups:
+                if p := by_fingerprint.get(group.fingerprint):
+                    p.sources = group.sources
+                    posts.append(p)
         return posts
 
 

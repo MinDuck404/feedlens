@@ -461,6 +461,7 @@ const vi = {
 
   "posts.unknownAuthor": "Không rõ tác giả",
   "posts.openOriginal": "Mở bài gốc",
+  "posts.postedInGroups": "Đăng ở {n} nhóm",
   "posts.readMore": "Đọc toàn văn",
   "posts.readLess": "Thu gọn",
 
@@ -1164,6 +1165,7 @@ const en: Record<Key, string> = {
   "job.applied": "Applied",
   "posts.unknownAuthor": "Unknown author",
   "posts.openOriginal": "Open original",
+  "posts.postedInGroups": "Posted in {n} groups",
   "posts.readMore": "Read full post",
   "posts.readLess": "Show less",
   "cmp.title": "New run",
@@ -1860,6 +1862,7 @@ const zh: Record<Key, string> = {
   "job.applied": "已投递",
   "posts.unknownAuthor": "作者不详",
   "posts.openOriginal": "打开原帖",
+  "posts.postedInGroups": "发布于 {n} 个群组",
   "posts.readMore": "阅读全文",
   "posts.readLess": "收起全文",
   "cmp.title": "新建浏览",

@@ -80,9 +80,12 @@ class RawPost(BaseModel):
     posted_at: str = ""
     sponsored: bool = False
     job_seed: JobSeed | None = None
+    storage_key: str = ""
 
     @property
     def fingerprint(self) -> str:
+        if self.storage_key:
+            return self.storage_key
         if self.platform == "linkedin" and self.job_seed and self.job_seed.job_id:
             return hashlib.sha1(f"linkedin|job|{self.job_seed.job_id}".encode()).hexdigest()
         norm = re.sub(r"\s+", " ", self.text.lower()).strip()[:500]
@@ -103,6 +106,17 @@ class JobInfo(BaseModel):
     constraint_flags: list[Literal["work_mode", "location", "salary", "level"]] = Field(default_factory=list, max_length=4)
 
 
+class PostSource(BaseModel):
+    source: str
+    url: str = ""
+
+
+class PostGroup(BaseModel):
+    fingerprint: str
+    fingerprints: list[str]
+    sources: list[PostSource]
+
+
 class AnalyzedPost(RawPost):
     id: Optional[int] = None
     analyzed: bool = True
@@ -112,6 +126,7 @@ class AnalyzedPost(RawPost):
     job: Optional[JobInfo] = None
     topic_ids: list[int] = Field(default_factory=list)
     topic_reason: str = ""
+    sources: list[PostSource] = Field(default_factory=list)
 
 
 TOPIC_COLORS = (

@@ -10,7 +10,8 @@ from .ai.registry import preferred_provider, user_key_list
 from .analyzer import HeuristicAnalyzer, get_analyzer
 from .config import settings
 from .db import Database
-from .models import RawPost, RunRequest
+from .models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
+from .post_duplicates import group_posts, preserve_post_identities
 from .job_profile import load_profile
 from .scrapers import SCRAPERS, LinkedInJobsScraper
 from .source_modes import allocate_targets, normalize, total_target as planned_total_target
@@ -229,7 +230,14 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
 def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], analyzer,
              reanalyze_all: bool = False) -> None:
     prog = PROGRESS.setdefault(run_id, {})
+    raw = preserve_post_identities(raw)
     db.save_raw_posts(run_id, raw)
+    groups = group_posts(raw)
+    db.save_post_groups(run_id, [PostGroup(
+        fingerprint=group[0].fingerprint,
+        fingerprints=list(dict.fromkeys(p.fingerprint for p in group)),
+        sources=[PostSource(source=source, url=url) for source, url in dict.fromkeys((p.source, p.url) for p in group)],
+    ) for group in groups])
     db.update_run(run_id, status="analyzing", collected=len(raw))
     if not raw:
         raise RuntimeError("Không lấy được bài nào — kiểm tra đăng nhập hoặc selector của nền tảng.")
@@ -244,7 +252,8 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     request = (db.get_run(run_id) or {}).get("request", {})
     completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
                                          if not needs_ai or p.analyzed_by not in {"", "offline", "pending"}]
-    unique = {p.fingerprint: p for p in raw}
+    unique = {group[0].fingerprint: group[0] for group in groups}
+    duplicates = {group[0].fingerprint: group[1:] for group in groups}
     known = {p.fingerprint for p in completed} & unique.keys()
     pending = [p for fp, p in unique.items() if fp not in known]
     if reanalyze_all and not request.get("reanalysis_active"):
@@ -254,11 +263,17 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
                 message=f"{analyzer.label} đang đọc {len(pending)} bài…")
 
     def checkpoint(batch):
-        db.save_batch(run_id, batch)
+        inherited = []
+        for original in batch:
+            analysis = original.model_dump(exclude=set(RawPost.model_fields) | {"id", "sources"})
+            inherited.extend(AnalyzedPost(**p.model_dump(), **analysis)
+                             for p in duplicates.get(original.fingerprint, []))
+        db.save_batch(run_id, [*batch, *inherited])
         known.update(p.fingerprint for p in batch if not needs_ai or p.analyzed_by not in {"", "offline"})
         prog.update(done=len(known), message=f"Đã phân tích {len(known)}/{len(unique)}")
 
     analyzer.on_batch = checkpoint
+    checkpoint([p for p in completed if p.fingerprint in known])
     if pending:
         started = time.monotonic()
         try:
