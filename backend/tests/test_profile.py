@@ -77,6 +77,24 @@ def test_cv_api_errors_and_pasted_text(cloud):
     assert response.status_code == 200 and "me@example.test" not in response.json()["markdown"]
     assert client.put("/api/profile", headers=headers, json={"markdown": "x" * 8001}).status_code == 422
 
+def test_cv_ai_analysis_times_out_and_stops_waiting(cloud, monkeypatch):
+    from feedlens import profile_api
+
+    class SlowAnalyzer:
+        stop_event = None
+
+        def _json_call(self, prompt, schema, effort):
+            assert self.stop_event.wait(5), "deadline must signal the scheduler to stop"
+            raise RuntimeError("stopped")
+
+    slow = SlowAnalyzer()
+    monkeypatch.setattr(profile_api, "get_analyzer", lambda *args: slow)
+    monkeypatch.setattr(profile_api, "CV_DEADLINE_SECONDS", 0.2)
+    client = cloud(); headers = _signup(client)
+    response = client.post("/api/profile/cv", headers=headers, data={"text": "Junior Backend Developer Python FastAPI Docker", "ai_provider": "gemini"})
+    assert response.status_code == 504 and response.json()["code"] == "error.cv_analysis_timeout"
+    assert slow.stop_event.is_set()
+
 
 def test_ai_cv_is_redacted_and_uses_only_relevant_role_hints():
     prompts = []

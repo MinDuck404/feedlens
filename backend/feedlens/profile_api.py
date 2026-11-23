@@ -1,3 +1,6 @@
+import asyncio
+import threading
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
@@ -7,6 +10,9 @@ from .ai.registry import preferred_provider
 from .analyzer import get_analyzer
 from .auth import CurrentUser, current_user
 from .job_profile import MAX_CV_BYTES, JobProfile, ProfileError, analyze_cv, extract_cv_pdf, load_profile, store_profile
+
+# Bound the whole AI conversion so quota waits or slow providers cannot leave the upload spinning.
+CV_DEADLINE_SECONDS = 120
 
 
 def profile_router(db, is_cloud):
@@ -42,8 +48,20 @@ def profile_router(db, is_cloud):
                 text = await run_in_threadpool(extract_cv_pdf, data)
             elif len(text.encode("utf8")) > MAX_CV_BYTES:
                 raise ProfileError("error.cv_too_large")
-            analyzer = get_analyzer(preferred_provider(db(), user.id, ai_provider), None, user_keys(db(), user.id), user.id)
-            return await run_in_threadpool(analyze_cv, text, analyzer, language if language in ("vi", "en", "zh") else "vi")
+            stop = threading.Event()
+
+            def convert():
+                # Key lookup and model listing are blocking; keep them off the event loop.
+                analyzer = get_analyzer(preferred_provider(db(), user.id, ai_provider), None, user_keys(db(), user.id), user.id)
+                analyzer.stop_event = stop
+                return analyze_cv(text, analyzer, language if language in ("vi", "en", "zh") else "vi")
+
+            try:
+                return await asyncio.wait_for(run_in_threadpool(convert), CV_DEADLINE_SECONDS)
+            except asyncio.TimeoutError:
+                return JSONResponse({"code": "error.cv_analysis_timeout", "detail": "CV analysis timed out"}, status_code=504)
+            finally:
+                stop.set()
         except ProfileError as exc:
             return JSONResponse({"code": exc.code, "detail": exc.code}, status_code=400)
         except Exception:
