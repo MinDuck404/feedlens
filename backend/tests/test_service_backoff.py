@@ -11,6 +11,7 @@ from feedlens.db import Database
 from feedlens.messages import error_code
 from feedlens.models import AnalyzedPost, RawPost, RunRequest
 from tests.test_ai_quota import Clock, Provider
+from tests.test_cloud import cloud, _signup
 
 
 def test_service_backoff_has_distinct_state_long_budget_and_refunds_daily_usage():
@@ -112,3 +113,40 @@ def test_service_pause_keeps_read_posts_and_continue_is_immediate(tmp_path, monk
     before = clock.value; unavailable[0] = False
     pipeline.execute_analysis(db, rid, req, raw, uid)
     assert db.get_run(rid)["status"] == "done" and clock.value == before
+
+
+@pytest.mark.parametrize("batch_size, expected", [(None, [2, 5, 5]), (3, [3, 3, 3, 3])])
+def test_resuming_after_service_pause_uses_current_batch_preference(cloud, monkeypatch, batch_size, expected):
+    import re
+    from feedlens import api
+
+    client = cloud()
+    headers = _signup(client)
+    db = api.db()
+    uid = db.get_user_by_email("a@x.io").id
+    rid = db.create_run(RunRequest(platform="facebook", ai_provider="gemini"), uid)
+    if batch_size is not None:
+        assert client.put("/api/preferences", headers=headers, json={"ai_batch_size": batch_size}).status_code == 200
+    raw = [RawPost(platform="facebook", source="feed", text=f"Distinct post {i}") for i in range(13)]
+    db.save_raw_posts(rid, raw)
+    db.save_batch(rid, [AnalyzedPost(**raw[0].model_dump(), analyzed_by="Gemini (model)", summary="Already read")])
+    db.update_run(rid, status="analysis_failed", error="AI service temporarily unavailable: retry budget exhausted")
+    sizes = []
+    provider = Provider("model", Clock())
+
+    def reply(system, prompt, schema, effort):
+        ids = re.findall(r'<post id="(\d+)"', prompt)
+        if not ids:
+            return {"overall": "Done", "categories": [], "action_items": []}
+        assert "Distinct post 0" not in prompt
+        sizes.append(len(ids))
+        return {"items": [{"id": int(i), "category": "news", "summary": "Read", "is_job": False} for i in ids]}
+    provider.complete_json = reply
+    monkeypatch.setattr(api, "_check_ai", lambda *a: "gemini")
+    monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: LLMAnalyzer(provider))
+    monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
+    result = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "gemini"})
+    assert result.status_code == 200
+    assert sorted(sizes) == expected
+    assert db.get_run(rid)["status"] == "done"
+    assert db.analysis_counts(rid)["ai"] == 13

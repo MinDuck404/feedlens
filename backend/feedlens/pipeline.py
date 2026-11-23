@@ -7,8 +7,8 @@ from contextvars import ContextVar
 from typing import Callable
 
 from .ai.registry import preferred_provider, user_key_list
-from .ai.scheduler import AnalysisStopped, check_stopped
-from .analyzer import HeuristicAnalyzer, get_analyzer
+from .ai.scheduler import AIServiceUnavailable, AnalysisStopped, check_stopped
+from .analyzer import HeuristicAnalyzer, LLMAnalyzer, get_analyzer, preferred_batch_size
 from .config import settings
 from .db import Database
 from .models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
@@ -284,6 +284,9 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     analyzer.job_profile = load_profile(db, owner)
     analyzer.topics = db.list_topics(owner, enabled_only=True) if owner is not None else []
     request = (db.get_run(run_id) or {}).get("request", {})
+    if isinstance(analyzer, LLMAnalyzer):
+        analyzer.recovery_mode = request.get("analysis_recovery", False)
+        analyzer.batch_limit = preferred_batch_size(db.get_preferences(owner) if owner is not None else {})
     unique = {group[0].fingerprint: group[0] for group in groups}
     duplicates = {group[0].fingerprint: group[1:] for group in groups}
     known = {p.fingerprint for p in completed} & unique.keys()
@@ -337,13 +340,14 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     check_stopped(stop_event)
     add_timings(db, run_id, summary=time.monotonic() - started)
     request = db.get_run(run_id)["request"]
+    request.pop("analysis_recovery", None)
     db.update_run(run_id, status="done", error=None, digest=digest,
                   request={**request, "analysis_used_ai": needs_ai, "reanalysis_active": False})
     prog.update(phase="done", message="Hoàn tất")
 
 
 def _fail(db: Database, run_id: int, e: Exception) -> None:
-    if not isinstance(e, AnalysisStopped):
+    if not isinstance(e, (AnalysisStopped, AIServiceUnavailable)):
         traceback.print_exc()
     fail_run(db, run_id, str(e))
 

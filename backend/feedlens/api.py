@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import browser
-from .analyzer import HeuristicAnalyzer, estimate_classification_requests_for_count
+from .analyzer import DEFAULT_WEB_BATCH_SIZE, HeuristicAnalyzer, estimate_classification_requests_for_count, preferred_batch_size
 from .ai import (PROVIDERS, forget_models, list_models, pick_default, provider_status, resolve_provider_key,
                  user_keys)
 from .auth import CurrentUser, agent_user, current_user, issue_token, misconfigured
@@ -531,7 +531,8 @@ def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = Tr
               "can_reprocess_ai": can_reprocess_ai,
               "reanalyze_requests_estimate": estimate_classification_requests_for_count(
                   counts["total"], r["request"].get("job_mode", False), r["request"].get("keywords", []),
-                  r["request"].get("profile", ""), topic_count, has_cv=has_cv),
+                  r["request"].get("profile", ""), topic_count, has_cv=has_cv,
+                  batch_limit=preferred_batch_size(db().get_preferences(user.id)) if not active else DEFAULT_WEB_BATCH_SIZE),
               "reanalysis_active": bool(r["request"].get("reanalysis_active")),
               "error_code": error_code(r["error"], run_error=True, analysis_error=r["status"] == "analysis_failed") if r.get("error") else None}
     if posts:
@@ -587,6 +588,8 @@ def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current
     else:
         metadata = {key: r["request"][key] for key in ("scrape_report", "analysis_used_ai", "reanalysis_active")
                     if key in r["request"]}
+        if r.get("error") and error_code(r["error"], analysis_error=True) == "error.ai_service_paused":
+            metadata["analysis_recovery"] = True
         db().update_run(run_id, request={**req.model_dump(), **metadata})
         db().save_raw_posts(run_id, raw)  # Seed legacy runs before only_new filtering in start_analysis.
         start_analysis(db(), run_id, req, raw, user.id)

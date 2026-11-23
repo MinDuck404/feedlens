@@ -8,7 +8,7 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow, SidebarBody };";
-    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done, QuotaDiagnostics };";
+    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done, QuotaDiagnostics, RetryAnalysis };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -100,6 +100,30 @@ function hooks(component) {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+
+test("service pause can finish saved posts offline without sending them to Gemini again", async () => {
+  const { RetryAnalysis } = require("../src/components/RunView.tsx");
+  const originalContext = React.useContext, originalProviders = api.providers, originalRetry = api.retryAnalysis;
+  const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value;
+  context.close(); React.useContext = () => value;
+  api.providers = async () => [];
+  const calls = [];
+  api.retryAnalysis = async (...args) => { calls.push(args); };
+  const harness = hooks(RetryAnalysis);
+  try {
+    const result = harness.render({ run: { id: 16, error_code: "error.ai_service_paused", request: { ai_provider: "gemini" } }, onStarted() {} });
+    let finish;
+    const visit = (node) => {
+      if (!React.isValidElement(node)) return;
+      if (node.props.children === i18n.translate("run.finishOffline")) finish = node;
+      React.Children.forEach(node.props.children, visit);
+    };
+    visit(result);
+    assert.ok(finish);
+    await finish.props.onClick();
+    assert.deepEqual(calls, [[16, "offline", "", "continue"]]);
+  } finally { harness.close(); React.useContext = originalContext; api.providers = originalProviders; api.retryAnalysis = originalRetry; }
+});
 
 test("missing source requests and missing topic payloads do not crash a run", async () => {
   const { describeRunSource } = require("../src/logic.ts");

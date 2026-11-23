@@ -108,6 +108,17 @@ export default function Settings({ meta, me, prefs, onPrefsChange, onClose, onCh
             </Select>
           </label>
           <p className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.maxPostsHint")}</p>
+          <label className="mt-5 block">
+            <span className="mb-1.5 block text-sm font-medium">{t("set.aiBatchSize")}</span>
+            <Select aria-label={t("set.aiBatchSize")} aria-describedby={`${id}-ai-batch-size-hint`}
+              value={String(prefs?.ai_batch_size ?? 5)}
+              onChange={(event) => onPrefsChange?.({ ...(prefs ?? {}), ai_batch_size: Number(event.target.value) })}>
+              {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={String(n)}>{formatNumber(n, lang)}</option>
+              ))}
+            </Select>
+          </label>
+          <p id={`${id}-ai-batch-size-hint`} className="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{t("set.aiBatchSizeHint")}</p>
         </div>
         {cloud && <div hidden={tab !== "scrape"} role="tabpanel" id={`${id}-panel-scrape`} aria-labelledby={`${id}-tab-scrape`} tabIndex={0}>
           {me ? <AgentSection me={me} onChanged={onChanged} /> : <div role="status" aria-label={t("act.loading")}><SkeletonCard /></div>}

@@ -26,10 +26,11 @@ interface Props {
   onTab: (t: Tab) => void;
   onDeleted: () => void;
   onAnalysisStarted?: () => void;
+  onBatchSettings?: () => void;
   onRerun?: (request: RunRequest) => void;
 }
 
-export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onAnalysisStarted, onRerun }: Props) {
+export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onAnalysisStarted, onBatchSettings, onRerun }: Props) {
   const [run, setRun] = useState<Run | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -161,6 +162,10 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
         {failed && <div className="paper-card mt-8 rounded-2xl border-danger/40 p-5">
           <p className="font-semibold text-danger">{t(run.error_code === "error.ai_service_paused" ? "run.servicePaused" : run.error_code === "error.analysis_stopped" ? "run.aiPaused" : run.status === "analysis_failed" ? "run.analysisFailed" : "run.stopped")}</p>
           <p className="mt-2 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]" title={run.error ?? undefined}>{serverMessage(run.error_code, run.error ?? "")}</p>
+          {run.error_code === "error.ai_service_paused" && (prefs?.ai_batch_size ?? 5) > 1 && <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <p>{t("run.reduceBatchSize")}</p>
+            {onBatchSettings && <Button size="sm" variant="secondary" onClick={onBatchSettings}>{t("run.openBatchSettings")}</Button>}
+          </div>}
           {run.error_code === "error.browser_missing" && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center text-sm text-link underline">{t("plat.downloadChrome")}</a>}
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
           {run.progress?.ai?.state === "exhausted" && run.progress.ai.daily && <p className="mt-2 text-sm">{t("run.dailyQuotaExhausted")}</p>}
@@ -282,13 +287,14 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const resumeAI = !reanalyzeAll && run.request.ai_provider !== "offline";
+  const canFinishOffline = !reanalyzeAll && !switching && run.error_code === "error.ai_service_paused";
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
-  const submit = async () => {
+  const submit = async (selectedProvider = provider, selectedModel = model) => {
     if (reanalyzeAll && !window.confirm(t("run.confirmReanalyzeAI", { n: run.analysis_counts?.total ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 }))) return;
     setBusy(true); setError("");
     try {
-      if (switching) await api.stopAnalysis(run.id, { ai_provider: provider, ai_model: model });
-      else await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue");
+      if (switching) await api.stopAnalysis(run.id, { ai_provider: selectedProvider, ai_model: selectedModel });
+      else await api.retryAnalysis(run.id, selectedProvider, selectedModel, reanalyzeAll ? "reanalyze_all" : "continue");
       onStarted();
     }
     catch (e) { setError((e as Error).message); }
@@ -305,7 +311,11 @@ function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false
       </Select></label>
       {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <Button disabled={switching && run.progress?.stop_requested} busy={busy} onClick={submit}>{t(switching ? "run.switchAndContinue" : reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={switching && run.progress?.stop_requested} busy={busy} onClick={() => submit()}>{t(switching ? "run.switchAndContinue" : reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
+        {canFinishOffline && <Button variant="secondary" disabled={busy} onClick={() => submit("offline", "")}>{t("run.finishOffline")}</Button>}
+      </div>
+      {canFinishOffline && <p className="text-xs text-ink-soft">{t("run.finishOfflineHint")}</p>}
     </fieldset>
   </div>;
 }

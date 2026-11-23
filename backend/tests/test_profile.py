@@ -263,7 +263,8 @@ def test_job_fixtures_through_pipeline_with_fake_provider(tmp_path, profile_id):
         if schema is CLASSIFY_SCHEMA:
             assert prompt.count("UNIQUE_PROFILE_") == 1
             items = []
-            for i, row in enumerate(rows):
+            batch_rows = [row for row in rows if row["raw_text"][:3000] in prompt]
+            for i, row in enumerate(batch_rows):
                 expected = row["expected_evaluations"][profile_id]
                 items.append({"id": i, "category": "job", "summary": row["title"], "is_job": True, "job": {"title": row["title"], "company": row["company"], "match_score": sum(expected["score_range"]) // 2, "match_type": expected["match_type"], "gaps": expected["gaps"], "constraint_flags": expected["constraint_flags"], "match_reason": expected["match_reason"]}})
             return {"items": items}

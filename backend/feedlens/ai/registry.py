@@ -150,7 +150,7 @@ def forget_models(user_id: int, key: str) -> None:
 # Khi user không chọn model:
 #  1. model đặt qua biến môi trường (ANTHROPIC_MODEL/OPENAI_MODEL/GEMINI_MODEL), nếu có;
 #  2. model mặc định của app (ProviderInfo.default_model) nếu có trong danh sách key dùng được;
-#  3. các model mới nhất thuộc dòng "nhanh" của nhà cung cấp (dùng làm dự phòng khi quá tải);
+#  3. một model dự phòng tương thích, sau đó các model mới thuộc dòng "nhanh";
 #  4. model đầu danh sách; 5. mặc định ghi trong code nếu không lấy được danh sách.
 # Có tên trong danh sách chưa chắc gọi được (Google vẫn liệt kê model đã khóa với user mới),
 # nên luôn kèm model dự phòng.
@@ -174,6 +174,9 @@ def default_candidates(key: str, models: list[str]) -> list[str]:
                   key=_version_key, reverse=True)
     # Model mặc định của app (vd gemini-3.5-flash-lite: nhanh, rẻ, đủ tốt để phân loại) đứng đầu nếu key dùng được
     first = [cls.info.default_model] if cls.info.default_model in models else []
+    # Preserve a Flash fallback from a different release when newer Flash endpoints return 503.
+    if key == "gemini" and first and "gemini-3.5-flash" in good:
+        first.append("gemini-3.5-flash")
     return first + [m for m in good if m not in first] or models[:1]
 
 
