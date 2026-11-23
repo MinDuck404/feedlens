@@ -287,18 +287,22 @@ test("large count captions render each localized count once in every locale", ()
 });
 
 test("all locales have identical keys and interpolation variables", () => {
-  const source = fs.readFileSync(require.resolve("../src/i18n.tsx"), "utf8");
-  const ast = ts.createSourceFile("i18n.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const dictionaries = {};
-  function visit(node) {
-    if (ts.isVariableDeclaration(node) && ["vi", "en", "zh"].includes(node.name.getText(ast))) {
-      const entries = node.initializer.properties.map((p) => [p.name.text, p.initializer.text]);
-      dictionaries[node.name.getText(ast)] = new Map(entries);
-      assert.equal(entries.length, dictionaries[node.name.getText(ast)].size, "duplicate dictionary key");
+  for (const lang of ["vi", "en", "zh"]) {
+    const filename = require.resolve(`../src/i18n/${lang}.ts`);
+    const source = fs.readFileSync(filename, "utf8");
+    const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    function visit(node) {
+      if (ts.isVariableDeclaration(node) && node.name.getText(ast) === lang) {
+        const entries = node.initializer.properties.map((p) => [p.name.text, p.initializer.text]);
+        dictionaries[lang] = new Map(entries);
+        assert.equal(entries.length, dictionaries[lang].size, "duplicate dictionary key");
+      }
+      ts.forEachChild(node, visit);
     }
-    ts.forEachChild(node, visit);
+    visit(ast);
+    assert.ok(dictionaries[lang], `${lang} dictionary missing`);
   }
-  visit(ast);
   for (const lang of ["en", "zh"]) {
     assert.deepEqual([...dictionaries[lang].keys()].sort(), [...dictionaries.vi.keys()].sort());
     for (const [key, value] of dictionaries.vi) {
