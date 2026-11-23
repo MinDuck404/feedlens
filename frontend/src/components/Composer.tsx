@@ -1,32 +1,23 @@
-import { Briefcase, Check, RefreshCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { groupName } from "../logic";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
-import { formatNumber, useI18n, type Key } from "../i18n";
-import { Sheet, Button, IconButton, Skeleton, Select, SegmentedControl, TextField } from "./ui";
-import { PLATFORM_MODES, applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode, jobProfileSuggestions,
+import { formatNumber, useI18n } from "../i18n";
+import { Sheet, Button, Skeleton, Select, SegmentedControl } from "./ui";
+import { Group, ModelPicker, Toggle } from "./composer/Controls";
+import { JobCriteria } from "./composer/JobCriteria";
+import { links, SourceMode } from "./composer/SourceMode";
+import { applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode,
   migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../platformModes";
 import type {
   AIProviderInfo, JobProfile, Me, Meta, Mode, ModeOptions, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup,
 } from "../types";
 
+export { ModelPicker };
+
 const DEFAULTS: RunRequest = {
   platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false, keywords: [], profile: "",
   ai_provider: "offline", ai_model: "", only_new: false, headless: false, speed: "fast", runner: "agent",
 };
-
-/** Link dán vào ô một dòng: tách theo dấu cách, xuống dòng hoặc dấu phẩy */
-const links = (t: string) => t.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-
-const KEYWORD_SUGGESTIONS = ["remote", "junior", "senior", "intern", "part-time", "Hà Nội", "HCM", "Đà Nẵng"];
-const KEYWORD_LABELS: Record<string, Key> = {
-  remote: "kw.remote", junior: "kw.junior", senior: "kw.senior", intern: "kw.intern", "part-time": "kw.partTime",
-  "Hà Nội": "kw.hanoi", HCM: "kw.hcm", "Đà Nẵng": "kw.danang",
-};
-
-/** Rút gọn link nhóm để dễ đọc: facebook.com/groups/vieclamit */
-const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
 interface Props {
   meta: Meta;
@@ -273,115 +264,9 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          <Group label={t("cmp.where")}>
-            <SegmentedControl compact label={t("cmp.where")} value={mode} onChange={(v) => changeMode(f.platform, v as Mode)}
-              options={[...PLATFORM_MODES[f.platform], ...(mode === "legacy_group" ? [definition] : [])].map((item) => ({ value: item.mode, label: t(item.label) }))} />
-            <p className="mt-2 text-sm text-ink-soft">{t(definition.description)}</p>
-            {f.platform === "facebook" && mode === "search" && <p className="mt-2 text-sm text-ink-soft">{t("cmp.notice.fbSearchLowResults")}</p>}
-            {(f.platform === "reddit" || f.platform === "x") && <p role="note" className="mt-3 rounded-card bg-sunken p-3 text-xs text-ink-soft">{t(f.platform === "reddit" ? "cmp.warning.redditPolicy" : "cmp.warning.xPolicy")}</p>}
-
-            {usesSaved && hint && (
-              <div className="mt-3">
-                {myGroups.length > 0 && (
-                  <>
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-                      <span>{t(hint.type === "saved" ? "cmp.groupsSelectedCount" : "cmp.sourcesSelectedCount", { selected: sources.length, total: myGroups.length })}</span>
-                      <button type="button" className="interactive-tap min-h-10 text-link underline-offset-4 hover:underline"
-                        onClick={() => updateGroups(myGroups.map((g) => ({ ...g, enabled: sources.length < myGroups.length })))}>
-                        {sources.length < myGroups.length ? t("cmp.selectAll") : t("cmp.selectNone")}
-                      </button>
-                    </div>
-                    <ul className="max-h-64 divide-y divide-line overflow-y-auto rounded-card border border-line">
-                      {myGroups.map((g, i) => {
-                        const name = mode === "list" ? g.url.replace(/\/$/, "").split("/").pop()! : groupName(g.url);
-                        return (
-                          <li key={g.url} className="group/row flex items-center transition-colors duration-[var(--duration-fast)] hover:bg-sunken/60">
-                            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-2.5">
-                              <input type="checkbox" className="peer sr-only" checked={g.enabled}
-                                onChange={(e) => updateGroups(myGroups.map((x, j) => j === i ? { ...x, enabled: e.target.checked } : x))} />
-                              <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-sunken text-xs uppercase text-ink-soft
-                                peer-checked:bg-primary peer-checked:text-primary-ink">
-                                {name.slice(0, 2)}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-medium">{name}</span>
-                                <span className="block truncate font-mono text-[11px] text-ink-soft" title={g.url}>{shortUrl(g.url)}</span>
-                              </span>
-                              <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-full border border-line text-transparent
-                                peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-ink peer-focus-visible:outline-2 peer-focus-visible:outline-accent">
-                                <Check className="size-3" strokeWidth={3} />
-                              </span>
-                            </label>
-                            <IconButton aria-label={t("cmp.removeGroup", { name })} title={t("cmp.removeFromList")}
-                              onClick={() => updateGroups(myGroups.filter((_, j) => j !== i))}
-                              className="mr-1 size-10 shrink-0 hover:text-danger">
-                              <Trash2 className="size-4" />
-                            </IconButton>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </>
-                )}
-                {hint.type === "saved" ? <div className="mt-3 flex items-center gap-2 rounded-full border border-[var(--field-line)] bg-[var(--field-bg)] py-1 pr-1 pl-4 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
-                  <input className="min-w-0 flex-1 bg-transparent py-1.5 text-sm border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft/70"
-                    placeholder={myGroups.length ? t("cmp.pasteMore") : hint.example}
-                    value={newGroups} onChange={(e) => setNewGroups(e.target.value)}
-                    onKeyDown={(e) => { if (!e.nativeEvent.isComposing && e.key === "Enter") { e.preventDefault(); addGroups(); } }}
-                    aria-label={t(hint.label)} />
-                  <Button onClick={addGroups} disabled={!links(newGroups).length} variant="secondary" className="shrink-0 border-0! shadow-none! focus-visible:outline-none!">
-                    {t("cmp.add")}
-                  </Button>
-                </div>
-                : <div className="mt-3"><label className="block"><span className="mb-1.5 block text-sm">{t("cmp.onePerLine", { label: t(hint.label) })}</span>
-                    <TextField as="textarea" className="resize-y" rows={3} value={newGroups} aria-label={t(hint.label)} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example}
-                      onChange={(event) => setNewGroups(event.target.value)} /></label><Button className="mt-2" variant="secondary" disabled={!sourceLines(newGroups).length} onClick={addGroups}>{t("cmp.add")}</Button></div>}
-                {hint.type === "saved" && <p className="mt-1.5 px-1 text-xs text-ink-soft">{t("cmp.addHint")}</p>}
-              </div>
-            )}
-
-            {hint?.type === "sources" && !usesSaved && (
-              <label className="mt-3 block">
-                <span className="mb-1 block text-sm">{t("cmp.onePerLine", { label: t(hint.label) })}</span>
-                <TextField as="textarea" className="resize-y" rows={3} placeholder={hint.placeholder ? t(hint.placeholder) : hint.example} value={sourceText}
-                  onChange={(e) => setSourceText(e.target.value)} aria-label={t(hint.label)} required={hint.required} />
-              </label>
-            )}
-            {f.platform === "reddit" && mode === "subreddit" && <div className="mt-2 flex flex-wrap gap-2">
-              {["r/forhire", "r/remotejs", "r/jobbit", "r/hiring"].map((sub) => <button key={sub} type="button"
-                className="min-h-11 rounded-full border border-line px-3 text-xs text-ink-soft hover:border-ink"
-                onClick={() => {
-                  if (myGroups.some((source) => source.url === sub)) updateGroups(myGroups.map((source) => source.url === sub ? { ...source, enabled: true } : source));
-                  else updateGroups([...myGroups, { url: sub, enabled: true }]);
-                }}>+ {sub}</button>)}
-            </div>}
-            {definition.fields.filter((field) => field.name !== "sources").map((field) => {
-              const value = draft.options[field.name];
-              if (field.type === "toggle") return <div key={field.name} className="mt-3"><Toggle checked={value === true} onChange={(checked) => setOption(field.name, checked)}>{t(field.label)}</Toggle><p className="text-xs text-ink-soft">{t("cmp.input.groupChronologicalHint")}</p></div>;
-              if (field.type === "multi") return <fieldset key={field.name} className="mt-4"><legend className="mb-2 text-sm">{t(field.label)}</legend><div className="flex flex-wrap gap-2">{field.choices?.map((choice) => {
-                const checked = Array.isArray(value) && value.includes(choice.value);
-                return <label key={choice.value} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-line px-3 text-sm"><input type="checkbox" checked={checked}
-                  onChange={() => setOption(field.name, checked ? (value as string[]).filter((item) => item !== choice.value) : [...(Array.isArray(value) ? value : []), choice.value])} />{t(choice.label)}</label>;
-              })}</div></fieldset>;
-              return <div key={field.name} className="mt-4"><label className="block"><span className="mb-1.5 block text-sm">{t(field.label)}</span>
-                {field.type === "select" ? <Select aria-label={t(field.label)} value={value === null ? "" : String(value ?? "")} onChange={(event) => setOption(field.name, event.target.value || null)}>
-                  {value === null && <option value="">{t("cmp.input.time.any")}</option>}{field.choices?.map((choice) => <option key={choice.value} value={choice.value}>{t(choice.label)}</option>)}
-                </Select> : field.type === "number" ? <TextField type="number" min={field.min} max={field.max} step={1}
-                  value={value === undefined || value === null ? "" : String(value)}
-                  onChange={(event) => {
-                    const raw = event.target.value;
-                    setOption(field.name, raw === "" ? null : Number(raw));
-                  }} /> : <TextField value={String(value ?? "")} required={field.required} maxLength={field.name === "keywords" ? 500 : 300}
-                  placeholder={field.placeholder ? t(field.placeholder) : undefined} onChange={(event) => setOption(field.name, event.target.value)} />}</label>
-                {field.hint && <p className="mt-1.5 text-xs text-ink-soft">{t(field.hint)}</p>}
-                {mode === "jobs" && field.name === "keywords" && jobProfile && <div className="mt-2 flex flex-wrap gap-2">
-                  {jobProfileSuggestions(jobProfile).map((role) => <button key={role} type="button"
-                    className="min-h-10 max-w-full truncate rounded-full border border-line px-3 text-xs text-ink-soft hover:border-ink hover:text-ink"
-                    title={role} onClick={() => setOption("keywords", role)}>{role}</button>)}
-                </div>}
-              </div>;
-            })}
-          </Group>
+          <SourceMode f={f} mode={mode} definition={definition} usesSaved={usesSaved} myGroups={myGroups} sources={sources}
+            newGroups={newGroups} setNewGroups={setNewGroups} updateGroups={updateGroups} addGroups={addGroups}
+            sourceText={sourceText} setSourceText={setSourceText} draft={draft} setOption={setOption} changeMode={changeMode} jobProfile={jobProfile} />
 
           <Group label={t(plan.label)}>
             <div className="flex items-center gap-4">
@@ -447,74 +332,8 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
 
-          {mode !== "jobs" && <section className={`rounded-card border p-4 transition-colors duration-[var(--duration-fast)] ${f.job_mode ? "border-ink bg-surface" : "border-line"}`}>
-            <label className="flex cursor-pointer items-start gap-3">
-              <span className={`grid size-9 shrink-0 place-items-center rounded-full ${f.job_mode ? "bg-primary text-primary-ink" : "bg-sunken text-ink-soft"}`}>
-                <Briefcase className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{t("cmp.jobs")}</span>
-                <span className="block text-sm text-ink-soft">{t("cmp.jobsHint")}</span>
-              </span>
-              <input type="checkbox" className="peer sr-only" checked={f.job_mode} onChange={(e) => set("job_mode", e.target.checked)} />
-              <span aria-hidden className="relative mt-1 h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
-                after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform after:duration-[var(--duration-fast)] motion-reduce:after:transition-none peer-checked:after:translate-x-4" />
-            </label>
-            {f.job_mode && (
-              <div className="page-enter mt-5 space-y-5">
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium">{t("cmp.keywords")}</span>
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-[var(--field-line)] bg-[var(--field-bg)] p-2 transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-glow)]">
-                    {keywords.map((k) => (
-                      <span key={k} className="page-enter flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 pr-1 pl-3 text-xs text-primary-ink">
-                        <span className="min-w-0 truncate" title={k}>{k}</span>
-                        <button type="button" aria-label={t("cmp.kwRemove", { k })} onClick={() => setKeywords(keywords.filter((x) => x !== k))}
-                          className="interactive-tap grid size-9 shrink-0 place-items-center rounded-full hover:bg-primary-ink/20"><X className="size-3" /></button>
-                      </span>
-                    ))}
-                    <input className="min-w-24 flex-1 bg-transparent px-1 py-1 text-sm border-0! outline-none! ring-0! [box-shadow:none]! focus-visible:outline-none! placeholder:text-ink-soft/70"
-                      placeholder={keywords.length ? t("cmp.kwAdd") : t("cmp.kwPlaceholder")} value={kwDraft}
-                      onChange={(e) => setKwDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.nativeEvent.isComposing) return;
-                        if ((e.key === "Enter" || e.key === ",") && kwDraft.trim()) { e.preventDefault(); addKeyword(kwDraft); }
-                        if (e.key === "Backspace" && !kwDraft && keywords.length) setKeywords(keywords.slice(0, -1));
-                      }}
-                      onBlur={() => kwDraft.trim() && addKeyword(kwDraft)} aria-label={t("cmp.kwAria")} />
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {KEYWORD_SUGGESTIONS.filter((s) => !keywords.includes(s) && !keywords.includes(t(KEYWORD_LABELS[s]))).map((s) => (
-                      <button key={s} type="button" onClick={() => addKeyword(t(KEYWORD_LABELS[s]))}
-                        className="interactive-tap min-h-10 rounded-full border border-line px-3 py-1 text-xs text-ink-soft hover:border-ink hover:bg-surface hover:text-ink">
-                        + {t(KEYWORD_LABELS[s])}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {jobProfile && <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-y border-line py-3 text-sm"><span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span><button type="button" onClick={() => onOpenSettings()} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button></p>}
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
-                  <TextField as="textarea" aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="resize-y" rows={3} value={f.profile} onChange={(e) => set("profile", e.target.value)}
-                    placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
-                  <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
-                </label>
-              </div>
-            )}
-          </section>}
-          {mode === "jobs" && <section className="rounded-card border border-line p-4">
-            {jobProfile ? <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-3 text-sm">
-              <span>{t("profile.using", { role: jobProfile.primary_roles.join(", ") || t("profile.title") })}</span>
-              <button type="button" onClick={() => onOpenSettings("profile")} className="shrink-0 text-link underline underline-offset-4">{t("profile.edit")}</button>
-            </p> : <p className="mb-4 flex flex-wrap items-center gap-2 border-b border-line pb-3 text-sm text-ink-soft">
-              <span>{t("cmp.jobsProfileHint")}</span>
-              <button type="button" onClick={() => onOpenSettings("profile")} className="font-medium text-link underline underline-offset-4">{t("profile.upload")}</button>
-            </p>}
-            <label className="block"><span className="mb-1.5 block text-sm font-medium">{t(jobProfile ? "profile.notes" : "cmp.profile")}</span>
-              <TextField as="textarea" aria-label={t(jobProfile ? "profile.notes" : "cmp.profile")} className="resize-y" rows={2} value={f.profile} onChange={(e) => set("profile", e.target.value)}
-                placeholder={t(jobProfile ? "profile.notesPh" : "cmp.profilePh")} />
-              <span className="mt-1 block text-xs text-ink-soft">{t(jobProfile ? "profile.notesHint" : "cmp.profileHint")}</span>
-            </label>
-          </section>}
+          <JobCriteria mode={mode} f={f} set={set} keywords={keywords} setKeywords={setKeywords} kwDraft={kwDraft}
+            setKwDraft={setKwDraft} addKeyword={addKeyword} jobProfile={jobProfile} onOpenSettings={onOpenSettings} />
 
           <Group label={t("cmp.options")}>
             <Toggle checked={f.only_new} onChange={(v) => set("only_new", v)}>{t("cmp.onlyNew")}</Toggle>
@@ -524,59 +343,5 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             )}
           </Group>
     </Sheet>
-  );
-}
-
-export function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
-  const [models, setModels] = useState<string[]>([]);
-  const [def, setDef] = useState("");
-  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
-  const [error, setError] = useState("");
-  const { t } = useI18n();
-  const requestId = useRef(0);
-
-  const load = (refresh = false) => {
-    const id = ++requestId.current;
-    setState("loading");
-    api.models(provider, refresh)
-      .then((r) => { if (id !== requestId.current) return; setModels(r.models); setDef(r.default); setState("ok"); })
-      .catch((e) => { if (id !== requestId.current) return; setError((e as Error).message); setState("error"); });
-  };
-  useEffect(() => { load(); return () => { ++requestId.current; }; }, [provider]);
-
-  return (
-    <div className="mt-2 flex gap-2">
-      <Select value={value} onChange={(e) => onChange(e.target.value)}
-        disabled={state !== "ok"} aria-label={t("cmp.modelAria")}>
-        <option value="">
-          {state === "loading" ? t("cmp.modelsLoading") : state === "error" ? error : t("cmp.modelDefault", { m: def })}
-        </option>
-        {value && !models.includes(value) && <option value={value}>{value}</option>}
-        {models.map((m) => <option key={m} value={m}>{m}</option>)}
-      </Select>
-      <IconButton onClick={() => load(true)} aria-label={t("cmp.reloadModels")} variant="outline" busy={state === "loading"} className="size-11 shrink-0">
-        <RefreshCw className="size-4" />
-      </IconButton>
-    </div>
-  );
-}
-
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <fieldset className="min-w-0">
-      <legend className="mb-3 text-sm font-semibold tracking-tight">{label}</legend>
-      {children}
-    </fieldset>
-  );
-}
-
-function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
-  return (
-    <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 py-2 text-sm">
-      <span>{children}</span>
-      <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span aria-hidden className="relative h-5 w-9 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent
-        after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-surface after:transition-transform after:duration-[var(--duration-fast)] motion-reduce:after:transition-none peer-checked:after:translate-x-4" />
-    </label>
   );
 }

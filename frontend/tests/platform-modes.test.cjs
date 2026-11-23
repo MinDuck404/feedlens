@@ -154,6 +154,16 @@ test("old requests reopen with their original semantics instead of new defaults"
 });
 
 // Drive the same hook/event interface used by Composer, without network or browser layout.
+const { SourceMode } = require("../src/components/composer/SourceMode.tsx");
+const { JobCriteria } = require("../src/components/composer/JobCriteria.tsx");
+function expandComposerSections(node) {
+  if (!node || typeof node !== "object") return node;
+  if (Array.isArray(node)) return node.map(expandComposerSections);
+  if (node.type === SourceMode || node.type === JobCriteria) return expandComposerSections(node.type(node.props));
+  if (!node.props) return node;
+  return { ...node, props: { ...node.props, children: expandComposerSections(node.props.children) } };
+}
+
 function hooks(component) {
   const React = require("react"), original = { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect, useContext: React.useContext, useCallback: React.useCallback };
   let index = 0, effects = []; const cells = [];
@@ -163,7 +173,7 @@ function hooks(component) {
     effects.push(() => { previous?.cleanup?.(); cells[at] = { deps, cleanup: effect() }; });
   } };
   React.useContext = () => ({ t: (key) => key, lang: "en" }); React.useCallback = (fn) => fn;
-  return { render(props) { index = 0; const tree = component(props); const pending = effects; effects = []; pending.forEach((fn) => fn()); return tree; }, close() { cells.forEach((cell) => cell.cleanup?.()); Object.assign(React, original); } };
+  return { render(props) { index = 0; const tree = expandComposerSections(component(props)); const pending = effects; effects = []; pending.forEach((fn) => fn()); return tree; }, close() { cells.forEach((cell) => cell.cleanup?.()); Object.assign(React, original); } };
 }
 function find(node, predicate) {
   if (!node || typeof node !== "object") return null;
