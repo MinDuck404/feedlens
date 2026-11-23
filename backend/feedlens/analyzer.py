@@ -12,12 +12,13 @@ import threading
 import time
 import copy
 import unicodedata
+import logging
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from .ai import AIProvider, get_provider, resolve_models, resolve_provider_key
-from .ai.base import AIOutputTruncated
+from .ai.base import AIError, AIOutputTruncated
 from .ai.registry import KeyCredential
 from .ai.scheduler import Candidate, MAX_OUTPUT, QuotaScheduler, scheduler_for
 from .job_profile import JobProfile, matching_context
@@ -30,6 +31,7 @@ CLASSIFY_OUTPUT_SAFETY_TOKENS = 820
 PARALLEL_BATCHES = 4  # số lô gửi AI cùng lúc
 MAX_POST_CHARS = 3000  # bài cực dài bị cắt để giữ chi phí mỗi lô ổn định
 ProgressFn = Callable[[int, str], None]
+logger = logging.getLogger(__name__)
 
 # Ngôn ngữ AI viết summary / tóm tắt / việc nên làm / job (theo ngôn ngữ giao diện người dùng chọn)
 LANGUAGE_NAMES = {"vi": "tiếng Việt", "en": "English", "zh": "简体中文 (Simplified Chinese)"}
@@ -50,7 +52,9 @@ def classification_batch_size(job_mode: bool, keywords: list[str], profile: str,
                               known_jobs: bool = False, has_cv: bool = False) -> int:
     per_item = JOB_OUTPUT_TOKENS_PER_ITEM if known_jobs or job_mode or keywords or profile or has_cv else CLASSIFY_OUTPUT_TOKENS_PER_ITEM
     per_item += 40 if topic_count else 0
-    return min(BATCH_SIZE, max(1, (MAX_OUTPUT - CLASSIFY_OUTPUT_SAFETY_TOKENS) // per_item))
+    # Smaller checkpoints keep a long job response or a provider outage from hiding 40 paid reads.
+    return min(BATCH_SIZE, 20 if per_item >= JOB_OUTPUT_TOKENS_PER_ITEM else 40,
+               max(1, (MAX_OUTPUT - CLASSIFY_OUTPUT_SAFETY_TOKENS) // per_item))
 
 
 def estimate_classification_requests(posts: list[RawPost], job_mode: bool, keywords: list[str], profile: str,
@@ -91,6 +95,7 @@ CLASSIFY_SCHEMA = {
     "properties": {
         "items": {
             "type": "array",
+            "minItems": 1,
             "items": {
                 "type": "object",
                 "properties": {
@@ -111,7 +116,7 @@ CLASSIFY_SCHEMA = {
 
 KNOWN_JOBS_SCHEMA = {
     "type": "object",
-    "properties": {"items": {"type": "array", "items": {
+    "properties": {"items": {"type": "array", "minItems": 1, "items": {
         "type": "object",
         "properties": {"id": {"type": "integer"}, "summary": {"type": "string"}, "job": _JOB_SCHEMA},
         "required": ["id", "summary", "job"], "additionalProperties": False,
@@ -200,7 +205,7 @@ def _with_topic_fields(schema: dict) -> dict:
     item["properties"] = {**item["properties"], "topic_ids": {"type": "array", "items": {"type": "integer"}},
                           "topic_reason": {"type": "string"}}
     item["required"] = [*item["required"], "topic_ids", "topic_reason"]
-    return {**schema, "properties": {"items": {"type": "array", "items": item}}}
+    return {**schema, "properties": {"items": {**schema["properties"]["items"], "items": item}}}
 
 
 TOPIC_DIGEST_SCHEMA = {
@@ -292,7 +297,7 @@ class LLMAnalyzer:
     def complete_json(self, system: str, prompt: str, schema: dict, effort: str = "low") -> dict:
         """Schedule all AI work, including Ask's task-specific system prompts."""
         def selected(candidate):
-            self._call_context.label = f"{candidate.client.info.name} ({candidate.model})"
+            self._call_context.label = f"{candidate.client.info.name} ({getattr(candidate.client, 'served_model', candidate.model)})"
             with self._switch_lock:
                 self.provider = candidate.client
         def state(value):
@@ -334,9 +339,18 @@ class LLMAnalyzer:
             user_level, user_years = "", None
 
         topics: list[Topic] = list(getattr(self, "topics", None) or [])
+        output_stopped = threading.Event()
+        empty_output_stopped = threading.Event()
+        empty_lock = threading.Lock()
+        empty_responses = 0
         allowed_topics = {t.id for t in topics}
         # Chủ đề của user gửi đúng một lần mỗi lô (không lặp theo từng bài)
         topic_ctx = f"\n\nChủ đề người dùng theo dõi:\n{topics_block(topics)}\n{TOPIC_RULES}" if topics else ""
+
+        def output_error():
+            return AIError("AI returned empty analysis repeatedly; stopped to preserve quota. Choose another model."
+                           if empty_output_stopped.is_set() else
+                           "AI output repeatedly invalid/truncated; stopped to preserve quota. Continue with another model.")
 
         def classify_batch(batch: list[tuple[int, RawPost]]) -> dict[int, AnalyzedPost]:
             known_jobs = batch[0][1].job_seed is not None
@@ -359,9 +373,26 @@ class LLMAnalyzer:
                 "khi đó điền job (để chuỗi rỗng nếu bài không nêu). Nếu không phải bài tuyển dụng, "
                 "điền job với chuỗi rỗng và match_score=0."
             )
-            prompt = f"{instructions}{job_ctx}{topic_ctx}\n\n<posts>\n{body}\n</posts>"
+            prompt = (f"{instructions}{job_ctx}{topic_ctx}\nReturn one item per post, even if irrelevant. "
+                      f"Copy each post's id exactly (0 to {len(batch) - 1}); do not renumber or return an empty items array."
+                      f"\n\n<posts>\n{body}\n</posts>")
             data = self._json_call(prompt, schema, effort="low")
-            by_id = {it["id"]: it for it in data.get("items", [])}
+            items = data.get("items", [])
+            by_id = {}
+            invalid = False
+            for item in items if isinstance(items, list) else []:
+                value = item.get("id") if isinstance(item, dict) else None
+                if isinstance(value, str) and value.isascii() and value.isdecimal():
+                    value = int(value)
+                if type(value) is not int or not 0 <= value < len(batch) or value in by_id:
+                    invalid = True
+                    continue
+                by_id[value] = item
+            log = logger.warning if invalid or not by_id else logger.info
+            log("AI classification expected_items=%s returned_items=%s matched_items=%s invalid_ids=%s",
+                len(batch), len(items) if isinstance(items, list) else 0, len(by_id), invalid)
+            if invalid or not isinstance(items, list):
+                raise AIOutputTruncated("AI output has invalid or duplicate post IDs")
             label = getattr(self._call_context, "label", self.label)
             res = {}
             for i, (index, p) in enumerate(batch):
@@ -396,17 +427,39 @@ class LLMAnalyzer:
             self._call_context.batch = {"batch": number, "batches": len(batches)}
             res: dict[int, AnalyzedPost] = {}
             malformed = set()
+            output_failures = 0
 
             def request(items: list[tuple[int, RawPost]]) -> None:
+                nonlocal output_failures, empty_responses
+                if output_stopped.is_set():
+                    raise output_error()
                 try:
-                    res.update(classify_batch(items))
+                    read = classify_batch(items)
                 except (AIOutputTruncated, json.JSONDecodeError):
+                    output_failures += 1
+                    if output_failures >= 3:
+                        output_stopped.set()
+                    if output_stopped.is_set():
+                        raise output_error() from None
                     if len(items) == 1:
                         malformed.add(items[0][0])
                         return
                     midpoint = len(items) // 2
                     request(items[:midpoint])
                     request(items[midpoint:])
+                    return
+                with empty_lock:
+                    empty_responses = 0 if read else empty_responses + 1
+                    if empty_responses >= 3:
+                        empty_output_stopped.set()
+                        output_stopped.set()
+                        raise output_error()
+                if read:
+                    output_failures = 0
+                    # Commit a successful child before its sibling can wait, fail or be cancelled.
+                    res.update(read)
+                    if checkpoint := getattr(self, "on_batch", None):
+                        checkpoint(list(read.values()))
 
             try:
                 request(batch)
@@ -423,6 +476,8 @@ class LLMAnalyzer:
                 offline.job_profile, offline.topics = cv_profile, topics
                 fallback = offline.classify([post for _, post in remaining], job_mode, keywords, profile, lambda *_: None)
                 res.update((index, post) for (index, _), post in zip(remaining, fallback))
+                if checkpoint := getattr(self, "on_batch", None):
+                    checkpoint(fallback)
             return res, None
 
         # Các lô độc lập nhau -> gửi song song để nhanh hơn, giữ nguyên thứ tự bài
@@ -458,8 +513,6 @@ class LLMAnalyzer:
                     continue
                 for index, post in batch.items():
                     results[index] = post
-                if batch and (checkpoint := getattr(self, "on_batch", None)):
-                    checkpoint([batch[index] for index in sorted(batch)])
                 if error is not None:
                     errors.append(error)
                 done += len(batch)

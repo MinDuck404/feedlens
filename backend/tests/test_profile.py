@@ -243,7 +243,7 @@ def test_profile_once_per_batch_and_code_scored_adjacent_roles(allow, enabled, f
     analyzer.job_profile = JobProfile(markdown="UNIQUE_CV_MARKER Python", allow_adjacent=allow, adjacent_roles=[{"role": "QA", "reason": "API skills", "enabled": enabled}])
     posts = [RawPost(platform="x", source="s", text=f"Hiring QA tester {i}") for i in range(61)]
     result = analyzer.classify(posts, True, [], "RUN_NOTE_MARKER", lambda *args: None)
-    assert len(prompts) == 2
+    assert len(prompts) == 4  # 61 jobs, with checkpoints at most 20 posts apart.
     assert all(p.count("UNIQUE_CV_MARKER") == 1 and p.count("RUN_NOTE_MARKER") == 1 for p in prompts)
     assert all(p.job.match_score == score and p.job.match_type == match_type for p in result)
     assert all(p.job.match_reason.startswith("Vai trò") for p in result)

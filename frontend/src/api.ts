@@ -48,7 +48,11 @@ async function raw(path: string, init: RequestInit = {}): Promise<Response> {
   return r;
 }
 
-const call = async <T>(path: string, init?: RequestInit): Promise<T> => (await raw(path, init)).json();
+const call = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const response = await raw(path, init);
+  try { return await response.json(); }
+  catch { throw new ApiError(response.status, "error.invalid_response", "", translate("api.invalidResponse")); }
+};
 
 const savePreferences = serialWriter<{ body: string; token: string }>(({ body, token }) => {
   // A queued write from a previous account must never use the next account's token.

@@ -188,7 +188,7 @@ export interface Digest {
 
 export interface Progress {
   ai?: {
-    state: "sending" | "quota_wait" | "switching" | "exhausted" | "error" | "stopped";
+    state: "preparing" | "sending" | "received" | "output_retry" | "quota_wait" | "switching" | "exhausted" | "error" | "stopped";
     provider?: string;
     provider_id?: string;
     model?: string;
@@ -198,9 +198,14 @@ export interface Progress {
     retry_at?: number;
     next_model?: string;
     daily?: boolean;
+    requested_model?: string;
+    switched_key?: boolean;
+    project_shared?: boolean;
   };
   stop_requested?: boolean;
   eta_seconds?: number;
+  ai_requests?: number;
+  newly_read?: number;
   phase: string;
   done: number;
   target: number;

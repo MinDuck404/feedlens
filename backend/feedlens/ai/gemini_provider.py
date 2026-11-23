@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+import threading
+import logging
 
 from .base import AIError, AIOutputTruncated, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo, decode_output
 
 TIMEOUT_MS = 180_000
+logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(AIProvider):
@@ -15,6 +18,7 @@ class GeminiProvider(AIProvider):
 
     def __init__(self, model: str | None = None, api_key: str | None = None):
         super().__init__(model, api_key)
+        self._response = threading.local()
         from google import genai
 
         self.genai = genai
@@ -23,8 +27,16 @@ class GeminiProvider(AIProvider):
             http_options=genai.types.HttpOptions(timeout=TIMEOUT_MS, retry_options=genai.types.HttpRetryOptions(attempts=1)),
         )
 
+    @property
+    def served_model(self):
+        return getattr(getattr(self, "_response", None), "model", self.model)
+
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         types = self.genai.types
+        thinking = {}
+        if self.model.removeprefix("models/").startswith("gemini-3"):
+            level = "high" if effort == "high" else "minimal" if "flash-lite" in self.model else "low"
+            thinking["thinking_config"] = types.ThinkingConfig(thinking_level=level)
         resp = self.client.models.generate_content(
             model=self.model,
             contents=prompt,
@@ -33,14 +45,32 @@ class GeminiProvider(AIProvider):
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 response_mime_type="application/json",
                 response_json_schema=schema,
+                **thinking,
             ),
         )
+        if not hasattr(self, "_response"):
+            self._response = threading.local()
+        self._response.model = getattr(resp, "model_version", None) or self.model
         reason = resp.candidates[0].finish_reason if resp.candidates else "unknown"
+        usage = getattr(resp, "usage_metadata", None)
+        def log_response(items=None, invalid=False):
+            log = logger.warning if invalid or items == 0 or reason == "MAX_TOKENS" else logger.info
+            log("Gemini response requested=%s served=%s finish_reason=%s items=%s invalid_json=%s input_tokens=%s output_tokens=%s thinking_tokens=%s",
+                self.model, self.served_model, reason, items, invalid, getattr(usage, "prompt_token_count", None),
+                getattr(usage, "candidates_token_count", None), getattr(usage, "thoughts_token_count", None))
         if reason == "MAX_TOKENS":
+            log_response()
             raise AIOutputTruncated("Gemini output reached MAX_TOKENS")
         if not resp.text:
-            raise AIError(f"Gemini không trả nội dung (finish_reason={reason})")
-        return decode_output(resp.text)
+            log_response(0)
+            raise AIError(f"AI returned empty analysis: Gemini returned no content (finish_reason={reason})")
+        try:
+            data = decode_output(resp.text)
+        except AIOutputTruncated:
+            log_response(invalid=True)
+            raise
+        log_response(len(data["items"]) if isinstance(data.get("items"), list) else None)
+        return data
 
     def list_models(self) -> list[str]:
         out = []

@@ -245,6 +245,8 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
              reanalyze_all: bool = False) -> None:
     prog = PROGRESS.setdefault(run_id, {})
     raw = preserve_post_identities(raw)
+    prog.update(ai_requests=0, newly_read=0)
+    analysis_lock = threading.Lock()
     db.save_raw_posts(run_id, raw)
     needs_ai = analyzer.label != HeuristicAnalyzer.label
     completed = [] if reanalyze_all else [p for p in db.get_posts(run_id)
@@ -265,10 +267,15 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     stop_event = control["stop"] if control else None
     if hasattr(analyzer, "stop_event"):
         analyzer.stop_event = stop_event
+        if getattr(analyzer, "candidates", None):
+            prog["ai"] = analyzer.candidates[0].progress("preparing")
         def state_changed(state):
-            identity = {key: value for key, value in prog.get("ai", {}).items()
-                        if key in {"provider", "provider_id", "model", "key_label"}}
-            prog.update(ai={**identity, **state})
+            with analysis_lock:
+                identity = {key: value for key, value in prog.get("ai", {}).items()
+                            if key in {"provider", "provider_id", "model", "key_label", "project_shared"}}
+                prog.update(ai={**identity, **state})
+                if state["state"] == "sending":
+                    prog["ai_requests"] = prog.get("ai_requests", 0) + 1
         analyzer.on_state = state_changed
     check_stopped(stop_event)
     if hasattr(analyzer, "language"):
@@ -289,7 +296,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
     started_analysis = time.monotonic()
     initially_read = len(known)
 
-    def checkpoint(batch):
+    def save_checkpoint(batch):
         inherited = []
         for original in batch:
             analysis = original.model_dump(exclude=set(RawPost.model_fields) | {"id", "sources"})
@@ -299,8 +306,13 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
         known.update(p.fingerprint for p in batch if not needs_ai or p.analyzed_by not in {"", "offline"})
         prog.update(done=len(known), message=f"Đã phân tích {len(known)}/{len(unique)}")
         newly_read = len(known) - initially_read
+        prog["newly_read"] = newly_read
         if newly_read:
             prog["eta_seconds"] = round((time.monotonic() - started_analysis) / newly_read * (len(unique) - len(known)))
+
+    def checkpoint(batch):
+        with analysis_lock:
+            save_checkpoint(batch)
 
     analyzer.on_batch = checkpoint
     checkpoint([p for p in completed if p.fingerprint in known])

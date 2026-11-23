@@ -6,7 +6,8 @@ type SourceRequest = Pick<RunRequest, "platform" | "source_type" | "sources"> & 
 type Translate = (key: Key, vars?: Record<string, string | number>) => string;
 
 /** A mode-aware label; preserve each existing surface's legacy fallback. */
-export function describeRunSource(req: SourceRequest, t: Translate, legacy: "run" | "history" | "sidebar" = "run"): string {
+export function describeRunSource(req: SourceRequest | null | undefined, t: Translate, legacy: "run" | "history" | "sidebar" = "run"): string {
+  if (!req) return t("run.unknownSource");
   const sources = req.sources ?? [];
   const short = (s: string) => s.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
   if (!req.mode) {

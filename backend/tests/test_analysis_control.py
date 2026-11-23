@@ -167,6 +167,6 @@ def test_scheduler_reports_fallback_identity_without_credentials():
     candidates = [Candidate(1, first, key_label="Primary"), Candidate(2, second, priority=1, key_label="Backup")]
     states = []
     QuotaScheduler(default_limits=lambda *a: Limits()).complete_json(candidates, "", "", {}, on_state=states.append)
-    assert states[-2]["state"] == "switching" and states[-2]["next_model"] == "actual"
+    assert any(state["state"] == "switching" and state["next_model"] == "actual" for state in states)
     assert states[-1]["model"] == "actual" and states[-1]["key_label"] == "Backup"
     assert "secret" not in json.dumps(states) and "never-expose-this" not in json.dumps(states)

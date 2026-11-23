@@ -20,11 +20,11 @@ def default_limits(provider: str, model: str, tier: str = "free") -> Limits:
 
 def learn_limits(message: str, current: Limits) -> Limits:
     """Read each quotaId/limit pair separately so RPM and RPD cannot be confused."""
-    quotas = list(re.finditer(r"quotaId\W+([\w-]+)", message, re.I))
+    quotas = list(re.finditer(r"quota_?Id\W+([\w-]+)", message, re.I))
     for index, quota in enumerate(quotas):
         start = quotas[index - 1].end() if index else 0
         end = quotas[index + 1].start() if index + 1 < len(quotas) else len(message)
-        limits = list(re.finditer(r"\blimit\W+(\d+)", message[start:end], re.I))
+        limits = list(re.finditer(r"\b(?:limit|quota_?value)\W+(\d+)", message[start:end], re.I))
         if not limits:
             continue
         limit = min(limits, key=lambda m: abs(start + m.start() - quota.start()))
@@ -35,3 +35,12 @@ def learn_limits(message: str, current: Limits) -> Limits:
             field = "tpm" if re.search(r"token", quota[1], re.I) else "rpm"
             current = replace(current, **{field: amount})
     return current
+
+
+def daily_quota_error(message: str) -> bool:
+    """A named minute violation takes precedence over generic daily-quota help text."""
+    identifiers = re.findall(r"(?:quota_?id|quota_?metric|metric)\W+([\w./-]+)", message, re.I)
+    periods = [value for value in identifiers if re.search(r"per_?(?:day|minute)|daily", value, re.I)]
+    if periods:
+        return any(re.search(r"per_?day|daily", value, re.I) for value in periods)
+    return bool(re.search(r"per\s?day", message, re.I))

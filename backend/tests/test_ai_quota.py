@@ -31,8 +31,8 @@ class Provider:
 
 
 @pytest.mark.parametrize("job_mode,tpm,count,expected_batches", [
-    (False, 250_000, 1200, 20),
-    (True, 250_000, 1200, 30),
+    (False, 250_000, 1200, 30),
+    (True, 250_000, 1200, 60),
     (True, 30_000, 100, None),
 ])
 def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode, tpm, count, expected_batches, monkeypatch):
@@ -56,7 +56,7 @@ def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode
     assert len(analyzer.classify(raw, job_mode, [], "", lambda *a: None)) == count
     assert sum(sizes) == count and max(sizes) <= 60
     if expected_batches:
-        assert len(sizes) == expected_batches and max(sizes) > 20
+        assert len(sizes) == expected_batches and max(sizes) <= (20 if job_mode else 40)
     else:
         assert max(sizes) < 20
 
@@ -73,12 +73,12 @@ def test_omitted_items_from_a_large_batch_share_one_retry(monkeypatch):
         items = re.findall(r'<post id="(\d+)"[^>]+>\n(Post \d+)', prompt)
         calls.append([body for _, body in items])
         return {"items": [{"id": int(i), "category": "news", "summary": "Read", "is_job": False}
-                          for i, _ in (items[:20] if len(calls) == 1 else items)]}
+                          for i, _ in (items[:10] if len(calls) == 1 else items)]}
 
     monkeypatch.setattr(analyzer, "_json_call", reply)
-    raw = [RawPost(platform="facebook", source="feed", text=f"Post {i}") for i in range(40)]
+    raw = [RawPost(platform="facebook", source="feed", text=f"Post {i}") for i in range(20)]
     result = analyzer.classify(raw, True, [], "", lambda *a: None)
-    assert calls == [[p.text for p in raw], [p.text for p in raw[20:]]]
+    assert calls == [[p.text for p in raw], [p.text for p in raw[10:]]]
     assert [p.text for p in result] == [p.text for p in raw]
     assert all(p.analyzed_by == analyzer.label for p in result)
 
@@ -203,14 +203,14 @@ def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, m
         fresh.acquire([Candidate(key.id, provider)], 1)
 
 
-def test_minute_wait_prefers_primary_key_instead_of_spending_backup():
+def test_minute_wait_uses_another_key_of_the_same_model():
     clock = Clock(); primary = Provider("gemini-3.5-flash-lite", clock); backup = Provider(primary.model, clock)
     scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep,
         default_limits=lambda *a: Limits(rpm=1, rpd=100))
     candidates = [Candidate(1, primary), Candidate(2, backup, priority=1)]
     scheduler.complete_json(candidates, "", "", {})
     scheduler.complete_json(candidates, "", "", {})
-    assert primary.calls == [0, 60] and backup.calls == []
+    assert primary.calls == [0] and backup.calls == [0]
 
 
 def test_token_window_waits_until_reserved_tokens_expire():
@@ -328,7 +328,7 @@ def test_paid_continuous_429_stops_or_uses_next_model(has_backup):
     scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep)
     def limited(*args):
         primary.calls.append(clock.value)
-        if len(primary.calls) > 7:
+        if len(primary.calls) > 3:
             pytest.fail("429 retry loop exceeded its finite budget")
         raise RuntimeError("429 retry in 1s")
     primary.complete_json = limited
@@ -337,11 +337,11 @@ def test_paid_continuous_429_stops_or_uses_next_model(has_backup):
         # Another model on the same key must remain eligible.
         candidates.append(Candidate(1, backup, tier="paid"))
         assert scheduler.complete_json(candidates, "", "", {}) == {"ok": True}
-        assert backup.calls == [6]
+        assert backup.calls == [2]
     else:
         with pytest.raises(QuotaExhausted):
             scheduler.complete_json(candidates, "", "", {})
-    assert primary.calls == [0, 1, 2, 3, 4, 5, 6]
+    assert primary.calls == [0, 1, 2]
 
 
 def test_success_resets_consecutive_429_retry_budget():
@@ -349,11 +349,11 @@ def test_success_resets_consecutive_429_retry_budget():
     scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep)
     def complete(*args):
         provider.calls.append(clock.value)
-        if len(provider.calls) % 7:
+        if len(provider.calls) % 3:
             raise RuntimeError("429 retry in 1s")
         return {"ok": True}
     provider.complete_json = complete
     candidates = [Candidate(1, provider, tier="paid")]
     for _ in range(2):
         assert scheduler.complete_json(candidates, "", "", {}) == {"ok": True}
-    assert len(provider.calls) == 14 and clock.value == 12
+    assert len(provider.calls) == 6 and clock.value == 4

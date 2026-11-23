@@ -34,7 +34,7 @@ test("analyzing view exposes actual model, quota retry time and stop/change cont
   const { renderToStaticMarkup } = require("react-dom/server");
   const { InProgress, Done } = require("../src/components/RunView.tsx");
   const run = { id: 9, status: "analyzing", request: { platform: "facebook" }, digest: null,
-    progress: { phase: "analyzing", done: 1, target: 2, ai: { state: "quota_wait", provider: "Gemini", model: "actual", key_label: "Work key", retry_at: 2000000000 } },
+    progress: { phase: "analyzing", done: 1, target: 2, ai_requests: 4, newly_read: 1, ai: { state: "quota_wait", provider: "Gemini", provider_id: "gemini", model: "actual", requested_model: "alias-model", key_label: "Work key", retry_at: Date.now() / 1000 + 30, switched_key: true, project_shared: true } },
     posts: [{ id: 1, fingerprint: "a", category: "news", summary: "Read", text: "Read text", analyzed: true, source: "Feed", platform: "facebook", topic_ids: [] },
       { id: -2, fingerprint: "b", category: "other", text: "Raw waiting text", analyzed: false, source: "Feed", platform: "facebook", topic_ids: [] }] };
   const render = (element) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null, element));
@@ -43,6 +43,10 @@ test("analyzing view exposes actual model, quota retry time and stop/change cont
   assert.ok(progress.includes(i18n.translate("run.stopAI")));
   assert.ok(progress.includes(i18n.translate("run.changeModel")));
   assert.ok(progress.includes("<time"));
+  assert.ok(progress.includes("alias-model"));
+  assert.ok(progress.includes(i18n.translate("run.quotaCountdown", { seconds: 30 })));
+  assert.ok(progress.includes(i18n.translate("run.requestUsage", { requests: 4, saved: 1 })));
+  assert.ok(progress.includes(i18n.translate("run.sharedProjectDetected")));
   const posts = render(React.createElement(Done, { run, meta: {}, tab: "digest", setTab() {} }));
   assert.ok(posts.includes("Raw waiting text"));
   assert.ok(posts.includes(i18n.translate("run.aiUnread").replaceAll("'", "&#x27;")));
@@ -78,6 +82,28 @@ function hooks(component) {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+
+test("missing source requests and missing topic payloads do not crash a run", async () => {
+  const { describeRunSource } = require("../src/logic.ts");
+  assert.equal(describeRunSource(undefined, i18n.translate), i18n.translate("run.unknownSource"));
+  const { Done } = require("../src/components/RunView.tsx");
+  const oldTopics = api.topics, oldContext = React.useContext, oldLocation = window.location;
+  window.location = { hash: "#/runs/1/posts" };
+  React.useContext = () => ({ t: i18n.translate, cat: (c) => c, lang: "en" });
+  api.topics = async () => ({});
+  const harness = hooks(Done);
+  const props = { run: { id: 1, status: "analyzing", request: {}, posts: [] }, meta: {}, tab: "posts", setTab() {} };
+  try { harness.render(props); await tick(); assert.doesNotThrow(() => harness.render(props)); }
+  finally { harness.close(); api.topics = oldTopics; React.useContext = oldContext; window.location = oldLocation; }
+});
+
+test("a successful HTTP response containing HTML becomes a localized API error", async () => {
+  const original = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError("Unexpected token '<', <!doctype"); } });
+  try {
+    await assert.rejects(api.run(1), (error) => error instanceof ApiError && error.code === "error.invalid_response" && error.message === i18n.translate("api.invalidResponse"));
+  } finally { global.fetch = original; }
+});
 
 test("grouped posts show every original source on job and reading cards without increasing job counts", () => {
   const { renderToStaticMarkup } = require("react-dom/server");

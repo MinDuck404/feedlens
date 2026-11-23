@@ -164,6 +164,7 @@ export default function RunView({ runId, meta, prefs, tab, onTab, onDeleted, onA
           {run.error_code === "error.browser_missing" && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-10 items-center text-sm text-link underline">{t("plat.downloadChrome")}</a>}
           {run.error_code === "error.ai_quota" && counts && <p className="mt-2 text-sm">{t("run.aiQuotaSaved", { total: counts.total, ai: counts.ai })}</p>}
           {run.progress?.ai?.state === "exhausted" && run.progress.ai.daily && <p className="mt-2 text-sm">{t("run.dailyQuotaExhausted")}</p>}
+          {run.error_code === "error.ai_quota" && run.progress?.ai?.provider_id === "gemini" && <p className="mt-2 text-sm">{t(run.progress.ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
         </div>}
         {canContinue && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.continueAnalysis")}</h2><RetryAnalysis key={run.id} run={run} onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
         {canReanalyze && <section className="paper-card mt-5 rounded-2xl p-5"><h2 className="font-headline text-xl">{t("run.reanalyzeAI")}</h2><p className="mt-2 text-sm text-ink-soft">{t("run.reanalyzeAIHint", { n: run.posts?.length ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 })}</p><RetryAnalysis key={`reanalyze-${run.id}`} run={run} reanalyzeAll onStarted={() => { setRetry((n) => n + 1); onAnalysisStarted?.(); }} /></section>}
@@ -315,6 +316,14 @@ function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const ai = p?.ai;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (ai?.state !== "quota_wait" || !ai.retry_at || p?.stop_requested) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [ai?.state, ai?.retry_at, p?.stop_requested]);
+  const retryIn = ai?.retry_at ? Math.max(0, Math.ceil(ai.retry_at - now / 1000)) : 0;
   const stop = async () => {
     setBusy(true); setError("");
     try { await api.stopAnalysis(run.id); onStarted(); }
@@ -332,12 +341,17 @@ function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {
       </div>
       {ai && <div className="mt-3 space-y-2 text-sm text-ink-soft" role="status">
         {ai.model && <p className="[overflow-wrap:anywhere]">{ai.provider} · {ai.model} · {ai.key_label || t("run.environmentKey")}</p>}
+        {ai.requested_model && ai.requested_model !== ai.model && <p>{t("run.requestedModel", { model: ai.requested_model })}</p>}
+        {ai.switched_key && <p>{t("run.sameModelKey", { key: ai.key_label ?? "", model: ai.model ?? "" })}</p>}
         {p?.stop_requested ? <p>{t("run.stoppingAI")}</p>
-          : ai.state === "quota_wait" ? <p>{t("run.quotaRetryAt")} {ai.retry_at && <time dateTime={new Date(ai.retry_at * 1000).toISOString()}>{new Date(ai.retry_at * 1000).toLocaleTimeString(locale)}</time>}</p>
+          : ai.state === "quota_wait" ? <p>{ai.retry_at && <>{t("run.quotaCountdown", { seconds: retryIn })} · </>}{t("run.quotaRetryAt")} {ai.retry_at && <time dateTime={new Date(ai.retry_at * 1000).toISOString()}>{new Date(ai.retry_at * 1000).toLocaleTimeString(locale)}</time>}</p>
           : ai.state === "sending" ? <p>{ai.batch ? t("run.sendingBatch", { n: ai.batch, total: ai.batches ?? 1 }) : t("run.writingSummary")}</p>
+          : ai.state === "output_retry" ? <p>{t("run.outputRetry")}</p>
           : ai.state === "switching" ? <p>{ai.next_model ? t("run.switchingTo", { model: ai.next_model }) : t("run.noFallback")}</p>
           : ai.state === "exhausted" ? <p>{t(ai.daily ? "run.dailyQuotaExhausted" : "error.ai_quota")}</p> : null}
         <p>{t("run.readCount", { done: p?.done ?? 0, target: p?.target ?? run.collected })}{!!p?.eta_seconds && ` · ${t("run.estimatedRemaining", { time: formatDuration(p.eta_seconds, lang) })}`}</p>
+        {!!p?.ai_requests && <p>{t("run.requestUsage", { requests: p.ai_requests, saved: p.newly_read ?? 0 })}</p>}
+        {ai.provider_id === "gemini" && (ai.project_shared || ai.state === "quota_wait") && <p>{t(ai.project_shared ? "run.sharedProjectDetected" : "run.projectQuotaHint")}</p>}
       </div>}
       {!ai && <p className="mt-2 text-sm text-ink-soft">{p?.stop_requested ? t("run.stoppingAI") : p ? serverMessage(p.message_code ?? `progress.${p.phase}`, p.message, { ...p.message_vars, done: p.done, target: p.target }) : (run.status === "pending" ? t("run.pendingHint") : t("run.openingBrowser"))}</p>}
       {run.status === "analyzing" && <div className="mt-4 flex flex-wrap gap-2">
@@ -407,7 +421,7 @@ function Done({ run, meta, tab: requested, setTab }: {
   const [topicError, setTopicError] = useState("");
   useEffect(() => {
     let alive = true;
-    api.topics().then((data) => { if (alive) setTopics(data.topics); }).catch((e) => { if (alive) setTopicError(e.message); });
+    api.topics().then((data) => { if (alive) setTopics(Array.isArray(data?.topics) ? data.topics : []); }).catch((e) => { if (alive) setTopicError(e.message); });
     return () => { alive = false; };
   }, [run.id, run.digest]);
   const jobs = useMemo(
