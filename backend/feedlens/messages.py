@@ -3,6 +3,11 @@ import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if any(fragment in message.lower() for fragment in (
+        "browser not found", "executable doesn't exist", "executable does not exist",
+        "chromium distribution", "please run the following command to download new browsers",
+    )):
+        return "error.browser_missing"
     if analysis_error:
         lowered = message.lower()
         if any(s in lowered for s in ("401", "403", "invalid api", "api key not valid", "api_key_invalid", "authentication", "unauthorized")):

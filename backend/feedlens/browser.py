@@ -42,6 +42,78 @@ PLATFORMS: dict[str, PlatformInfo] = {
                            "https://www.reddit.com/", "reddit_session", "reddit.com"),
 }
 
+
+class BrowserNotFoundError(RuntimeError):
+    def __init__(self, name: str = "Chrome/Edge/Chromium"):
+        super().__init__(f"Browser not found: {name}. Install Chrome: https://www.google.com/chrome/; or clear the saved session to use another browser.")
+
+
+@dataclass(frozen=True)
+class BrowserInfo:
+    name: str
+    executable_path: str
+    oauth_limited: bool = False
+
+
+def _profile_browser(platform: str) -> str | None:
+    pdir = profile_dir(platform)
+    marker = pdir / ".browser"
+    if marker.is_file():
+        return marker.read_text(encoding="utf-8").strip()
+    # Empty folders left by failed launches contain no session to preserve.
+    return "chrome" if pdir.exists() and any(pdir.iterdir()) else None
+
+
+def detect_browser(platform: str | None = None, *, native_only: bool = False, playwright=None) -> BrowserInfo:
+    """Choose an installed browser while keeping existing profiles on their original browser."""
+    affinity = _profile_browser(platform) if platform else None
+    channel = getattr(settings, "browser_channel", "chrome")
+    wanted = affinity or (channel if not native_only and channel in {"msedge", "chromium"} else None)
+    for name, finder in (("chrome", find_chrome), ("msedge", find_edge)):
+        if wanted and wanted != name:
+            continue
+        if path := finder():
+            return BrowserInfo(name, path)
+    if not native_only and wanted in {None, "chromium"}:
+        if playwright is None:
+            with sync_playwright() as pw:
+                return _playwright_browser(pw)
+        return _playwright_browser(playwright)
+    raise BrowserNotFoundError(wanted or "Chrome/Edge")
+
+
+def _playwright_browser(pw) -> BrowserInfo:
+    path = pw.chromium.executable_path
+    if Path(path).is_file():
+        return BrowserInfo("chromium", path, oauth_limited=True)
+    raise BrowserNotFoundError()
+
+
+def browser_status(platform: str | None = None) -> dict:
+    try:
+        info = detect_browser(platform)
+        return {"browser": info.name, "oauth_limited": info.oauth_limited, "missing": False}
+    except BrowserNotFoundError:
+        return {"browser": None, "oauth_limited": False, "missing": True}
+
+
+def warn_if_no_native_browser() -> None:
+    try:
+        detect_browser(native_only=True)
+    except BrowserNotFoundError:
+        print("Warning: Chrome/Edge not found. Install Chrome: https://www.google.com/chrome/. FeedLens will still start; Playwright Chromium has limited Google/Apple login support.")
+
+
+def _remember_browser(pdir: Path, info: BrowserInfo) -> None:
+    pdir.mkdir(parents=True, exist_ok=True)
+    (pdir / ".browser").write_text(info.name, encoding="utf-8")
+
+
+def _discard_failed_profile(pdir: Path, existed: bool) -> None:
+    if not existed and _is_inside(settings.profiles_dir.resolve(), pdir.resolve()):
+        shutil.rmtree(pdir, ignore_errors=True)
+
+
 def profile_dir(platform: str) -> Path:
     return settings.profiles_dir / platform
 
@@ -123,8 +195,9 @@ def clean_all_caches() -> list[tuple[str, int, int]]:
 @contextmanager
 def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContext]:
     pdir = profile_dir(platform)
-    pdir.mkdir(parents=True, exist_ok=True)
+    existed = pdir.exists()
     with sync_playwright() as pw:
+        selected = detect_browser(platform, playwright=pw)
         kwargs = dict(
             user_data_dir=str(pdir),
             headless=headless,
@@ -134,14 +207,13 @@ def open_context(platform: str, headless: bool = True) -> Iterator[BrowserContex
             args=[f"--disk-cache-size={DISK_CACHE_BYTES}"],
             timeout=20_000,
         )
-        channel = settings.browser_channel
         try:
-            ctx = pw.chromium.launch_persistent_context(
-                channel=None if channel == "chromium" else channel, **kwargs)
+            ctx = pw.chromium.launch_persistent_context(executable_path=selected.executable_path, **kwargs)
         except Exception:
-            # Fallback sang Chromium của Playwright (cần `playwright install chromium`)
-            ctx = pw.chromium.launch_persistent_context(**kwargs)
+            _discard_failed_profile(pdir, existed)
+            raise
         try:
+            _remember_browser(pdir, selected)
             yield ctx
         finally:
             try:
@@ -174,9 +246,22 @@ def find_chrome() -> str | None:
         roots = [os.getenv(k) for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
         candidates = [Path(r) / "Google/Chrome/Application/chrome.exe" for r in roots if r]
     elif sys.platform == "darwin":
-        candidates = [Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")]
+        candidates = [Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                      Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
     else:
-        candidates = [Path(p) for p in map(shutil.which, ("google-chrome", "google-chrome-stable")) if p]
+        candidates = [Path(p) for p in map(shutil.which, ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser")) if p]
+    return next((str(p) for p in candidates if p.is_file()), None)
+
+
+def find_edge() -> str | None:
+    if sys.platform == "win32":
+        roots = [os.getenv(k) for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        candidates = [Path(r) / "Microsoft/Edge/Application/msedge.exe" for r in roots if r]
+    elif sys.platform == "darwin":
+        candidates = [Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
+                      Path.home() / "Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"]
+    else:
+        candidates = [Path(p) for p in map(shutil.which, ("microsoft-edge", "microsoft-edge-stable", "msedge")) if p]
     return next((str(p) for p in candidates if p.is_file()), None)
 
 
@@ -187,19 +272,27 @@ def interactive_login(platform: str, timeout_s: int = 600,
     Ưu tiên mở Chrome của máy như một cửa sổ bình thường, KHÔNG gắn Playwright: Google, Apple,
     Microsoft từ chối "Đăng nhập bằng ..." trong trình duyệt đang bị điều khiển tự động.
     Người dùng đăng nhập xong thì đóng cửa sổ; FeedLens kiểm tra phiên sau đó.
-    Chỉ dùng được khi lướt bằng Chrome (channel "chrome") để profile dùng chung được;
-    không có Chrome thì quay về cửa sổ Playwright như trước."""
-    chrome = find_chrome() if settings.browser_channel == "chrome" else None
-    if not chrome:
+    Chrome và Edge dùng cửa sổ thường; Chromium Playwright có giới hạn OAuth.
+    Trình duyệt được ghi lại theo profile để không trộn cookie giữa các ứng dụng."""
+    selected = detect_browser(platform)
+    if selected.oauth_limited:
         return _playwright_login(platform, timeout_s)
     pdir = profile_dir(platform)
-    pdir.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.Popen([
-        chrome, f"--user-data-dir={pdir}", "--no-first-run", "--no-default-browser-check",
-        f"--disk-cache-size={DISK_CACHE_BYTES}", "--new-window", PLATFORMS[platform].login_url,
-    ])
+    existed = pdir.exists()
+    pdir.parent.mkdir(parents=True, exist_ok=True)
     try:
-        proc.wait(timeout=timeout_s)
+        proc = subprocess.Popen([
+            selected.executable_path, f"--user-data-dir={pdir}", "--no-first-run", "--no-default-browser-check",
+            f"--disk-cache-size={DISK_CACHE_BYTES}", "--new-window", PLATFORMS[platform].login_url,
+        ])
+    except FileNotFoundError as e:
+        raise BrowserNotFoundError(selected.name) from e
+    _remember_browser(pdir, selected)
+    try:
+        result = proc.wait(timeout=timeout_s)
+        if result:
+            _discard_failed_profile(pdir, existed)
+            raise RuntimeError(f"{selected.name} exited with code {result}")
     except subprocess.TimeoutExpired:
         proc.terminate()
         try:

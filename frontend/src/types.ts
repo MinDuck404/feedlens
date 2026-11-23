@@ -68,6 +68,11 @@ export interface Meta {
 }
 
 export interface PlatformState {
+  browser?: "chrome" | "msedge" | "chromium" | null;
+  oauth_limited?: boolean;
+  missing?: boolean;
+  login_error?: string | null;
+  login_error_code?: string | null;
   key: Platform;
   name: string;
   logged_in: boolean | null;

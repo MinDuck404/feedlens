@@ -30,15 +30,12 @@ class CookieInvalid(RuntimeError):
 def cookie_page(cookies: list[dict]) -> Iterator:
     from playwright.sync_api import sync_playwright
 
-    from .config import settings
+    from .browser import detect_browser
 
     with sync_playwright() as pw:
         opts = dict(headless=True, args=["--disable-dev-shm-usage", "--disable-gpu", "--mute-audio"])
-        channel = settings.browser_channel
-        try:  # trên server (Docker) FEEDLENS_BROWSER_CHANNEL=chromium -> Chromium của Playwright
-            browser = pw.chromium.launch(channel=None if channel == "chromium" else channel, **opts)
-        except Exception:  # noqa: BLE001
-            browser = pw.chromium.launch(**opts)
+        selected = detect_browser(playwright=pw)
+        browser = pw.chromium.launch(executable_path=selected.executable_path, **opts)
         try:
             ctx = browser.new_context(locale="vi-VN", viewport={"width": 1280, "height": 900})
             ctx.add_cookies(cookies)

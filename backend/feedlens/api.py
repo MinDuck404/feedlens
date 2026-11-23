@@ -63,6 +63,7 @@ private = APIRouter(prefix="/api")
 User = CurrentUser
 AGENT_ONLINE_SECONDS = 30
 _login_state: dict[str, str] = {}   # platform -> idle | waiting (chỉ local)
+_login_errors: dict[str, str] = {}
 _session_cache: dict[str, bool | None] = {}
 _session_checks: dict[str, str] = {}
 _session_start_lock = threading.Lock()
@@ -122,12 +123,7 @@ def health():
 
 
 def _browser_installed() -> bool:
-    """Chromium cho chế độ Server đã có trong image chưa (chỉ kiểm tra file, không khởi chạy)."""
-    import os
-    from pathlib import Path
-
-    root = Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", Path.home() / ".cache" / "ms-playwright"))
-    return root.exists() and any(p.name.startswith("chromium") for p in root.iterdir())
+    return not browser.browser_status()["missing"]
 
 
 @public.get("/meta")
@@ -388,6 +384,10 @@ def platforms(user: User = Depends(current_user)):
     return [{"key": k, "name": v.name, "logged_in": _session_cache.get(k),
              "has_profile": browser.profile_dir(k).exists(),
              "checking": k in _session_checks,
+             **browser.browser_status(k),
+             "login_error": _login_errors.get(k),
+             "login_error_code": ("error.browser_missing" if error_code(_login_errors[k]) == "error.browser_missing"
+                                  else "error.browser_failed") if k in _login_errors else None,
              "login_state": _login_state.get(k, "idle")} for k, v in browser.PLATFORMS.items()]
 
 
@@ -404,12 +404,20 @@ def login_platform(p: str, user: User = Depends(current_user)):
     _local_only()
     _platform_or_404(p)
     if _login_state.get(p) != "waiting":
+        try:
+            browser.detect_browser(p)
+        except browser.BrowserNotFoundError as e:
+            raise HTTPException(503, str(e)) from e
+        _login_errors.pop(p, None)
+        _login_state[p] = "waiting"
         def worker():
-            _login_state[p] = "waiting"
             try:
                 with _platform_locks[p]:
                     _session_cache[p] = browser.interactive_login(
                         p, on_window_closed=lambda: _session_checks.__setitem__(p, "checking"))
+            except Exception as e:
+                _login_errors[p] = str(e)[:1500]
+                _session_cache[p] = None
             finally:
                 _session_checks.pop(p, None)
                 _login_state[p] = "idle"
@@ -424,6 +432,7 @@ def logout_platform(p: str, user: User = Depends(current_user)):
     with _platform_locks[p]:
         browser.logout(p)
         _session_cache[p] = False
+        _login_errors.pop(p, None)
     return {"ok": True}
 
 

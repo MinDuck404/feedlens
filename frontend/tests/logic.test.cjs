@@ -385,7 +385,7 @@ test("saved sessions remain unchecked until verification and offer login only wh
   const { renderToStaticMarkup } = require("react-dom/server");
   const { PlatformRow } = require("../src/components/Sidebar.tsx");
   for (const [has_profile, logged_in, login_state, buttons, login] of [
-    [true, null, "idle", 1, null],
+    [true, null, "idle", 3, "plat.relogin"],
     [true, false, "idle", 3, "plat.relogin"],
     [true, true, "idle", 2, null],
     [false, null, "idle", 1, "plat.login"],
@@ -409,6 +409,25 @@ test("match type filtering preserves legacy jobs and isolates primary, adjacent 
   assert.deepEqual(types.filter((type) => matchesJobType(type, "adjacent")), ["adjacent"]);
   assert.deepEqual(types.filter((type) => matchesJobType(type, "stretch")), ["stretch"]);
   assert.deepEqual(types.filter((type) => matchesJobType(type, "none")), ["none", null, undefined]);
+});
+
+test("browser login errors, download links and Edge/Chromium notes remain visible with recovery actions", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const base = { key: "facebook", name: "Facebook", has_profile: true, logged_in: null, login_state: "idle" };
+  const render = (p) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
+    React.createElement(PlatformRow, { p: { ...base, ...p }, onChanged() {}, onLogin() {} })));
+  const missing = render({ missing: true });
+  assert.ok(missing.includes(i18n.translate("error.browser_missing")));
+  assert.ok(missing.includes('href="https://www.google.com/chrome/"'));
+  assert.equal((missing.match(/<button\b/g) || []).length, 3);
+  const failed = render({ login_error: "profile locked", login_error_code: "error.browser_failed" });
+  assert.ok(failed.includes('title="profile locked"'));
+  assert.ok(failed.includes(i18n.translate("error.browser_failed")));
+  const edge = render({ browser: "msedge" });
+  assert.ok(edge.includes(i18n.translate("plat.edgeNote")));
+  const chromium = render({ browser: "chromium", oauth_limited: true });
+  assert.ok(chromium.includes(i18n.translate("plat.chromiumNote")));
 });
 
 test("background session checks show a spinner and suppress reconnect until complete", () => {

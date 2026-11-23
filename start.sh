@@ -49,5 +49,6 @@ if [ "$NEED_BUILD" = 1 ]; then
 fi
 
 unset FEEDLENS_MODE
+"$VENV/bin/python" -c 'from feedlens.browser import warn_if_no_native_browser; warn_if_no_native_browser()' || true
 step "FeedLens đang chạy tại http://127.0.0.1:$PORT  (Ctrl+C để dừng)"
 exec "$VENV/bin/feedlens" serve --port "$PORT" --open

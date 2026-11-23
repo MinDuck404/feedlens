@@ -13,7 +13,7 @@ import { useState } from "react";
 import { api } from "../api";
 import { PLATFORM_LABEL } from "../categories";
 import { describeRunSource } from "../logic";
-import { useI18n, type Key } from "../i18n";
+import { serverMessage, useI18n, type Key } from "../i18n";
 import { LanguageMenu, ThemeSwitch } from "./PreferenceMenus";
 import type { PlatformState, Run } from "../types";
 import { Button, IconButton } from "./ui/Button";
@@ -404,6 +404,7 @@ function PlatformRow({
   onLogin: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const { t } = useI18n();
 
   const platformName = PLATFORM_LABEL[p.key] || p.name?.trim() || p.key;
@@ -413,10 +414,11 @@ function PlatformRow({
       return;
     if (a === "login") onLogin();
     setBusy(true);
+    setActionError(null);
     try {
       await api.platformAction(p.key, a);
     } catch (e) {
-      alert((e as Error).message);
+      setActionError((e as Error).message);
     }
     setBusy(false);
     onChanged();
@@ -457,12 +459,15 @@ function PlatformRow({
         <div className="flex shrink-0 items-center gap-0.5">
           {busy || checking ? <span role="status" aria-label={status} title={status} className="grid size-8 place-items-center"><Loader2 aria-hidden="true" className="size-3.5 animate-spin text-ink-soft" /></span> : <>
             {p.has_profile && <IconButton icon={<RefreshCw className="size-3.5" />} label={checkLabel} title={checkLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("check")} />}
-            {p.has_profile && p.logged_in !== null && <IconButton icon={<XIcon className="size-3.5" />} label={removeLabel} title={removeLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("logout")} />}
-            {(!p.has_profile || p.logged_in === false) && !waiting && <IconButton icon={<LogIn className="size-3.5" />} label={loginLabel} title={`${loginLabel} · ${t("plat.openLogin", { name: platformName })}`} variant="ghost" size="sm" className="size-8 p-0 text-link" onClick={() => act("login")} />}
+            {p.has_profile && !waiting && <IconButton icon={<XIcon className="size-3.5" />} label={removeLabel} title={removeLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("logout")} />}
+            {p.logged_in !== true && !waiting && <IconButton icon={<LogIn className="size-3.5" />} label={loginLabel} title={`${loginLabel} · ${t("plat.openLogin", { name: platformName })}`} variant="ghost" size="sm" className="size-8 p-0 text-link" onClick={() => act("login")} />}
           </>}
         </div>
       </div>
       {invalid && <p className="pb-2 pl-4 text-xs leading-relaxed text-danger">{t("plat.sessionInvalid")}</p>}
+      {(actionError || p.login_error || p.missing) && <p role="alert" title={p.login_error ?? undefined} className="pb-2 pl-4 text-xs leading-relaxed text-danger">{actionError || serverMessage(p.missing ? "error.browser_missing" : p.login_error_code ?? undefined, p.login_error ?? "")}</p>}
+      {p.missing && <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center pl-4 text-xs text-link underline">{t("plat.downloadChrome")}</a>}
+      {!p.missing && (p.browser === "msedge" || p.oauth_limited) && <p className="pb-2 pl-4 text-xs leading-relaxed text-ink-soft">{t(p.oauth_limited ? "plat.chromiumNote" : "plat.edgeNote")}</p>}
     </li>
   );
 }

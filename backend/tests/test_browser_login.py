@@ -23,6 +23,17 @@ class FakeProc:
 def setup(monkeypatch, tmp_path, *, chrome="C:/Chrome/chrome.exe", channel="chrome", session=True, wait_raises=False):
     monkeypatch.setattr(browser, "settings", SimpleNamespace(profiles_dir=tmp_path, browser_channel=channel))
     monkeypatch.setattr(browser, "find_chrome", lambda: chrome)
+    monkeypatch.setattr(browser, "find_edge", lambda: None)
+    if chrome is None or channel == "chromium":
+        from contextlib import contextmanager
+        executable = tmp_path / "bundled-chromium"
+        executable.touch()
+
+        @contextmanager
+        def playwright():
+            yield SimpleNamespace(chromium=SimpleNamespace(executable_path=str(executable)))
+
+        monkeypatch.setattr(browser, "sync_playwright", playwright)
     monkeypatch.setattr(browser, "check_session", lambda platform: session)
     monkeypatch.setattr(browser, "clean_cache", lambda platform: (0, 0))
     launched = []

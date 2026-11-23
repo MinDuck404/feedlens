@@ -41,6 +41,8 @@ class Agent:
                                  headers={"Authorization": f"Bearer {token}"})
 
     def check(self) -> None:
+        from .browser import warn_if_no_native_browser
+        warn_if_no_native_browser()
         r = self.http.get("/api/auth/me")
         if r.status_code == 401:
             raise SystemExit("Token agent không hợp lệ. Tạo token mới trong phần Cài đặt trên web.")

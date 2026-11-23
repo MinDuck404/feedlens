@@ -72,6 +72,7 @@ if ($NeedBuild) {
 }
 
 # ---------------------------------------------------------------- Chạy
+& $Py -c "from feedlens.browser import warn_if_no_native_browser; warn_if_no_native_browser()"
 Remove-Item Env:FEEDLENS_MODE -ErrorAction SilentlyContinue   # luôn chạy chế độ local
 Step "FeedLens đang chạy tại http://127.0.0.1:$Port  (Ctrl+C để dừng)"
 & (Join-Path $Venv "Scripts\feedlens.exe") serve --port $Port --open
