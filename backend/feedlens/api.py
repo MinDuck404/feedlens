@@ -64,6 +64,8 @@ User = CurrentUser
 AGENT_ONLINE_SECONDS = 30
 _login_state: dict[str, str] = {}   # platform -> idle | waiting (chỉ local)
 _login_errors: dict[str, str] = {}
+_login_finish: dict[str, threading.Event] = {}
+_login_finish_lock = threading.Lock()
 _session_cache: dict[str, bool | None] = {}
 _session_checks: dict[str, str] = {}
 _session_start_lock = threading.Lock()
@@ -412,22 +414,41 @@ def login_platform(p: str, user: User = Depends(current_user)):
             browser.detect_browser(p)
         except browser.BrowserNotFoundError as e:
             raise HTTPException(503, str(e)) from e
-        _login_errors.pop(p, None)
-        _login_state[p] = "waiting"
+        with _login_finish_lock:
+            if _login_state.get(p) == "waiting":
+                return {"status": "waiting"}
+            _login_errors.pop(p, None)
+            _login_state[p] = "waiting"
+            finish_event = _login_finish[p] = threading.Event()
         def worker():
             try:
                 with _platform_locks[p]:
                     _session_cache[p] = browser.interactive_login(
-                        p, on_window_closed=lambda: _session_checks.__setitem__(p, "checking"))
+                        p, on_window_closed=lambda: _session_checks.__setitem__(p, "checking"), finish_event=finish_event)
             except Exception as e:
                 _login_errors[p] = str(e)[:1500]
                 _session_cache[p] = None
             finally:
                 browser.clear_browser_status_cache()
-                _session_checks.pop(p, None)
-                _login_state[p] = "idle"
+                with _login_finish_lock:
+                    _session_checks.pop(p, None)
+                    _login_state[p] = "idle"
+                    _login_finish.pop(p, None)
         threading.Thread(target=worker, daemon=True).start()
     return {"status": "waiting"}
+
+
+@private.post("/platforms/{p}/login/finish")
+def finish_login_platform(p: str, user: User = Depends(current_user)):
+    _local_only()
+    _platform_or_404(p)
+    with _login_finish_lock:
+        event = _login_finish.get(p)
+        if _login_state.get(p) != "waiting" or event is None:
+            raise HTTPException(409, "Không có cửa sổ đăng nhập đang chờ.")
+        _session_checks[p] = "checking"
+        event.set()  # The worker owns the process and platform lock; it closes and verifies the session.
+    return {"status": "checking"}
 
 
 @private.post("/platforms/{p}/logout")

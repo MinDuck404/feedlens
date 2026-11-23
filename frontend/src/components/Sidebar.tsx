@@ -403,7 +403,7 @@ function BrowserNotice({ platforms }: { platforms: PlatformState[] }) {
   const message = missing ? (platforms.some((p) => p.has_profile) ? "plat.browserSessionMissing" : "plat.browserMissing")
     : limited ? "plat.chromiumNote" : "plat.edgeNote";
   return <p role={missing ? "alert" : "note"} className={`mb-2 text-xs leading-relaxed ${missing ? "text-danger" : "text-ink-soft"}`}>
-    {t(message)}{" "}<a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-link underline">{t("plat.downloadChrome")}</a>
+    {t(message)}{(missing || limited) && <> <a href="https://www.google.com/chrome/" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center text-link underline">{t("plat.downloadChrome")}</a></>}
   </p>;
 }
 
@@ -423,7 +423,7 @@ function PlatformRow({
 
   const platformName = PLATFORM_LABEL[p.key] || p.name?.trim() || p.key;
 
-  const act = async (a: "login" | "check" | "logout") => {
+  const act = async (a: "login" | "check" | "logout" | "login/finish") => {
     if (a === "logout" && !confirm(t("plat.confirmRemove", { name: platformName })))
       return;
     if (a === "login") onLogin();
@@ -472,7 +472,8 @@ function PlatformRow({
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {busy || checking ? <span role="status" aria-label={status} title={status} className="grid size-8 place-items-center"><Loader2 aria-hidden="true" className="size-3.5 animate-spin text-ink-soft" /></span> : <>
-            {p.has_profile && <IconButton icon={<RefreshCw className="size-3.5" />} label={checkLabel} title={checkLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("check")} />}
+            {waiting && <Button size="sm" variant="outline" className="min-h-10" aria-label={`${t("plat.finishLogin")}: ${platformName}`} onClick={() => act("login/finish")}>{t("plat.finishLogin")}</Button>}
+            {p.has_profile && !waiting && <IconButton icon={<RefreshCw className="size-3.5" />} label={checkLabel} title={checkLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("check")} />}
             {p.has_profile && !waiting && <IconButton icon={<XIcon className="size-3.5" />} label={removeLabel} title={removeLabel} variant="ghost" size="sm" className="size-8 p-0" onClick={() => act("logout")} />}
             {p.logged_in !== true && !waiting && <IconButton icon={<LogIn className="size-3.5" />} label={loginLabel} title={`${loginLabel} · ${t("plat.openLogin", { name: platformName })}`} variant="ghost" size="sm" className="size-8 p-0 text-link" onClick={() => act("login")} />}
           </>}

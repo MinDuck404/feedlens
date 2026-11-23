@@ -519,6 +519,7 @@ class Database:
             self._keep_job_seeds(s, run_id, posts)
 
     def get_posts(self, run_id: int, include_raw: bool = False) -> list[AnalyzedPost]:
+        """Return canonical posts; unfinished groups can have analyzed=False placeholders."""
         with self.Session() as s:
             rows = s.scalars(select(PostRow).where(PostRow.run_id == run_id).order_by(PostRow.id)).all()
             posts = [AnalyzedPost(

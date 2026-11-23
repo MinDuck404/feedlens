@@ -105,7 +105,7 @@ export const api = {
   models: (p: string, refresh = false) =>
     call<{ models: string[]; default: string }>(`/api/ai/models/${p}${refresh ? "?refresh=true" : ""}`),
   platforms: () => call<PlatformState[]>("/api/platforms"),
-  platformAction: (p: string, act: "login" | "check" | "logout") =>
+  platformAction: (p: string, act: "login" | "check" | "logout" | "login/finish") =>
     call(`/api/platforms/${p}/${act}`, { method: "POST" }),
   runs: () => call<Run[]>("/api/runs"),
   run: (id: number, posts = true) => call<Run>(`/api/runs/${id}${posts ? "" : "?posts=0"}`),

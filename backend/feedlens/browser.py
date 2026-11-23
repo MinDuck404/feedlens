@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
+import tempfile
 import time
-from contextlib import contextmanager, nullcontext
+from contextlib import closing, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator
@@ -307,20 +309,53 @@ def find_edge() -> str | None:
     return next((str(p) for p in candidates if p.is_file()), None)
 
 
+def profile_has_session_cookie(platform: str) -> bool | None:
+    """Read name/domain metadata from a temporary SQLite copy, never cookie values."""
+    info = PLATFORMS[platform]
+    pdir = profile_dir(platform) / "Default"
+    try:
+        source = next((path for path in (pdir / "Network/Cookies", pdir / "Cookies") if path.is_file()), None)
+        if source is None:
+            return False
+        with tempfile.TemporaryDirectory(prefix="feedlens-cookie-check-") as temporary:
+            snapshot = Path(temporary) / "Cookies"
+            shutil.copyfile(source, snapshot)
+            wal = source.with_name(source.name + "-wal")
+            if wal.is_file():
+                shutil.copyfile(wal, snapshot.with_name(snapshot.name + "-wal"))
+            with closing(sqlite3.connect(snapshot.as_uri() + "?mode=ro", uri=True, timeout=0.1)) as conn:
+                return conn.execute("SELECT 1 FROM cookies WHERE name = ? AND (host_key = ? OR host_key LIKE ?) LIMIT 1",
+                                    (info.session_cookie, info.cookie_domain, "%." + info.cookie_domain)).fetchone() is not None
+    except (OSError, sqlite3.Error):
+        return None
+
+
+def _stop_login_process(proc) -> None:
+    proc.terminate()
+    try:
+        proc.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=15)
+
+
 def interactive_login(platform: str, timeout_s: int = 600,
-                      on_window_closed: Callable[[], None] | None = None) -> bool:
+                      on_window_closed: Callable[[], None] | None = None,
+                      finish_event: threading.Event | None = None) -> bool:
     """Cho người dùng tự đăng nhập vào profile của FeedLens.
 
     Ưu tiên mở Chrome của máy như một cửa sổ bình thường, KHÔNG gắn Playwright: Google, Apple,
     Microsoft từ chối "Đăng nhập bằng ..." trong trình duyệt đang bị điều khiển tự động.
-    Người dùng đăng nhập xong thì đóng cửa sổ; FeedLens kiểm tra phiên sau đó.
+    Cookie mới ổn định hoặc tín hiệu kết thúc sẽ đóng cửa sổ; sau đó vẫn kiểm tra phiên trực tiếp.
     Chrome và Edge dùng cửa sổ thường; Chromium Playwright có giới hạn OAuth.
     Trình duyệt được ghi lại theo profile để không trộn cookie giữa các ứng dụng."""
     selected = detect_browser(platform)
     if selected.oauth_limited:
-        return _playwright_login(platform, timeout_s)
+        return (_playwright_login(platform, timeout_s, finish_event=finish_event) if finish_event is not None
+                else _playwright_login(platform, timeout_s))
     pdir = profile_dir(platform)
-    existed = pdir.exists()
+    # An old cookie must not close the window before the user can renew an expired session.
+    auto_finish = profile_has_session_cookie(platform) is False
     pdir.parent.mkdir(parents=True, exist_ok=True)
     try:
         proc = subprocess.Popen([
@@ -330,17 +365,32 @@ def interactive_login(platform: str, timeout_s: int = 600,
     except FileNotFoundError as e:
         raise BrowserNotFoundError(selected.name) from e
     _remember_browser(pdir, selected)
-    try:
-        result = proc.wait(timeout=timeout_s)
-        if result:
-            _discard_failed_profile(pdir, existed)
-            raise RuntimeError(f"{selected.name} exited with code {result}")
-    except subprocess.TimeoutExpired:
-        proc.terminate()
+    deadline = time.monotonic() + timeout_s
+    cookie_since = None
+    while True:
+        now = time.monotonic()
+        if (finish_event is not None and finish_event.is_set()) or now >= deadline:
+            _stop_login_process(proc)
+            break
+        if auto_finish:
+            present = profile_has_session_cookie(platform)
+            if present is None:
+                auto_finish = False  # Locked/unknown schema: keep the window until manual finish or exit.
+            elif present:
+                cookie_since = now if cookie_since is None else cookie_since
+                if now - cookie_since >= 6:
+                    _stop_login_process(proc)
+                    break
+            else:
+                cookie_since = None
         try:
-            proc.wait(timeout=15)
+            result = proc.wait(timeout=min(2, max(0.01, deadline - now)))
         except subprocess.TimeoutExpired:
-            pass
+            continue
+        if result:
+            # The window may already contain a user's new session; preserve it on process errors.
+            raise RuntimeError(f"{selected.name} exited with code {result}")
+        break
     if on_window_closed:
         on_window_closed()  # để giao diện báo "Đang kiểm tra…" thay vì vẫn "Đăng nhập trong cửa sổ…"
     try:
@@ -356,7 +406,8 @@ def interactive_login(platform: str, timeout_s: int = 600,
     return bool(ok)
 
 
-def _playwright_login(platform: str, timeout_s: int = 600) -> bool:
+def _playwright_login(platform: str, timeout_s: int = 600,
+                      finish_event: threading.Event | None = None) -> bool:
     """Mở cửa sổ Chrome để người dùng tự đăng nhập (và tự hoàn tất xác minh 2 bước nếu có).
 
     Chỉ coi là xong khi đã có cookie phiên VÀ không còn tab nào ở trang xác minh: Facebook đặt
@@ -368,6 +419,8 @@ def _playwright_login(platform: str, timeout_s: int = 600) -> bool:
         deadline = time.time() + timeout_s
         stable = 0
         while time.time() < deadline:
+            if finish_event is not None and finish_event.is_set():
+                break
             if not ctx.pages:  # người dùng đóng cửa sổ
                 break
             if _has_session(ctx, info) and not _verification_pending(ctx, platform):

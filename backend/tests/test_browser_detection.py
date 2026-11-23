@@ -40,7 +40,7 @@ def no_native(monkeypatch):
 
 def local_state(monkeypatch, tmp_path):
     monkeypatch.setattr(browser, "settings", SimpleNamespace(profiles_dir=tmp_path, browser_channel="chrome"))
-    for name in ("_login_state", "_session_cache", "_session_checks", "_login_errors"):
+    for name in ("_login_state", "_session_cache", "_session_checks", "_login_errors", "_login_finish"):
         monkeypatch.setattr(api, name, {}, raising=False)
     monkeypatch.setattr(api, "_session_started", True)
 

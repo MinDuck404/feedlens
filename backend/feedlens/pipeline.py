@@ -285,7 +285,7 @@ def _analyze(db: Database, run_id: int, req: RunRequest, raw: list[RawPost], ana
             checkpoint(analyzed)
         finally:  # lượt hết hạn mức giữa chừng vẫn ghi thời gian AI đã chạy
             add_timings(db, run_id, analysis=time.monotonic() - started)
-    analyzed = db.get_posts(run_id)
+    analyzed = [p for p in db.get_posts(run_id) if p.analyzed]
     prog.update(phase="summarizing", message="Đang viết tóm tắt…")
     started = time.monotonic()
     digest = analyzer.digest(analyzed, req.job_mode)

@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> None:
         run = db.get_run(run_id)
         if run["status"] == "error":
             print("Lỗi:", run["error"]); sys.exit(1)
-        print(to_markdown(run, db.get_posts(run_id)))
+        print(to_markdown(run, [p for p in db.get_posts(run_id) if p.analyzed]))
 
 
 if __name__ == "__main__":

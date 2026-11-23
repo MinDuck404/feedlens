@@ -49,7 +49,8 @@ def refresh_topic_digests(db, user_id: int, analyzer, topics) -> None:
             continue
         digest = dict(run["digest"])
         try:
-            digest["topics"] = [t.model_dump() for t in analyzer.topic_digest(db.get_posts(run["id"]))]
+            posts = [p for p in db.get_posts(run["id"]) if p.analyzed]
+            digest["topics"] = [t.model_dump() for t in analyzer.topic_digest(posts)]
         except Exception:  # noqa: BLE001 — một lượt lỗi không chặn các lượt khác
             continue
         db.update_run(run["id"], digest=digest)

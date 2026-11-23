@@ -420,10 +420,27 @@ test("browser notices appear once above all account rows while platform errors s
     React.createElement(SidebarBody, { cloud: false, platforms: base.map((p) => ({ ...p, ...change })), runs: [], page: "home", onOpenSettings() {}, onPlatformChanged() {} })));
   for (const state of [{ missing: true }, { browser: "msedge" }, { browser: "chromium", oauth_limited: true }]) {
     const html = render(state);
-    assert.equal((html.match(/href="https:\/\/www.google.com\/chrome\/"/g) || []).length, 1);
+    assert.equal((html.match(/href="https:\/\/www.google.com\/chrome\/"/g) || []).length, state.browser === "msedge" ? 0 : 1);
     assert.equal((html.match(/<button\b[^>]*aria-label="Sign in:/g) || []).length, 4);
   }
   assert.ok(render({ missing: true }).includes(i18n.translate("plat.browserMissing")));
+});
+
+test("waiting platform exposes a manual finish action", () => {
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
+    React.createElement(PlatformRow, { p: { key: "facebook", name: "Facebook", has_profile: true, logged_in: null, login_state: "waiting" }, onChanged() {}, onLogin() {} })));
+  assert.ok(html.includes(i18n.translate("plat.finishLogin")));
+});
+
+test("manual sign-in finish uses the dedicated platform endpoint", async () => {
+  const original = global.fetch, requests = [];
+  global.fetch = async (url, init) => { requests.push([url, init.method]); return new Response("{}"); };
+  try {
+    await api.platformAction("facebook", "login/finish");
+    assert.deepEqual(requests, [["/api/platforms/facebook/login/finish", "POST"]]);
+  } finally { global.fetch = original; }
 });
 
 test("browser login errors, download links and Edge/Chromium notes remain visible with recovery actions", () => {
