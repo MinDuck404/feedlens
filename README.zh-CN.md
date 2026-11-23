@@ -37,8 +37,9 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 | **内容趋势** | 按分类或主题统计 7/30/90 天的帖子量（按天或按周），并与上一周期对比；点击图表数据点可直接进入提问与搜索查看对应帖子 |
 | **按简历匹配工作** | 上传一次 PDF 简历；AI 按职位、级别、工作方式（远程/混合/现场）、地点和薪资为每条招聘打 0–100 分，并推荐相近岗位（如初级开发 → IT 技术支持），列出欠缺的技能 |
 | **AI 出错也不丢帖子** | 帖子在 AI 分析之前就已保存；修好 key 后点"重新分析"即可，无需重新浏览 |
+| **合并重复帖子** | 同一次浏览中，多个群组内的相似帖子合并为一张“发布于 N 个群组”卡片，并保留原帖链接；合并在 AI 分析前完成，重复副本不额外消耗分类配额 |
 | **自选 AI** | Claude、ChatGPT、Gemini；没有 key 时使用离线关键词分类 |
-| **本地运行** | 会话保存在独立的 Chrome 配置中，数据存于 SQLite；只有帖子文本会发送给你选择的 AI |
+| **本地运行** | 会话保存在独立的浏览器配置中，数据存于 SQLite；AI 请求发往你选择的服务商 |
 | **3 种语言** | 界面和摘要支持 中文、English、Tiếng Việt（默认跟随浏览器） |
 | **浅色 / 深色** | 白天是米色纸张，夜晚是深色木桌；跟随系统，或在侧栏切换 |
 
@@ -55,13 +56,13 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 
 ## 快速开始
 
-只需要 **Google Chrome**。如果没有 Python，启动脚本会自动安装 [uv](https://docs.astral.sh/uv/)，uv 会自带 Python。
+新会话默认依次使用 **Google Chrome → Microsoft Edge → Playwright Chromium**（需已安装完整浏览器）。Playwright Chromium 中的 Google/Apple 登录可能被阻止。如果没有 Python，启动脚本会自动安装 [uv](https://docs.astral.sh/uv/)，uv 会自带 Python。
 
 1. 从 [Releases](https://github.com/MinDuck404/feedlens/releases/latest) 下载 `FeedLens-<版本>.zip` 并解压。其中已包含构建好的界面，无需 Node.js。
    （如果使用 `git clone` 或 **Code → Download ZIP**，首次运行还需要 [Node.js LTS](https://nodejs.org) 来构建界面。）
 2. **Windows：** 双击 `start.bat`。**macOS/Linux：** 运行 `./start.sh`。
    首次运行需要几分钟安装 Python 和依赖，之后浏览器会自动打开 http://127.0.0.1:8765。
-3. 点击 Facebook 旁的**登录**（手机上先打开 ☰ 菜单）。会弹出一个 Chrome 窗口，照常登录（包括两步验证），完成后窗口自动关闭。
+3. 点击 Facebook 旁的**登录**（手机上先打开 ☰ 菜单）。会弹出一个浏览器窗口，照常登录（包括两步验证）。检测到新会话后，窗口会自动关闭。如果窗口仍未关闭，请完成验证，再点击侧栏账号旁的**完成登录**。
 4. **设置**（齿轮）→ **API key** 标签：添加 Gemini、ChatGPT 或 Claude 的 key。没有 key 时使用关键词匹配。
 5. 在找工作？打开**求职档案**标签：上传简历，检查摘要，选择求职条件和愿意尝试的岗位。
 6. （可选）**主题**标签：创建最多 12 个个人追踪主题，自定义关键词与主题颜色。
@@ -75,13 +76,13 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/zh-CN/how-it-works-dark.svg">
-  <img src="docs/diagrams/zh-CN/how-it-works.svg" alt="你的 Chrome 浏览帖子，原始帖子存入 SQLite，AI 分类并摘要，最后生成报纸">
+  <img src="docs/diagrams/zh-CN/how-it-works.svg" alt="你的浏览器浏览帖子，原始帖子存入 SQLite，AI 分类并摘要，最后生成报纸">
 </picture>
 
-- **浏览：** 用 FeedLens 专属配置打开真实的 Chrome 窗口，像人一样滚动。*快速*模式每次停约 1 秒；*谨慎*模式更慢。
+- **浏览：** 用 FeedLens 专属配置打开浏览器窗口，像人一样滚动。*快速*模式每次停约 1 秒；*谨慎*模式更慢。
 - **多个群组：** 保存群组列表，勾选要浏览的群。"帖子数"按**每个群**计算；单次上限为 `FEEDLENS_MAX_POSTS`（默认 500）。出错的群会被跳过。
-- **验证 / 检查点：** 如果平台要求重新登录，程序会暂停，最多等待 10 分钟让你在 Chrome 窗口中完成。
-- **AI：** 最多 4 批并行，每批 20 条。所有服务商使用同一个 JSON schema，结果格式一致。
+- **验证 / 检查点：** 如果平台要求重新登录，程序会暂停，最多等待 10 分钟让你在浏览器窗口中完成。
+- **AI：** 每批数量和并行批次数会根据分析类型及模型/key 限额调整。所有服务商使用同一个 JSON schema，结果格式一致。
 - **AI 中途出错：** 原始帖子已在数据库中。该次浏览会显示错误原因，可查看和下载原始帖子（.json/.md），并可用其他 key 或模型**重新分析**。
 
 ### 按简历匹配工作
@@ -94,7 +95,7 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 - PDF 文字在本机提取（`pypdf`）。AI 将其转为 Markdown 档案，并去掉电话、邮箱和住址。**PDF 文件本身不会被保存。**
 - 求职条件由你自己设定（远程/混合/现场、地点、最低薪资、级别），相近岗位可逐个开启。
 - 每条招聘都有 **专业匹配 / 相近岗位 / 挑战岗位** 标签、理由、欠缺技能，以及违反条件时的提醒。服务器会限制分数：违反 1 项条件最高 65 分，2 项最高 30 分；相近岗位最高 80 分，未开启时最高 40 分。
-- 档案每批 20 条只发送一次，而不是每条都发。
+- 档案每批只发送一次，而不是每条都发。
 
 ### 询问 AI 与本地知识库检索
 
@@ -123,7 +124,9 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 > 自动浏览**违反** Facebook、LinkedIn 和 X 的服务条款，账号可能被要求验证。请仅限个人、小规模使用，并考虑使用小号。
 
 - FeedLens **只读**：不发帖、不评论、不私信。密码永远不经过本应用。
-- 默认在可见的 Chrome 窗口中运行。无头模式常被拦截（Reddit 会拦截未登录的无头浏览器）。FeedLens 不会尝试绕过反爬机制。
+- 默认在可见的浏览器窗口中运行。无头模式常被拦截（Reddit 会拦截未登录的无头浏览器）。FeedLens 不会尝试绕过反爬机制。
+- 已保存的会话继续使用创建它的浏览器。若卸载了该浏览器，请重新安装，或删除已保存的会话后重新登录。
+- 合并重复帖子采取保守规则：短帖或有实质修改的帖子可能保持独立。仅在同一次浏览内合并；重新分析历史浏览即可应用此功能。
 - 帖子内容会发送给你选择的 AI 服务商。`backend/data/` 中有会话 cookie：**切勿分享或提交**。
 - 社交网站经常改版。若某平台返回 0 条帖子，请修改 `backend/feedlens/scrapers.py` 中对应的 JS。
 
@@ -133,13 +136,13 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 可以。帖子由离线关键词分类。此时没有 AI 摘要，工作分数只按匹配的关键词数计算。
 
 **一次浏览要多久？**
-取决于帖子数量和速度设置。*快速*模式每次滚动约停 1 秒，另加 AI 每批 20 条的处理时间。
+取决于帖子数量和速度设置。*快速*模式每次滚动约停 1 秒，另加 AI 处理各批帖子的时间。
 
 **某个平台返回 0 条帖子？**
 通常是网站改版了。检查 `backend/feedlens/scrapers.py` 中该平台的 JS，或提交 issue。
 
 **我的数据存在哪里？**
-在 `backend/data/`：Chrome 会话在 `profiles/`；帖子、结果、简历档案和加密后的 API key 在 `feedlens.db`；加密密钥在 `secret.key`。该目录已被 git 忽略，不要发给任何人。删除它即可清空所有数据。
+在 `backend/data/`：浏览器会话在 `profiles/`；帖子、结果、简历档案和加密后的 API key 在 `feedlens.db`；加密密钥在 `secret.key`。该目录已被 git 忽略，不要发给任何人。删除它即可清空所有数据。
 
 **我的简历会被保存吗？**
 PDF 不会。只保存你确认过、已去除联系方式的 Markdown 档案，可随时在求职档案标签中删除。
@@ -148,14 +151,14 @@ PDF 不会。只保存你确认过、已去除联系方式的 Markdown 档案，
 已浏览的帖子仍会保留。在设置中修好 key 或更换模型，打开那次浏览，点**重新分析**。
 
 **询问 AI 会把我的全部数据发送给 AI 吗？**
-不会。系统仅发送你的提问以及通过本地 SQLite 全文检索（FTS5）和筛选条件初筛出的最多 40 条匹配帖子摘要。若没有任何帖子匹配，则完全不会调用 AI。
+不会。系统发送你的提问和最多 40 条本地匹配帖子的短摘要。AI 可能先将问题转换为搜索条件；如果没有匹配帖子，则跳过生成回答的 AI 调用。
 
 ## 开发者
 
 <details>
 <summary><b>手动安装与命令行</b></summary>
 
-要求：Python ≥ 3.10、Node ≥ 20、Google Chrome（或 Edge）。
+要求：Python ≥ 3.10、Node ≥ 20，以及 Chrome、Edge 或完整的 Playwright Chromium（存在上述登录限制）。
 
 ```bash
 cd backend && uv venv && uv pip install -e ".[dev]"
@@ -203,7 +206,7 @@ backend/            Python、FastAPI：API、浏览器自动化（Playwright）�
     agent.py        `feedlens agent`：从云端接收任务，在用户电脑上浏览
     ai/             anthropic_provider · openai_provider · gemini_provider · registry
     db/             SQLAlchemy：tables.py（结构）+ repository.py（查询）
-    browser.py      每个平台独立的 Chrome 配置，交互式登录
+    browser.py      每个平台独立的浏览器配置，交互式登录
     scrapers.py     各平台的 URL 与 JS 提取器，仿人滚动
     analyzer.py     分类、提取工作、摘要（所有 AI 共用）
     pipeline.py     浏览 → 分类 → 摘要，后台运行并报告进度
@@ -257,7 +260,7 @@ cd backend && uv pip install -e ".[postgres]"
   <img src="docs/diagrams/zh-CN/cloud-architecture.svg" alt="用户电脑上的 agent 通过 fla_ token 从 FastAPI 后端接收任务，后端数据存于 Postgres，前端托管在 GitHub Pages">
 </picture>
 
-浏览**始终在用户电脑上运行**，因为需要真实的 Chrome、用户的会话和家庭 IP（数据中心 IP 很容易被要求验证）。除非开启下面的服务器（cookie）模式，服务器不保存任何社交网站 cookie。
+使用 Agent 时，浏览**在用户电脑上运行**，使用用户的浏览器和已保存的会话。除非开启下面的服务器（cookie）模式，服务器不保存任何社交网站 cookie。
 
 使用流程：
 
@@ -270,7 +273,7 @@ cd backend && uv pip install -e ".[postgres]"
    ```
 
 4. 首次使用时，为 agent 登录社交网站：`.venv\Scripts\feedlens login facebook`。
-5. 点击**新建浏览 → 开始浏览**。Agent 每 2 秒拉取一次任务，用 Chrome 浏览并上传帖子；服务器用你的 key 分析。
+5. 点击**新建浏览 → 开始浏览**。Agent 每 2 秒拉取一次任务，用你的浏览器浏览并上传帖子；服务器用你的 key 分析。
 
 每个账号只能看到自己的浏览记录、帖子和 key。"新建浏览"表单和群组列表会保存到账号（`/api/preferences`）。`feedlens push`（浏览一次后上传，不经过队列）使用同一个 token。
 
@@ -302,7 +305,7 @@ cd backend && uv pip install -e ".[postgres]"
    cd backend && .venv\Scripts\feedlens cookies push facebook
    ```
 
-   该命令读取 FeedLens 专属 Chrome 配置中的 cookie（不是你日常用的 Chrome）。也可以：**设置 → 服务器浏览 → 粘贴 cookie**（Cookie-Editor 的 JSON、`cookies.txt`，或 `c_user=…; xs=…`）。
+   该命令读取 FeedLens 专属浏览器配置中的 cookie（不是你日常使用的浏览器配置）。也可以：**设置 → 服务器浏览 → 粘贴 cookie**（Cookie-Editor 的 JSON、`cookies.txt`，或 `c_user=…; xs=…`）。
 2. **设置 → 检查：** 服务器尝试用 cookie 打开首页（约 10–30 秒）。
 3. **新建浏览 → 运行方式：服务器（cookie）→ 开始浏览。**
 

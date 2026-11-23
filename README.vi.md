@@ -37,8 +37,9 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 | **Xu hướng** | Thống kê lượng bài theo danh mục hoặc chủ đề trong 7/30/90 ngày theo ngày hoặc tuần, so sánh với kỳ trước; bấm vào điểm dữ liệu để mở trang Hỏi & tìm xem các bài đó |
 | **Lọc việc làm theo CV** | Tải CV PDF một lần; AI chấm từng tin 0–100 theo vai trò, cấp độ, hình thức (remote/hybrid/onsite), địa điểm, lương. Gợi ý cả việc ngành gần (vd junior dev → IT helpdesk) kèm kỹ năng còn thiếu |
 | **Không mất bài khi AI lỗi** | Bài đã lướt được lưu trước khi AI đọc; sửa key xong bấm "Phân tích lại", không cần lướt lại |
+| **Gộp tin trùng** | Những bài gần giống nhau đăng ở nhiều nhóm trong một lượt hiện thành một thẻ "Đăng ở N nhóm" kèm link bài gốc; gộp trước khi gửi AI nên các bản trùng không tốn thêm quota phân tích |
 | **Chọn AI** | Claude, ChatGPT, Gemini, hoặc bộ lọc từ khóa offline khi không có key |
-| **Chạy trên máy bạn** | Phiên đăng nhập nằm trong profile Chrome riêng, dữ liệu trong SQLite; chỉ nội dung bài đi tới AI bạn chọn |
+| **Chạy trên máy bạn** | Phiên đăng nhập nằm trong profile trình duyệt riêng, dữ liệu trong SQLite; các yêu cầu AI được gửi tới nhà cung cấp bạn chọn |
 | **3 ngôn ngữ** | Giao diện và bản tóm tắt bằng tiếng Việt, English hoặc 中文 (tự theo ngôn ngữ trình duyệt) |
 | **Sáng / tối** | Giấy kem khi sáng, gỗ trầm khi tối; theo hệ điều hành hoặc chọn bằng nút trên thanh bên |
 
@@ -55,13 +56,13 @@ Group việc làm, group cộng đồng và bảng tin mỗi ngày có hàng tr�
 
 ## Bắt đầu nhanh
 
-Chỉ cần có **Google Chrome**. Máy chưa có Python thì script khởi động tự cài [uv](https://docs.astral.sh/uv/), uv tự mang theo Python.
+Với phiên mới, thứ tự mặc định là **Google Chrome → Microsoft Edge → Chromium của Playwright** (nếu đã cài bản trình duyệt đầy đủ). Đăng nhập qua Google/Apple có thể bị chặn trong Chromium của Playwright. Máy chưa có Python thì script khởi động tự cài [uv](https://docs.astral.sh/uv/), uv tự mang theo Python.
 
 1. Tải `FeedLens-<phiên bản>.zip` ở [Releases](https://github.com/MinDuck404/feedlens/releases/latest) rồi giải nén. File này có sẵn giao diện đã build, nên không cần Node.js.
    (Nếu dùng `git clone` hoặc **Code → Download ZIP** thì cần thêm [Node.js LTS](https://nodejs.org) để build giao diện ở lần chạy đầu.)
 2. **Windows:** bấm đúp `start.bat`. **macOS/Linux:** chạy `./start.sh`.
    Lần đầu mất vài phút để cài Python và thư viện. Trình duyệt tự mở http://127.0.0.1:8765.
-3. Bấm **Đăng nhập** cạnh Facebook (trên điện thoại: mở menu ☰). Một cửa sổ Chrome hiện ra; đăng nhập như bình thường, kể cả xác minh 2 bước. Xong thì cửa sổ tự đóng.
+3. Bấm **Đăng nhập** cạnh Facebook (trên điện thoại: mở menu ☰). Một cửa sổ trình duyệt hiện ra; đăng nhập như bình thường, kể cả xác minh 2 bước. Cửa sổ tự đóng khi nhận được phiên mới. Nếu chưa đóng, hoàn tất xác minh rồi bấm **Xong, đã đăng nhập** bên tài khoản trên thanh bên.
 4. **Cài đặt** (bánh răng) → tab **API key**: thêm key Gemini, ChatGPT hoặc Claude. Không có key thì app dùng bộ lọc từ khóa.
 5. Tìm việc? Tab **Hồ sơ tìm việc**: tải CV PDF, kiểm tra bản tóm tắt, chọn tiêu chí và vai trò muốn chuyển sang.
 6. (Tùy chọn) Tab **Chủ đề**: tạo tối đa 12 chủ đề theo dõi riêng với từ khóa và màu sắc tự chọn.
@@ -75,13 +76,13 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/vi/how-it-works-dark.svg">
-  <img src="docs/diagrams/vi/how-it-works.svg" alt="Chrome của bạn lướt bài, lưu bài thô vào SQLite, AI phân loại và tóm tắt, rồi hiện thành bản tin">
+  <img src="docs/diagrams/vi/how-it-works.svg" alt="Trình duyệt của bạn lướt bài, lưu bài thô vào SQLite, AI phân loại và tóm tắt, rồi hiện thành bản tin">
 </picture>
 
-- **Lướt:** bot mở Chrome thật với profile riêng của FeedLens và cuộn như người đọc. Chế độ *Nhanh* nghỉ khoảng 1 giây; *Cẩn thận* cuộn chậm hơn.
+- **Lướt:** bot mở trình duyệt với profile riêng của FeedLens và cuộn như người đọc. Chế độ *Nhanh* nghỉ khoảng 1 giây; *Cẩn thận* cuộn chậm hơn.
 - **Nhiều nhóm:** lưu sẵn danh sách nhóm, tick nhóm cần lướt. "Số bài" tính **mỗi nhóm**; cả lượt tối đa `FEEDLENS_MAX_POSTS` (mặc định 500). Nhóm lỗi thì bỏ qua và lướt tiếp.
-- **Xác minh / checkpoint:** nếu nền tảng đòi đăng nhập lại, bot dừng và chờ bạn tự hoàn tất trong cửa sổ Chrome (tối đa 10 phút) rồi lướt tiếp.
-- **AI:** đọc tối đa 4 lô song song, 20 bài mỗi lô. Mọi nhà cung cấp dùng chung một JSON schema nên kết quả cùng định dạng.
+- **Xác minh / checkpoint:** nếu nền tảng đòi đăng nhập lại, bot dừng và chờ bạn tự hoàn tất trong cửa sổ trình duyệt (tối đa 10 phút) rồi lướt tiếp.
+- **AI:** cỡ lô và số lô song song thay đổi theo kiểu phân tích và giới hạn model/key. Mọi nhà cung cấp dùng chung một JSON schema nên kết quả cùng định dạng.
 - **AI lỗi giữa chừng:** bài thô đã nằm trong DB. Lượt hiện lý do lỗi, vẫn xem và tải được bài thô (.json/.md), và có nút **Phân tích lại** để chạy lại bằng key hoặc model khác.
 
 ### Chấm việc theo CV
@@ -94,7 +95,7 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 - Chữ trong PDF được tách ngay trên máy (`pypdf`). AI chuyển thành hồ sơ Markdown và bỏ số điện thoại, email, địa chỉ. **File PDF không được lưu.**
 - Bạn tự đặt tiêu chí (remote/hybrid/onsite, địa điểm, lương tối thiểu, cấp độ) và bật từng vai trò lân cận muốn thử.
 - Mỗi tin có nhãn **Đúng ngành / Ngành gần / Thử sức**, lý do, kỹ năng còn thiếu và cảnh báo khi trái tiêu chí. Server tự giới hạn điểm: trái 1 tiêu chí tối đa 65, trái 2 tiêu chí tối đa 30; việc ngành gần tối đa 80, và tối đa 40 nếu bạn chưa cho phép.
-- Hồ sơ chỉ gửi kèm một lần cho mỗi lô 20 bài.
+- Hồ sơ chỉ gửi kèm một lần cho mỗi lô.
 
 ### Hỏi AI trên kho tin đã lưu
 
@@ -123,7 +124,9 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 > Tự động lướt **vi phạm điều khoản** của Facebook, LinkedIn và X; tài khoản có thể bị checkpoint. Dùng cho cá nhân, số lượng nhỏ, và cân nhắc dùng tài khoản phụ.
 
 - FeedLens **chỉ đọc**: không đăng, không bình luận, không nhắn tin. Mật khẩu không bao giờ đi qua app.
-- Bot chạy trong cửa sổ Chrome hiển thị theo mặc định. Chế độ ẩn thường bị chặn (Reddit chặn trình duyệt ẩn khi chưa đăng nhập). FeedLens không cố vượt cơ chế chống bot.
+- Bot chạy trong cửa sổ trình duyệt hiển thị theo mặc định. Chế độ ẩn thường bị chặn (Reddit chặn trình duyệt ẩn khi chưa đăng nhập). FeedLens không cố vượt cơ chế chống bot.
+- Phiên đã lưu tiếp tục dùng trình duyệt đã tạo ra nó. Nếu gỡ trình duyệt đó, hãy cài lại hoặc xoá phiên rồi đăng nhập lại.
+- Gộp tin trùng theo hướng thận trọng: bài ngắn hoặc có sửa đổi đáng kể có thể vẫn tách riêng. Chỉ gộp trong cùng một lượt; phân tích lại lượt cũ để áp dụng gộp.
 - Nội dung bài được gửi tới nhà cung cấp AI bạn chọn. `backend/data/` chứa cookie phiên: **không chia sẻ, không commit**.
 - Selector của mạng xã hội thay đổi thường xuyên. Nếu một nền tảng trả về 0 bài, sửa đoạn JS tương ứng trong `backend/feedlens/scrapers.py`.
 
@@ -132,7 +135,7 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 <details>
 <summary><b>Cài đặt thủ công và dòng lệnh</b></summary>
 
-Yêu cầu: Python ≥ 3.10, Node ≥ 20, Google Chrome (hoặc Edge).
+Yêu cầu: Python ≥ 3.10, Node ≥ 20 và Chrome, Edge hoặc bản Chromium đầy đủ của Playwright (có giới hạn đăng nhập nêu trên).
 
 ```bash
 cd backend && uv venv && uv pip install -e ".[dev]"
@@ -180,7 +183,7 @@ backend/            Python, FastAPI: API, bot lướt (Playwright), lớp AI, DB
     agent.py        `feedlens agent`: nhận việc từ cloud, lướt trên máy người dùng
     ai/             anthropic_provider · openai_provider · gemini_provider · registry
     db/             SQLAlchemy: tables.py (schema) + repository.py (truy vấn)
-    browser.py      Chrome profile riêng cho từng nền tảng, đăng nhập tương tác
+    browser.py      profile trình duyệt riêng cho từng nền tảng, đăng nhập tương tác
     scrapers.py     URL + JS trích bài cho từng nền tảng, vòng cuộn giống người
     analyzer.py     phân loại, trích job, tóm tắt (dùng chung cho mọi AI)
     pipeline.py     lướt → phân loại → tóm tắt, chạy nền, báo tiến độ
@@ -234,7 +237,7 @@ Muốn dùng Railway thì `backend/railway.json`, `frontend/railway.json` và ha
   <img src="docs/diagrams/vi/cloud-architecture.svg" alt="Agent trên máy người dùng nhận việc từ backend FastAPI qua token fla_, backend lưu vào Postgres, frontend trên GitHub Pages">
 </picture>
 
-Việc lướt **luôn chạy trên máy người dùng**, vì cần Chrome thật, phiên đăng nhập của họ và IP nhà (IP datacenter rất dễ bị checkpoint). Server không giữ cookie mạng xã hội nào, trừ khi bật chế độ Server (cookie) bên dưới.
+Khi dùng Agent, việc lướt **chạy trên máy người dùng**, bằng trình duyệt và phiên đăng nhập đã lưu của họ. Server không giữ cookie mạng xã hội nào, trừ khi bật chế độ Server (cookie) bên dưới.
 
 Luồng sử dụng:
 
@@ -247,7 +250,7 @@ Luồng sử dụng:
    ```
 
 4. Lần đầu, đăng nhập mạng xã hội cho agent: `.venv\Scripts\feedlens login facebook`.
-5. Bấm **Lướt mới → Bắt đầu lướt**. Agent hỏi việc mỗi 2 giây, mở Chrome lướt, gửi bài lên; server phân tích bằng key của bạn.
+5. Bấm **Lướt mới → Bắt đầu lướt**. Agent hỏi việc mỗi 2 giây, mở trình duyệt lướt, gửi bài lên; server phân tích bằng key của bạn.
 
 Mỗi tài khoản chỉ thấy lượt, bài và key của mình. Form "Lướt mới" và danh sách nhóm được lưu vào tài khoản (`/api/preferences`). `feedlens push` (lướt một lần rồi gửi, không qua hàng đợi) dùng cùng token.
 
@@ -279,7 +282,7 @@ Server tự mở Chromium ẩn bằng cookie đăng nhập bạn đã lưu.
    cd backend && .venv\Scripts\feedlens cookies push facebook
    ```
 
-   Lệnh đọc cookie từ profile Chrome riêng của FeedLens (không phải Chrome chính của bạn). Cách khác: **Cài đặt → Lướt trên server → Dán cookie** (JSON của Cookie-Editor, `cookies.txt`, hoặc `c_user=…; xs=…`).
+   Lệnh đọc cookie từ profile trình duyệt riêng của FeedLens (không phải profile trình duyệt bạn dùng hằng ngày). Cách khác: **Cài đặt → Lướt trên server → Dán cookie** (JSON của Cookie-Editor, `cookies.txt`, hoặc `c_user=…; xs=…`).
 2. **Cài đặt → Kiểm tra:** server thử mở trang chủ bằng cookie (khoảng 10–30 giây).
 3. **Lướt mới → Chạy bằng: Server (cookie) → Bắt đầu lướt.**
 
@@ -296,13 +299,13 @@ Server tự mở Chromium ẩn bằng cookie đăng nhập bạn đã lưu.
 Có. App dùng bộ lọc từ khóa offline để chia loại bài. Khi đó không có bản tóm tắt AI, và điểm việc làm chỉ tính theo số từ khóa khớp.
 
 **Lướt một lượt mất bao lâu?**
-Tùy số bài và tốc độ chọn. Chế độ *Nhanh* nghỉ khoảng 1 giây mỗi lần cuộn; thêm thời gian AI đọc theo lô 20 bài.
+Tùy số bài và tốc độ chọn. Chế độ *Nhanh* nghỉ khoảng 1 giây mỗi lần cuộn; thêm thời gian AI xử lý từng lô.
 
 **Một nền tảng trả về 0 bài?**
 Thường do mạng xã hội đổi giao diện. Xem đoạn JS của nền tảng đó trong `backend/feedlens/scrapers.py`, hoặc mở issue.
 
 **Dữ liệu của tôi nằm ở đâu?**
-Trong `backend/data/`: phiên Chrome ở `profiles/`, bài viết, kết quả, hồ sơ CV và API key (đã mã hóa) ở `feedlens.db`, khóa mã hóa ở `secret.key`. Thư mục này không bao giờ được commit. Đừng gửi nó cho người khác. Xóa thư mục này là xóa sạch.
+Trong `backend/data/`: phiên trình duyệt ở `profiles/`, bài viết, kết quả, hồ sơ CV và API key (đã mã hóa) ở `feedlens.db`, khóa mã hóa ở `secret.key`. Thư mục này không bao giờ được commit. Đừng gửi nó cho người khác. Xóa thư mục này là xóa sạch.
 
 **CV của tôi có bị lưu lại không?**
 Không lưu file PDF. Chỉ lưu bản hồ sơ Markdown bạn đã duyệt, sau khi bỏ thông tin liên hệ. Bạn xóa được bất cứ lúc nào trong tab Hồ sơ tìm việc.
@@ -311,7 +314,7 @@ Không lưu file PDF. Chỉ lưu bản hồ sơ Markdown bạn đã duyệt, sau
 Bài đã lướt vẫn còn. Sửa key hoặc đổi model trong Cài đặt, rồi mở lượt đó và bấm **Phân tích lại**.
 
 **Hỏi AI có gửi toàn bộ dữ liệu của tôi cho AI không?**
-Không. App chỉ gửi câu hỏi kèm trích đoạn ngắn của tối đa 40 bài viết khớp với bộ lọc và tìm kiếm FTS5 cục bộ (SQLite). Nếu không có bài nào khớp, app không gọi AI.
+Không. App gửi câu hỏi và trích đoạn ngắn của tối đa 40 bài khớp tìm kiếm cục bộ. AI có thể được gọi trước để chuyển câu hỏi thành bộ lọc; nếu không có bài nào khớp, app bỏ qua lượt gọi AI tạo câu trả lời.
 
 ## Lộ trình
 

@@ -37,8 +37,9 @@ Job groups, community groups, and news feeds post hundreds of items a day, and m
 | **Trends** | Post volume by category or topic over 7/30/90 days, viewed daily or weekly, compared to the prior period; click any point to open Ask & search for those posts |
 | **Job matching from your CV** | Upload a PDF once; AI scores every job 0–100 on role, level, work mode (remote/hybrid/onsite), location, and salary. It also surfaces related roles (e.g. junior dev → IT helpdesk) and lists the skills you are missing |
 | **Nothing lost when AI fails** | Scraped posts are saved before analysis; fix your key and press "Re-analyze" without scraping again |
+| **Duplicate grouping** | Similar posts shared across groups in one run appear as one "Posted in N groups" card with links to the originals; grouping happens before AI analysis, so extra copies do not use classification quota |
 | **Bring your own AI** | Claude, ChatGPT, Gemini, or an offline keyword classifier when you have no key |
-| **Runs locally** | Sessions live in a dedicated Chrome profile and data in SQLite; only post text goes to the AI you choose |
+| **Runs locally** | Sessions live in a dedicated browser profile and data in SQLite; AI requests go to the provider you choose |
 | **3 languages** | UI and summaries in English, Tiếng Việt, or 中文 (follows your browser by default) |
 | **Light / dark** | Cream paper by day, dark wood by night; follows your OS or toggle it in the sidebar |
 
@@ -55,13 +56,13 @@ Job groups, community groups, and news feeds post hundreds of items a day, and m
 
 ## Quick start
 
-You only need **Google Chrome**. If Python is missing, the start script installs [uv](https://docs.astral.sh/uv/), which brings its own Python.
+For new sessions, the default order is **Google Chrome → Microsoft Edge → Playwright Chromium** (if the full browser is installed). Google/Apple sign-in may be blocked in Playwright Chromium. If Python is missing, the start script installs [uv](https://docs.astral.sh/uv/), which brings its own Python.
 
 1. Download `FeedLens-<version>.zip` from [Releases](https://github.com/MinDuck404/feedlens/releases/latest) and unzip it. It already contains the built UI, so Node.js is not needed.
    (Using `git clone` or **Code → Download ZIP** instead? Then you also need [Node.js LTS](https://nodejs.org) to build the UI on first run.)
 2. **Windows:** double-click `start.bat`. **macOS/Linux:** run `./start.sh`.
    The first run takes a few minutes to set up Python and the dependencies. Your browser opens http://127.0.0.1:8765.
-3. Click **Sign in** next to Facebook (on mobile, open the ☰ menu). A Chrome window opens; sign in as usual, including two-step verification. It closes itself when done.
+3. Click **Sign in** next to Facebook (on mobile, open the ☰ menu). A browser window opens; sign in as usual, including two-step verification. It closes automatically when a new session is detected. If it stays open, finish verification and click **Done, signed in** beside the account in the sidebar.
 4. **Settings** (gear) → **API keys**: add a Gemini, ChatGPT, or Claude key. Without a key the app falls back to keyword matching.
 5. Looking for work? **Job profile** tab: upload your CV, review the summary, pick your criteria and the roles you are open to.
 6. (Optional) **Topics** tab: create up to 12 personal tracking topics with custom keywords and colors.
@@ -75,13 +76,13 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/how-it-works-dark.svg">
-  <img src="docs/diagrams/how-it-works.svg" alt="Your Chrome scrapes posts, raw posts are saved to SQLite, AI classifies and summarizes them, and the result becomes a digest">
+  <img src="docs/diagrams/how-it-works.svg" alt="Your browser scrapes posts, raw posts are saved to SQLite, AI classifies and summarizes them, and the result becomes a digest">
 </picture>
 
-- **Scraping:** a real Chrome window with FeedLens's own profile scrolls like a reader. *Fast* mode pauses about 1 second; *Careful* scrolls slower.
+- **Scraping:** a browser window with FeedLens's own profile scrolls like a reader. *Fast* mode pauses about 1 second; *Careful* scrolls slower.
 - **Many groups:** save a list of groups and tick the ones to scan. "Posts" is **per group**; a run caps at `FEEDLENS_MAX_POSTS` (default 500). Broken groups are skipped.
-- **Verification / checkpoints:** if a platform asks you to sign in again, the bot pauses and waits up to 10 minutes for you to finish in the Chrome window.
-- **AI:** up to 4 batches in parallel, 20 posts per batch. Every provider uses the same JSON schema, so results look the same.
+- **Verification / checkpoints:** if a platform asks you to sign in again, the bot pauses and waits up to 10 minutes for you to finish in the browser window.
+- **AI:** batch size and parallelism adapt to the analysis and model/key limits. Every provider uses the same JSON schema, so results look the same.
 - **When AI fails mid-run:** raw posts are already in the database. The run shows the reason, lets you read and download the raw posts (.json/.md), and offers **Re-analyze** with another key or model.
 
 ### Job matching from your CV
@@ -94,7 +95,7 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 - PDF text is extracted on your machine (`pypdf`). AI turns it into a Markdown profile and strips phone numbers, emails, and home addresses. **The PDF itself is never stored.**
 - You set the criteria (remote/hybrid/onsite, locations, minimum salary, level) and switch on each related role you want to try.
 - Every job gets a **Primary role / Related role / Stretch role** label, a reason, missing skills, and a warning when it breaks your criteria. The server caps scores: one broken criterion caps at 65, two at 30; related roles cap at 80, or 40 if you have not opted in.
-- The profile is sent once per batch of 20 posts, not once per post.
+- The profile is sent once per batch, not once per post.
 
 ### Asking AI about your archive
 
@@ -123,7 +124,9 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 > Automated browsing **violates the terms** of Facebook, LinkedIn, and X, and accounts can get checkpointed. Keep it personal and small-scale, and consider a secondary account.
 
 - FeedLens is **read-only**: it never posts, comments, or messages. Your password never passes through the app.
-- The bot runs in a visible Chrome window by default. Headless mode is often blocked (Reddit blocks headless browsers when signed out). FeedLens does not try to evade anti-bot systems.
+- The bot runs in a visible browser window by default. Headless mode is often blocked (Reddit blocks headless browsers when signed out). FeedLens does not try to evade anti-bot systems.
+- Saved sessions stay with the browser that created them. If you uninstall that browser, reinstall it or remove the saved session and sign in again.
+- Duplicate grouping is conservative: short posts or substantive edits may stay separate. It only groups within a run; re-analyze older saved runs to apply grouping.
 - Post text is sent to the AI provider you choose. `backend/data/` holds session cookies: **never share or commit it**.
 - Social sites change their markup often. If a platform returns 0 posts, fix its JS extractor in `backend/feedlens/scrapers.py`.
 
@@ -133,13 +136,13 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 Yes. Posts are sorted by an offline keyword classifier. You get no AI summaries, and job scores only count matched keywords.
 
 **How long does a run take?**
-It depends on the number of posts and the speed setting. *Fast* mode pauses about 1 second per scroll, plus AI time per batch of 20 posts.
+It depends on the number of posts and the speed setting. *Fast* mode pauses about 1 second per scroll, plus AI processing time for each batch.
 
 **A platform returns 0 posts?**
 Usually the site changed its markup. Check that platform's JS in `backend/feedlens/scrapers.py`, or open an issue.
 
 **Where is my data?**
-In `backend/data/`: Chrome sessions in `profiles/`; posts, results, your CV profile, and encrypted API keys in `feedlens.db`; the encryption key in `secret.key`. This folder is git-ignored. Do not send it to anyone. Delete it to wipe everything.
+In `backend/data/`: browser sessions in `profiles/`; posts, results, your CV profile, and encrypted API keys in `feedlens.db`; the encryption key in `secret.key`. This folder is git-ignored. Do not send it to anyone. Delete it to wipe everything.
 
 **Is my CV stored?**
 The PDF is not. Only the Markdown profile you approved, with contact details removed. Delete it any time from the Job profile tab.
@@ -148,14 +151,14 @@ The PDF is not. Only the Markdown profile you approved, with contact details rem
 Your scraped posts are kept. Fix the key or switch models in Settings, open the run, and press **Re-analyze**.
 
 **Does Ask AI send my entire database to the AI?**
-No. It only sends your question along with short excerpts of up to 40 posts matching your local SQLite FTS5 search and filters. If zero posts match, no request is sent to the AI.
+No. It sends your question and short excerpts of up to 40 locally matched posts. AI may first turn the question into search filters; if no posts match, the answer-generation call is skipped.
 
 ## For developers
 
 <details>
 <summary><b>Manual setup and CLI</b></summary>
 
-Requirements: Python ≥ 3.10, Node ≥ 20, Google Chrome (or Edge).
+Requirements: Python ≥ 3.10, Node ≥ 20, and Chrome, Edge, or a full Playwright Chromium installation (with the sign-in limitation above).
 
 ```bash
 cd backend && uv venv && uv pip install -e ".[dev]"
@@ -203,7 +206,7 @@ backend/            Python, FastAPI: API, scraper (Playwright), AI layer, DB
     agent.py        `feedlens agent`: takes jobs from the cloud, scrapes on the user's machine
     ai/             anthropic_provider · openai_provider · gemini_provider · registry
     db/             SQLAlchemy: tables.py (schema) + repository.py (queries)
-    browser.py      per-platform Chrome profiles, interactive sign-in
+    browser.py      per-platform browser profiles, interactive sign-in
     scrapers.py     URLs + JS extractors per platform, human-like scrolling
     analyzer.py     classify, extract jobs, summarize (shared by every AI)
     pipeline.py     scrape → classify → summarize, in the background, with progress
@@ -257,7 +260,7 @@ For Railway, `backend/railway.json`, `frontend/railway.json`, and both Dockerfil
   <img src="docs/diagrams/cloud-architecture.svg" alt="An agent on the user's machine takes jobs from the FastAPI backend with an fla_ token; the backend stores data in Postgres; the frontend is on GitHub Pages">
 </picture>
 
-Scraping **always runs on the user's machine**, because it needs a real Chrome, their session, and a residential IP (datacenter IPs get checkpointed fast). The server holds no social cookies unless you enable Server (cookie) mode below.
+With the agent, scraping **runs on the user's machine**, using their browser and saved session. The server holds no social cookies unless you enable Server (cookie) mode below.
 
 Flow:
 
@@ -270,7 +273,7 @@ Flow:
    ```
 
 4. First time only, sign the agent in to the social site: `.venv\Scripts\feedlens login facebook`.
-5. Click **New run → Start**. The agent polls every 2 seconds, scrapes in Chrome, and uploads posts; the server analyzes them with your key.
+5. Click **New run → Start**. The agent polls every 2 seconds, scrapes in your browser, and uploads posts; the server analyzes them with your key.
 
 Each account only sees its own runs, posts, and keys. The "New run" form and group list are saved to the account (`/api/preferences`). `feedlens push` (scrape once and upload, no queue) uses the same token.
 
@@ -302,7 +305,7 @@ The server opens a headless Chromium with the login cookies you saved.
    cd backend && .venv\Scripts\feedlens cookies push facebook
    ```
 
-   This reads cookies from FeedLens's own Chrome profile (not your main Chrome). Alternatively: **Settings → Server scraping → Paste cookies** (Cookie-Editor JSON, `cookies.txt`, or `c_user=…; xs=…`).
+   This reads cookies from FeedLens's own browser profile (not your everyday browser profile). Alternatively: **Settings → Server scraping → Paste cookies** (Cookie-Editor JSON, `cookies.txt`, or `c_user=…; xs=…`).
 2. **Settings → Check:** the server tries to open the home page with the cookies (about 10–30 seconds).
 3. **New run → Run with: Server (cookie) → Start.**
 
