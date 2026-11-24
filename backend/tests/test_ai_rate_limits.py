@@ -1,16 +1,19 @@
+import time
 """AI quá tải / hết hạn mức: chờ đúng thời gian nhà cung cấp yêu cầu, không thử lại vô ích,
 và các lô chạy song song không đổi model dự phòng chồng lên nhau."""
+
+import feedlens.analysis.llm as llm_analysis
+import feedlens.analysis.prompts as analysis_prompts
 import threading
 from types import SimpleNamespace as Obj
 
 import pytest
 
-import feedlens.analyzer as an
-from feedlens.ai.anthropic_provider import AnthropicProvider
+from feedlens.ai.providers.anthropic import AnthropicProvider
 from feedlens.ai.base import AIOutputTruncated
-from feedlens.ai.gemini_provider import GeminiProvider
-from feedlens.ai.openai_provider import OpenAIProvider
-from feedlens.analyzer import LLMAnalyzer
+from feedlens.ai.providers.gemini import GeminiProvider
+from feedlens.ai.providers.openai import OpenAIProvider
+from feedlens.analysis.llm import LLMAnalyzer
 from tests.test_core import SAMPLE, FakeProvider
 
 PER_MINUTE = ("429 RESOURCE_EXHAUSTED. Quota exceeded for metric: generate_content_free_tier_requests, "
@@ -46,8 +49,8 @@ def test_waits_the_delay_the_provider_asks_for(monkeypatch):
     def wait(seconds):
         waits.append(seconds)
         clock[0] += seconds
-    monkeypatch.setattr(an.time, "sleep", wait)
-    monkeypatch.setattr(an.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(time, "sleep", wait)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
     calls = []
 
     class Limited(FakeProvider):
@@ -62,13 +65,13 @@ def test_waits_the_delay_the_provider_asks_for(monkeypatch):
 
 
 def test_suggested_delay_is_capped(monkeypatch):
-    assert an._retry_after("Please retry in 5h12m.") is None  # quá xa: không chờ
-    assert an._retry_after("retryDelay': '75s'") == pytest.approx(an.MAX_RETRY_WAIT)
-    assert an._retry_after("503 UNAVAILABLE") is None
+    assert llm_analysis._retry_after("Please retry in 5h12m.") is None  # quá xa: không chờ
+    assert llm_analysis._retry_after("retryDelay': '75s'") == pytest.approx(llm_analysis.MAX_RETRY_WAIT)
+    assert llm_analysis._retry_after("503 UNAVAILABLE") is None
 
 
 def test_daily_quota_switches_model_without_retrying(monkeypatch):
-    monkeypatch.setattr(an.time, "sleep", lambda s: pytest.fail("không được chờ khi hết hạn mức ngày"))
+    monkeypatch.setattr(time, "sleep", lambda s: pytest.fail("không được chờ khi hết hạn mức ngày"))
     calls = []
 
     class Daily(FakeProvider):
@@ -84,7 +87,7 @@ def test_daily_quota_switches_model_without_retrying(monkeypatch):
 
 
 def test_daily_quota_without_fallback_fails_fast_with_clear_message(monkeypatch):
-    monkeypatch.setattr(an.time, "sleep", lambda s: pytest.fail("không được chờ"))
+    monkeypatch.setattr(time, "sleep", lambda s: pytest.fail("không được chờ"))
 
     class Daily(FakeProvider):
         def complete_json(self, *a, **k):
@@ -95,8 +98,8 @@ def test_daily_quota_without_fallback_fails_fast_with_clear_message(monkeypatch)
 
 
 def test_parallel_batches_switch_fallback_model_once(monkeypatch):
-    monkeypatch.setattr(an, "RETRY_BASE_SECONDS", 0)
-    monkeypatch.setattr(an, "BATCH_SIZE", 1)
+    monkeypatch.setattr(llm_analysis, "RETRY_BASE_SECONDS", 0)
+    monkeypatch.setattr(analysis_prompts, "BATCH_SIZE", 1)
     barrier = threading.Barrier(3, timeout=5)
 
     class Busy(FakeProvider):

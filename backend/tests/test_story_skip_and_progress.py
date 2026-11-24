@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from feedlens import pipeline
-from feedlens.analyzer import HeuristicAnalyzer
+from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db import Database
 from feedlens.models import RawPost, RunRequest
 

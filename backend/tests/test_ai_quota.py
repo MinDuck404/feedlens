@@ -1,3 +1,7 @@
+
+import feedlens.ai.registry as ai_registry
+
+import feedlens.analysis.prompts as analysis_prompts
 from types import SimpleNamespace
 
 from feedlens.ai.limits import Limits
@@ -37,7 +41,7 @@ class Provider:
 ])
 def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode, tpm, count, expected_batches, monkeypatch):
     import re
-    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.analysis.llm import LLMAnalyzer
     from feedlens.models import RawPost
 
     clock = Clock()
@@ -63,7 +67,7 @@ def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode
 
 def test_omitted_items_from_a_large_batch_share_one_retry(monkeypatch):
     import re
-    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.analysis.llm import LLMAnalyzer
     from feedlens.models import RawPost
 
     analyzer = LLMAnalyzer(Provider("gemini-3.5-flash-lite", Clock()))
@@ -170,9 +174,8 @@ def test_new_key_routes_are_private_ordered_and_never_leak_secrets(cloud, monkey
 
 
 def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, monkeypatch):
-    import feedlens.analyzer as analyzer_module
     from feedlens import pipeline
-    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.analysis.llm import LLMAnalyzer
     from feedlens.messages import error_code
     from feedlens.models import RawPost, RunRequest
     from tests.test_core import FakeProvider
@@ -184,7 +187,7 @@ def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, m
                                default_limits=lambda *a: Limits(rpm=5, tpm=250_000, rpd=1))
     candidates = [Candidate(key.id, provider)]
     analyzer = LLMAnalyzer(provider, candidates=candidates, scheduler=scheduler)
-    monkeypatch.setattr(analyzer_module, "BATCH_SIZE", 1)
+    monkeypatch.setattr(analysis_prompts, "BATCH_SIZE", 1)
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: analyzer)
     req = RunRequest(platform="facebook", ai_provider="offline")
     rid = db.create_run(req, user)
@@ -267,7 +270,7 @@ def test_concurrent_daily_reservations_cannot_overspend(tmp_path):
 
 
 def test_custom_system_calls_share_analyzer_quota():
-    from feedlens.analyzer import LLMAnalyzer
+    from feedlens.analysis.llm import LLMAnalyzer
     clock = Clock(); provider = Provider("gemini-3.8-flash", clock)
     scheduler = QuotaScheduler(clock=clock.clock, sleep=clock.sleep,
         default_limits=lambda *a: Limits(rpm=1))
@@ -278,7 +281,7 @@ def test_custom_system_calls_share_analyzer_quota():
 
 
 def test_get_analyzer_uses_all_enabled_keys_and_shared_persistent_scheduler(tmp_path, monkeypatch):
-    from feedlens import analyzer as module
+    from feedlens.analysis import analyzer as module
     from feedlens.ai.registry import user_key_list
     from feedlens.crypto import encrypt
     db = Database(f"sqlite:///{tmp_path / 'credentials.db'}")
@@ -294,8 +297,8 @@ def test_get_analyzer_uses_all_enabled_keys_and_shared_persistent_scheduler(tmp_
             def unauthorized(*a): raise RuntimeError("401 Unauthorized")
             value.complete_json = unauthorized
         return value
-    monkeypatch.setattr(module, "get_provider", provider)
-    monkeypatch.setattr(module, "resolve_models", lambda user, key, secret, requested: [requested])
+    monkeypatch.setattr(ai_registry, "get_provider", provider)
+    monkeypatch.setattr(ai_registry, "resolve_models", lambda user, key, secret, requested: [requested])
     one = module.get_analyzer("gemini", "explicit-model", user_key_list(db, user), user)
     two = module.get_analyzer("gemini", "explicit-model", user_key_list(db, user), user)
     assert one.scheduler is two.scheduler

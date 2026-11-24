@@ -9,7 +9,7 @@ import pytest
 from feedlens import api, pipeline
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler
-from feedlens.analyzer import LLMAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.db import Database
 from feedlens.models import RawPost, RunRequest
 from tests.test_cloud import cloud, _signup
@@ -58,7 +58,7 @@ def test_stop_keeps_inflight_batch_and_resume_switches_only_unread(tmp_path, mon
                               for i in re.findall(r'<post id="(\d+)"', prompt)]}
         client = SimpleNamespace(info=SimpleNamespace(key="gemini", name="Gemini"), model=model, complete_json=reply)
         return LLMAnalyzer(client, scheduler=QuotaScheduler(default_limits=lambda *a: Limits(rpm=1) if model == "old" else Limits()))
-    monkeypatch.setattr("feedlens.analyzer.BATCH_SIZE", 1)
+    monkeypatch.setattr('feedlens.analysis.prompts.BATCH_SIZE', 1)
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: provider(a[1] or "old"))
     pipeline.start_analysis(db, rid, req, raw, None)
     assert entered.wait(5)

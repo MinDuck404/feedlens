@@ -2,11 +2,17 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from .ai import user_keys
+from feedlens.ai.registry import user_keys
 from .ai.registry import preferred_provider
-from .analyzer import get_analyzer
+from feedlens.analysis.analyzer import get_analyzer
 from .auth import CurrentUser, current_user
-from .job_profile import MAX_CV_BYTES, JobProfile, ProfileError, analyze_cv, extract_cv_pdf, load_profile, store_profile
+from feedlens.jobs.profile import MAX_CV_BYTES
+from feedlens.jobs.profile import JobProfile
+from feedlens.jobs.profile import ProfileError
+from feedlens.jobs.profile import analyze_cv
+from feedlens.jobs.profile import extract_cv_pdf
+from feedlens.jobs.profile import load_profile
+from feedlens.jobs.profile import store_profile
 
 
 def profile_router(db, is_cloud):

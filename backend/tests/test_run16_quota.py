@@ -8,7 +8,8 @@ import pytest
 from feedlens.ai.base import AIOutputTruncated
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaExhausted, QuotaScheduler
-from feedlens.analyzer import LLMAnalyzer, classification_batch_size
+from feedlens.analysis.llm import LLMAnalyzer
+from feedlens.analysis.prompts import classification_batch_size
 from feedlens.messages import progress_message
 from feedlens.models import RawPost
 from tests.test_ai_quota import Clock, Provider
@@ -165,7 +166,7 @@ def test_retry_and_split_requests_obey_same_pair_rpm(monkeypatch):
 
 
 def test_gemini_sends_exact_requested_id_and_reports_server_model_version():
-    from feedlens.ai.gemini_provider import GeminiProvider
+    from feedlens.ai.providers.gemini import GeminiProvider
     provider = object.__new__(GeminiProvider)
     provider.model = "gemini-3.7-flash"
     provider.genai = Obj(types=Obj(GenerateContentConfig=Obj, ThinkingConfig=Obj))
@@ -227,7 +228,7 @@ def test_empty_output_does_not_spend_two_requests_for_every_batch(monkeypatch):
 def test_220_jobs_with_cv_require_eleven_reads_and_one_digest(tmp_path, monkeypatch):
     from feedlens import pipeline
     from feedlens.db import Database
-    from feedlens.job_profile import JobProfile
+    from feedlens.jobs.profile import JobProfile
     from feedlens.models import RunRequest
     db = Database(f"sqlite:///{tmp_path / '220.db'}")
     uid = db.local_user_id()
@@ -268,7 +269,7 @@ def test_response_ids_are_normalized_or_rejected_instead_of_silently_dropped(ids
 
 
 def test_gemini_low_thinking_and_safe_empty_output_diagnostics(caplog):
-    from feedlens.ai.gemini_provider import GeminiProvider
+    from feedlens.ai.providers.gemini import GeminiProvider
     provider = object.__new__(GeminiProvider)
     provider.model = "gemini-3.8-flash"
     provider.genai = Obj(types=Obj(GenerateContentConfig=Obj, ThinkingConfig=Obj))
@@ -286,6 +287,8 @@ def test_gemini_low_thinking_and_safe_empty_output_diagnostics(caplog):
 
 
 def test_classification_schema_requires_at_least_one_item():
-    from feedlens.analyzer import CLASSIFY_SCHEMA, KNOWN_JOBS_SCHEMA, _with_topic_fields
+    from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+    from feedlens.analysis.prompts import KNOWN_JOBS_SCHEMA
+    from feedlens.analysis.topics import _with_topic_fields
     for schema in (CLASSIFY_SCHEMA, KNOWN_JOBS_SCHEMA, _with_topic_fields(CLASSIFY_SCHEMA)):
         assert schema["properties"]["items"].get("minItems") == 1

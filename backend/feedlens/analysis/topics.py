@@ -1,8 +1,8 @@
 """Topic matching, schemas and digest grouping."""
 from __future__ import annotations
 
-from .models import AnalyzedPost, Topic
-from . import analyzer as facade
+from feedlens.models import AnalyzedPost
+from feedlens.models import Topic
 
 
 RETAG_BATCH = 40          # gắn chủ đề lại cho bài cũ: chỉ gửi summary + đoạn đầu, nên lô lớn hơn

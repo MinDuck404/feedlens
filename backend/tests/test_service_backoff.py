@@ -6,7 +6,7 @@ import pytest
 from feedlens import pipeline
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler, pacific_day
-from feedlens.analyzer import LLMAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.db import Database
 from feedlens.messages import error_code
 from feedlens.models import AnalyzedPost, RawPost, RunRequest

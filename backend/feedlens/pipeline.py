@@ -8,12 +8,14 @@ from typing import Callable
 
 from .ai.registry import preferred_provider, user_key_list
 from .ai.scheduler import AnalysisStopped, check_stopped
-from .analyzer import HeuristicAnalyzer, get_analyzer
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.analyzer import get_analyzer
 from .config import settings
 from .db import Database
 from .models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
-from .post_duplicates import group_posts, preserve_post_identities
-from .job_profile import load_profile
+from feedlens.analysis.duplicates import group_posts
+from feedlens.analysis.duplicates import preserve_post_identities
+from feedlens.jobs.profile import load_profile
 from feedlens.scrapers.registry import SCRAPERS
 from feedlens.scrapers.linkedin.scraper import LinkedInJobsScraper
 from .source_modes import allocate_targets, normalize, total_target as planned_total_target

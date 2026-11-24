@@ -1,3 +1,6 @@
+
+import feedlens.analysis.llm as llm_analysis
+import feedlens.analysis.prompts as analysis_prompts
 import os
 import time
 
@@ -7,9 +10,11 @@ for _k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "GEMIN
 import pytest
 
 from feedlens import pipeline
-from feedlens.ai import resolve_provider_key
+from feedlens.ai.registry import resolve_provider_key
 from feedlens.ai.base import AIProvider, ProviderInfo
-from feedlens.analyzer import HeuristicAnalyzer, LLMAnalyzer, heuristic_category
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
+from feedlens.analysis.heuristic import heuristic_category
 from feedlens.db import Database
 from feedlens.export import to_csv, to_markdown
 from feedlens.models import RawPost, RunRequest
@@ -51,7 +56,8 @@ def test_heuristic_job_scoring_and_contact():
 
 
 def test_offline_cv_scoring_uses_roles_and_skills_with_a_bounded_bonus():
-    from feedlens.job_profile import AdjacentRole, JobProfile
+    from feedlens.jobs.profile import AdjacentRole
+    from feedlens.jobs.profile import JobProfile
 
     analyzer = HeuristicAnalyzer()
     analyzer.job_profile = JobProfile(
@@ -119,7 +125,7 @@ def test_resolve_provider_picks_first_configured():
 
 
 def test_local_mode_uses_env_keys(db, monkeypatch):
-    from feedlens.ai import user_keys
+    from feedlens.ai.registry import user_keys
     monkeypatch.setenv("GEMINI_API_KEY", "env-key")
     assert user_keys(db, db.local_user_id())["gemini"] == ("env-key", "env")
 
@@ -147,9 +153,8 @@ class FakeProvider(AIProvider):
 
 
 def test_llm_analyzer_retries_transient_errors(monkeypatch):
-    import feedlens.analyzer as an
 
-    monkeypatch.setattr(an, "RETRY_BASE_SECONDS", 0)
+    monkeypatch.setattr(llm_analysis, "RETRY_BASE_SECONDS", 0)
     calls = []
 
     class Flaky(FakeProvider):
@@ -189,9 +194,8 @@ def test_llm_analyzer_retries_transient_errors(monkeypatch):
 
 def test_llm_batches_run_in_parallel_and_keep_order(monkeypatch):
     import threading
-    import feedlens.analyzer as an
 
-    monkeypatch.setattr(an, "BATCH_SIZE", 1)
+    monkeypatch.setattr(analysis_prompts, "BATCH_SIZE", 1)
     active, peak, lock = [0], [0], threading.Lock()
 
     class Slow(FakeProvider):
@@ -334,7 +338,8 @@ def test_count_is_per_source():
 
 
 def test_ai_writes_in_requested_language(db, monkeypatch):
-    from feedlens.analyzer import LLMAnalyzer, system_prompt
+    from feedlens.analysis.llm import LLMAnalyzer
+    from feedlens.analysis.prompts import system_prompt
     assert "English" in system_prompt("en") and "中文" in system_prompt("zh") and "tiếng Việt" in system_prompt("vi")
     seen = []
 

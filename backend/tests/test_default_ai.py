@@ -1,6 +1,6 @@
 from feedlens import api, pipeline
 from feedlens.ai import registry
-from feedlens.analyzer import HeuristicAnalyzer
+from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db import Database
 from feedlens.models import RawPost, RunRequest
 from feedlens.db.tables import UserRow

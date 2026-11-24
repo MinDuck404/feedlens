@@ -4,9 +4,12 @@ from types import SimpleNamespace
 import pytest
 
 from feedlens import pipeline
-from feedlens.analyzer import CLASSIFY_SCHEMA, KNOWN_JOBS_SCHEMA, HeuristicAnalyzer, LLMAnalyzer
+from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+from feedlens.analysis.prompts import KNOWN_JOBS_SCHEMA
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.db import Database
-from feedlens.job_profile import JobProfile
+from feedlens.jobs.profile import JobProfile
 from feedlens.models import JobSeed, RawPost, RunRequest, Topic
 
 
@@ -146,7 +149,7 @@ def test_checkpoint_retry_preserves_seed_and_does_not_reanalyze_successful_batch
                               for i in re.findall(r'<post id="(\d+)"', prompt)]}
         return {"overall": "Jobs summary", "categories": [{"category": "job", "summary": "Jobs", "highlights": []}], "action_items": []}
     analyzer = llm(complete)
-    monkeypatch.setattr("feedlens.analyzer.BATCH_SIZE", 2)
+    monkeypatch.setattr('feedlens.analysis.prompts.BATCH_SIZE', 2)
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *a: analyzer)
     pipeline.execute_analysis(db, rid, req, raw, None)
     assert db.get_run(rid)["status"] == "analysis_failed"

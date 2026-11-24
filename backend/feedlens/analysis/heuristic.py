@@ -3,28 +3,26 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, TopicDigest
-from . import analyzer as facade
-from .analysis_prompts import (
-    _seeded_job,
-)
-from .analysis_topics import (
-    _topic_groups,
-    heuristic_topics,
-)
-from .job_scoring import (
-    MATCH_STOPWORDS,
-    _LEVELS,
-    _cv_skills,
-    _job_salary,
-    _location_conflict,
-    _match_terms,
-    _normalize_level,
-    _profile_level,
-    _role_terms,
-    _role_text,
-    _work_mode_conflict,
-)
+from feedlens.models import CATEGORIES
+from feedlens.models import AnalyzedPost
+from feedlens.models import CategoryDigest
+from feedlens.models import Digest
+from feedlens.models import JobInfo
+from feedlens.models import TopicDigest
+from feedlens.analysis.prompts import _seeded_job
+from feedlens.analysis.topics import _topic_groups
+from feedlens.analysis.topics import heuristic_topics
+from feedlens.jobs.scoring import MATCH_STOPWORDS
+from feedlens.jobs.scoring import _LEVELS
+from feedlens.jobs.scoring import _cv_skills
+from feedlens.jobs.scoring import _job_salary
+from feedlens.jobs.scoring import _location_conflict
+from feedlens.jobs.scoring import _match_terms
+from feedlens.jobs.scoring import _normalize_level
+from feedlens.jobs.scoring import _profile_level
+from feedlens.jobs.scoring import _role_terms
+from feedlens.jobs.scoring import _role_text
+from feedlens.jobs.scoring import _work_mode_conflict
 
 
 KEYWORDS: dict[str, list[str]] = {

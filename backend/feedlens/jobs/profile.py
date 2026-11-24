@@ -5,12 +5,15 @@ import json
 import re
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from pypdf import PdfReader
 
-from .crypto import decrypt, encrypt
+from feedlens.crypto import decrypt
+from feedlens.crypto import encrypt
 
 MAX_CV_BYTES = 5 * 1024 * 1024
 ShortText = Annotated[str, Field(min_length=1, max_length=120)]

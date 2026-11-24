@@ -7,7 +7,9 @@ import pytest
 from sqlalchemy import text
 
 from feedlens import api, browser, pipeline
-from feedlens.analyzer import CLASSIFY_SCHEMA, HeuristicAnalyzer, LLMAnalyzer
+from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.db import Database
 from feedlens.messages import error_code
 from feedlens.models import RawPost, RunRequest
@@ -46,7 +48,7 @@ def test_raw_and_successful_batches_survive_failure_and_retry_only_missing(tmp_p
         return {"items": [{"id": int(i), "category": "news", "summary": "Read", "is_job": False, "job": {}}
                           for i in re.findall(r'<post id="(\d+)"', prompt)]}
     monkeypatch.setattr(analyzer, "_json_call", structured)
-    monkeypatch.setattr("feedlens.analyzer.BATCH_SIZE", 2)
+    monkeypatch.setattr('feedlens.analysis.prompts.BATCH_SIZE', 2)
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: analyzer)
     scrapes = []
     monkeypatch.setattr(pipeline, "scrape", lambda *args: scrapes.append(True) or raw)

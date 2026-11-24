@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, ConfigDict
 
-from .ai import resolve_provider_key, user_keys
+from feedlens.ai.registry import resolve_provider_key
+from feedlens.ai.registry import user_keys
 from .ai.registry import preferred_provider
-from .analyzer import LANGUAGE_NAMES, get_analyzer
+from feedlens.analysis.prompts import LANGUAGE_NAMES
+from feedlens.analysis.analyzer import get_analyzer
 from .auth import CurrentUser, current_user
 from .models import CATEGORIES
 from .messages import error_code

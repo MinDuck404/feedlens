@@ -191,7 +191,7 @@ def test_legacy_profile_stays_chrome_and_launch_failure_does_not_fall_back(monke
 @pytest.mark.parametrize("diagnostic", ["Browser not found: Chrome", "Executable doesn't exist at /custom/path"])
 def test_local_run_missing_browser_maps_to_browser_missing_code(cloud, monkeypatch, diagnostic):
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.models import RunRequest
 
     client = cloud(mode="local")
@@ -299,7 +299,7 @@ def test_native_browser_does_not_print_a_startup_warning(monkeypatch, capsys):
 def test_server_scrape_missing_browser_maps_to_browser_missing_code(cloud, monkeypatch, tmp_path):
     import playwright.sync_api
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.models import RunRequest
 
     client = cloud()

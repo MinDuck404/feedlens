@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from .job_profile import JobProfile
-from .models import JobInfo
-from . import analyzer as facade
+from feedlens.jobs.profile import JobProfile
+from feedlens.models import JobInfo
 
 
 MATCH_STOPWORDS = set("""

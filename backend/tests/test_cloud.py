@@ -1,4 +1,6 @@
 """Chế độ cloud: nhiều tài khoản, API key mã hóa theo user, hàng đợi việc cho agent."""
+
+import feedlens.ai.base as ai_base
 import dataclasses
 import os
 
@@ -106,8 +108,8 @@ def test_expired_token_rejected(cloud, monkeypatch):
     assert c.get("/api/runs", headers=h).status_code == 401
 
 
-class StubProvider(ai.AIProvider):
-    info = ai.ProviderInfo("gemini", "Gemini", "GEMINI_API_KEY", "GEMINI_MODEL", "gemini-x", "")
+class StubProvider(ai_base.AIProvider):
+    info = ai_base.ProviderInfo("gemini", "Gemini", "GEMINI_API_KEY", "GEMINI_MODEL", "gemini-x", "")
 
     def complete_json(self, *a, **k):
         raise AssertionError("không gọi AI trong test này")
@@ -145,7 +147,7 @@ def test_api_keys_are_per_user_encrypted_and_masked(cloud, monkeypatch):
 
 
 def test_default_model_follows_available_list():
-    from feedlens.ai import pick_default
+    from feedlens.ai.registry import pick_default
     # model mặc định đã bị khai tử -> chọn bản "flash" mới nhất còn dùng được, tránh lite/preview
     models = ["gemini-omni-flash-preview", "gemini-4-argon", "gemini-3.8-pro", "gemini-3.8-flash-lite",
               "gemini-3.8-flash", "gemini-3.10-flash-image", "gemini-3.5-flash", "gemini-2.5-flash"]
@@ -160,7 +162,7 @@ def test_default_model_follows_available_list():
 
 
 def test_default_model_env_override(monkeypatch):
-    from feedlens.ai import pick_default
+    from feedlens.ai.registry import pick_default
     monkeypatch.setenv("GEMINI_MODEL", "gemini-custom")
     assert pick_default("gemini", ["gemini-3.8-flash"]) == "gemini-custom"
 

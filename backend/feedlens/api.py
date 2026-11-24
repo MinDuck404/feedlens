@@ -25,9 +25,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import browser
-from .analyzer import HeuristicAnalyzer, estimate_classification_requests_for_count
-from .ai import (PROVIDERS, forget_models, list_models, pick_default, provider_status, resolve_provider_key,
-                 user_keys)
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.prompts import estimate_classification_requests_for_count
+from feedlens.ai.registry import PROVIDERS
+from feedlens.ai.registry import forget_models
+from feedlens.ai.registry import list_models
+from feedlens.ai.registry import pick_default
+from feedlens.ai.registry import provider_status
+from feedlens.ai.registry import resolve_provider_key
+from feedlens.ai.registry import user_keys
 from .auth import CurrentUser, agent_user, current_user, issue_token, misconfigured
 from .config import BACKEND_DIR, settings
 from .crypto import encrypt, hash_password, key_hint, new_agent_token, sha256, verify_password
@@ -35,7 +41,7 @@ from .db import Database, EmailTaken
 from .export import to_csv, to_json, to_markdown
 from .models import CATEGORIES, RawPost, RunRequest
 from .messages import error_code, progress_message
-from .job_profile import load_profile
+from feedlens.jobs.profile import load_profile
 from .cookies import CookieError, cookie_hint, parse_cookies
 from .pipeline import PROGRESS, _platform_locks, fail_run, request_stop, run_cap, start_analysis, start_ingest, start_run, start_server_run
 from .ai.registry import preferred_provider

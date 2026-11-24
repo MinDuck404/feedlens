@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from feedlens import api, search_api
-from feedlens.analyzer import LLMAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.models import AnalyzedPost, JobInfo, RunRequest
 from tests.test_cloud import _signup, cloud  # noqa: F401 — fixture
 

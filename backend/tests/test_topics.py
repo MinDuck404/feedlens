@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
 from feedlens import api, topics_api
-from feedlens.analyzer import HeuristicAnalyzer, LLMAnalyzer, heuristic_topics
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
+from feedlens.analysis.topics import heuristic_topics
 from feedlens.models import AnalyzedPost, RawPost, Topic
 from tests.test_cloud import cloud, _signup  # noqa: F401 — fixture
 

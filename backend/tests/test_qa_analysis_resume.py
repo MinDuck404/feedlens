@@ -4,7 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 from feedlens import api, pipeline
-from feedlens.analyzer import CLASSIFY_SCHEMA, HeuristicAnalyzer, LLMAnalyzer
+from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.models import RawPost, RunRequest
 from tests.test_cloud import cloud, _signup
 

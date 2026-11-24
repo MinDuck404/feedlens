@@ -4,7 +4,13 @@ import os
 import threading
 import logging
 
-from .base import AIError, AIOutputTruncated, AIProvider, Effort, MAX_OUTPUT_TOKENS, ProviderInfo, decode_output
+from feedlens.ai.base import AIError
+from feedlens.ai.base import AIOutputTruncated
+from feedlens.ai.base import AIProvider
+from feedlens.ai.base import Effort
+from feedlens.ai.base import MAX_OUTPUT_TOKENS
+from feedlens.ai.base import ProviderInfo
+from feedlens.ai.base import decode_output
 
 TIMEOUT_MS = 180_000
 logger = logging.getLogger(__name__)

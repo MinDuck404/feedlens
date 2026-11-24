@@ -2,52 +2,66 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import copy
-from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import Counter
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from typing import Callable
-from .ai import AIProvider
-from .ai.base import AIError, AIOutputTruncated
-from .ai.scheduler import Candidate, MAX_OUTPUT, QuotaScheduler
-from .job_profile import matching_context
-from .models import CATEGORIES, AnalyzedPost, CategoryDigest, Digest, JobInfo, RawPost, Topic, TopicDigest
-from . import analyzer as facade
-from .analysis_prompts import (
-    CLASSIFY_SCHEMA,
-    DIGEST_SCHEMA,
-    KNOWN_JOBS_SCHEMA,
-    _seeded_job,
-    classification_batch_size,
-    system_prompt,
-)
-from .analysis_topics import (
-    RETAG_BATCH,
-    RETAG_SCHEMA,
-    RETAG_SNIPPET,
-    TOPIC_DIGEST_SCHEMA,
-    TOPIC_RULES,
-    _clean_topic_ids,
-    _topic_groups,
-    _with_topic_fields,
-    topics_block,
-)
-from .job_scoring import (
-    _profile_level,
-    _score_job,
-)
-from .heuristic_analyzer import (
-    HeuristicAnalyzer,
-    _first_sentence,
-)
+from feedlens.ai.base import AIProvider
+from feedlens.ai.base import AIError
+from feedlens.ai.base import AIOutputTruncated
+from feedlens.ai.scheduler import Candidate
+from feedlens.ai.scheduler import MAX_OUTPUT
+from feedlens.ai.scheduler import QuotaScheduler
+from feedlens.jobs.profile import matching_context
+from feedlens.models import CATEGORIES
+from feedlens.models import AnalyzedPost
+from feedlens.models import CategoryDigest
+from feedlens.models import Digest
+from feedlens.models import JobInfo
+from feedlens.models import RawPost
+from feedlens.models import Topic
+from feedlens.models import TopicDigest
+from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+from feedlens.analysis.prompts import DIGEST_SCHEMA
+from feedlens.analysis.prompts import KNOWN_JOBS_SCHEMA
+from feedlens.analysis.prompts import _seeded_job
+from feedlens.analysis.prompts import classification_batch_size
+from feedlens.analysis.prompts import system_prompt
+from feedlens.analysis.topics import RETAG_BATCH
+from feedlens.analysis.topics import RETAG_SCHEMA
+from feedlens.analysis.topics import RETAG_SNIPPET
+from feedlens.analysis.topics import TOPIC_DIGEST_SCHEMA
+from feedlens.analysis.topics import TOPIC_RULES
+from feedlens.analysis.topics import _clean_topic_ids
+from feedlens.analysis.topics import _topic_groups
+from feedlens.analysis.topics import _with_topic_fields
+from feedlens.analysis.topics import topics_block
+from feedlens.jobs.scoring import _profile_level
+from feedlens.jobs.scoring import _score_job
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.heuristic import _first_sentence
+
+
+PARALLEL_BATCHES = 4
+MAX_POST_CHARS = 3000
+ProgressFn = Callable[[int, str], None]
+logger = logging.getLogger(__name__)
+RETRIES = 3
+RETRY_BASE_SECONDS = 3.0
+MAX_RETRY_WAIT = 60.0
+_TRANSIENT_CODES = {408, 429, 500, 502, 503, 504, 529}
 
 
 def _retry_after(message: str) -> float | None:
     """Số giây nhà cung cấp yêu cầu chờ ("Please retry in 37.4s", "retryDelay: '37s'"), tối đa MAX_RETRY_WAIT.
     None khi không có, hoặc khi thời gian tính bằng giờ/phút (hạn mức dài: chờ cũng vô ích)."""
     m = re.search(r"retry in ([\d.]+)\s*s\b", message, re.I) or re.search(r"retryDelay\W+([\d.]+)s", message, re.I)
-    return min(float(m.group(1)), facade.MAX_RETRY_WAIT) if m else None
+    return min(float(m.group(1)), MAX_RETRY_WAIT) if m else None
 
 
 def _is_daily_quota(message: str) -> bool:
@@ -59,7 +73,7 @@ def _is_transient(e: Exception) -> bool:
     """Lỗi tạm thời của nhà cung cấp (quá tải, rate limit, 5xx) thì nên thử lại."""
     for attr in ("status_code", "code", "status"):
         v = getattr(e, attr, None)
-        if isinstance(v, int) and v in facade._TRANSIENT_CODES:
+        if isinstance(v, int) and v in _TRANSIENT_CODES:
             return True
     msg = str(e).upper()
     return any(s in msg for s in ("UNAVAILABLE", "OVERLOADED", "RESOURCE_EXHAUSTED", "RATE LIMIT", "TIMEOUT",
@@ -101,11 +115,11 @@ class LLMAnalyzer:
         def state(value):
             self.on_state({**value, **getattr(self._call_context, "batch", {})})
         return self.scheduler.complete_json(self.candidates, system, prompt, schema, effort,
-                                            self.notify, retry_base=facade.RETRY_BASE_SECONDS, on_selected=selected,
+                                            self.notify, retry_base=RETRY_BASE_SECONDS, on_selected=selected,
                                             stop_event=self.stop_event, on_state=state)
 
     def classify(self, posts: list[RawPost], job_mode: bool, keywords: list[str],
-                 profile: str, progress: facade.ProgressFn) -> list[AnalyzedPost]:
+                 profile: str, progress: ProgressFn) -> list[AnalyzedPost]:
         cats = "\n".join(f"- {k}: {v}" for k, v in CATEGORIES.items())
         job_ctx = ""
         cv_profile = getattr(self, "job_profile", None)
@@ -155,7 +169,7 @@ class LLMAnalyzer:
             base_schema = KNOWN_JOBS_SCHEMA if known_jobs else CLASSIFY_SCHEMA
             schema = _with_topic_fields(base_schema) if topics else base_schema
             body = "\n".join(
-                f'<post id="{i}" source="{p.source}" author="{p.author}">\n{p.text[:facade.MAX_POST_CHARS]}\n'
+                f'<post id="{i}" source="{p.source}" author="{p.author}">\n{p.text[:MAX_POST_CHARS]}\n'
                 + ("<job_seed>" + json.dumps(p.job_seed.model_dump(), ensure_ascii=False) + "</job_seed>\n"
                    if p.job_seed is not None else "") + "</post>"
                 for i, (_, p) in enumerate(batch)
@@ -186,7 +200,7 @@ class LLMAnalyzer:
                     invalid = True
                     continue
                 by_id[value] = item
-            log = facade.logger.warning if invalid or not by_id else facade.logger.info
+            log = logger.warning if invalid or not by_id else logger.info
             log("AI classification expected_items=%s returned_items=%s matched_items=%s invalid_ids=%s",
                 len(batch), len(items) if isinstance(items, list) else 0, len(by_id), invalid)
             if invalid or not isinstance(items, list):
@@ -290,7 +304,7 @@ class LLMAnalyzer:
             batch, tokens = [], context_tokens
             for item in indexed:
                 p = item[1]
-                estimate = (len(p.text[:facade.MAX_POST_CHARS]) + len(p.author) + len(p.source)
+                estimate = (len(p.text[:MAX_POST_CHARS]) + len(p.author) + len(p.source)
                             + (len(p.job_seed.model_dump_json()) if p.job_seed else 0)) // 3 + 50
                 if batch and (len(batch) >= batch_size or tpm is not None and tokens + estimate > tpm // 3):
                     batches.append(batch)
@@ -365,7 +379,7 @@ class LLMAnalyzer:
                 for t in topics]
 
     def tag_topics(self, posts: list[AnalyzedPost], topics: list[Topic],
-                   progress: facade.ProgressFn = lambda n, m: None) -> dict[int, tuple[list[int], str]]:
+                   progress: ProgressFn = lambda n, m: None) -> dict[int, tuple[list[int], str]]:
         """Gắn chủ đề cho bài đã có (lượt cũ). Chỉ gửi summary + đoạn đầu để rẻ."""
         allowed = {t.id for t in topics}
         out: dict[int, tuple[list[int], str]] = {}

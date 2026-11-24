@@ -1,7 +1,8 @@
 import pytest
 
 from feedlens.models import RawPost
-from feedlens.post_duplicates import group_posts, normalize_text
+from feedlens.analysis.duplicates import group_posts
+from feedlens.analysis.duplicates import normalize_text
 from tests.test_cloud import cloud, _signup
 
 
@@ -54,7 +55,7 @@ def test_platforms_and_distinct_linkedin_job_ids_stay_separate():
 def test_pipeline_analyzes_only_representatives_and_inherits_results(tmp_path, monkeypatch, provider, variant):
     from sqlalchemy import select
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.db import Database
     from feedlens.db.tables import PostRow
     from feedlens.models import RunRequest
@@ -103,7 +104,7 @@ def test_pipeline_analyzes_only_representatives_and_inherits_results(tmp_path, m
 def test_migration_preserves_old_cards_until_reanalysis(tmp_path, monkeypatch):
     from sqlalchemy import text
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.db import Database
     from feedlens.models import AnalyzedPost, RunRequest
 
@@ -129,7 +130,7 @@ def test_migration_preserves_old_cards_until_reanalysis(tmp_path, monkeypatch):
 
 def test_pipeline_keeps_identical_short_posts_and_hash_collisions(tmp_path, monkeypatch):
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.db import Database
     from feedlens.models import RunRequest
 
@@ -147,7 +148,7 @@ def test_pipeline_keeps_identical_short_posts_and_hash_collisions(tmp_path, monk
 
 def test_api_exposes_sources_and_counts_only_representatives(cloud, monkeypatch):
     from feedlens import api, pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.models import RunRequest
 
     client = cloud()
@@ -171,7 +172,7 @@ def test_api_exposes_sources_and_counts_only_representatives(cloud, monkeypatch)
 
 def test_interrupted_analysis_keeps_duplicate_inheritance_and_retries_only_missing(tmp_path, monkeypatch):
     from feedlens import pipeline
-    from feedlens.analyzer import HeuristicAnalyzer
+    from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.db import Database
     from feedlens.models import RunRequest
 

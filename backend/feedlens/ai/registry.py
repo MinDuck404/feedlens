@@ -13,10 +13,10 @@ from dataclasses import dataclass, field
 
 from ..config import settings
 from ..crypto import decrypt
-from .anthropic_provider import AnthropicProvider
+from feedlens.ai.providers.anthropic import AnthropicProvider
 from .base import AIProvider
-from .gemini_provider import GeminiProvider
-from .openai_provider import OpenAIProvider
+from feedlens.ai.providers.gemini import GeminiProvider
+from feedlens.ai.providers.openai import OpenAIProvider
 
 PROVIDERS: dict[str, type[AIProvider]] = {
     "anthropic": AnthropicProvider,

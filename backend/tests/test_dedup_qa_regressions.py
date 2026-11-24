@@ -5,12 +5,13 @@ import pytest
 from sqlalchemy import select
 
 from feedlens import api, pipeline
-from feedlens.analyzer import HeuristicAnalyzer
+from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db import Database
 from feedlens.db.tables import PostRow
 from feedlens.export import to_csv, to_markdown
 from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
-from feedlens.post_duplicates import group_posts, preserve_post_identities
+from feedlens.analysis.duplicates import group_posts
+from feedlens.analysis.duplicates import preserve_post_identities
 from tests.test_cloud import cloud, _signup
 from tests.test_post_duplicates import TEXT, post
 

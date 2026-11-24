@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .ai import user_keys
+from feedlens.ai.registry import user_keys
 from .ai.registry import preferred_provider
-from .analyzer import get_analyzer
+from feedlens.analysis.analyzer import get_analyzer
 from .auth import CurrentUser, current_user
 from .models import MAX_TOPICS, TOPIC_COLORS, AnalyzedPost, Topic
 

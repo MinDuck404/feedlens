@@ -1,4 +1,7 @@
 """New credentials must not inherit another credential's runtime quota identity."""
+
+import feedlens.ai.registry as ai_registry
+
 from types import SimpleNamespace
 
 import pytest
@@ -55,7 +58,10 @@ def test_rejected_candidates_report_the_actual_local_reason(limits, tokens, reas
 
 
 def test_new_key_added_after_scheduler_creation_is_used_on_continue(cloud, monkeypatch):
-    from feedlens import api, pipeline, analyzer as module, ai_keys_api
+    from feedlens import api
+    from feedlens import pipeline
+    from feedlens.analysis import analyzer as module
+    from feedlens import ai_keys_api
     from feedlens.crypto import encrypt
     from feedlens.models import RawPost, RunRequest
     from tests.test_cloud import _signup
@@ -67,7 +73,7 @@ def test_new_key_added_after_scheduler_creation_is_used_on_continue(cloud, monke
     model = "gemini-3.5-flash-lite"
     scheduler.daily_blocked.add(((old.id, model), pacific_day()))
     monkeypatch.setattr(ai_keys_api, "list_models", lambda *a: [model])
-    monkeypatch.setattr(module, "resolve_models", lambda *a: [model])
+    monkeypatch.setattr(ai_registry, "resolve_models", lambda *a: [model])
     calls = []
     def provider(key, chosen, secret):
         def reply(system, prompt, schema, effort):
@@ -75,7 +81,7 @@ def test_new_key_added_after_scheduler_creation_is_used_on_continue(cloud, monke
             return ({"items": [{"id": 0, "category": "news", "summary": "Read", "is_job": False}]}
                     if "<post " in prompt else {"overall": "Done", "categories": [], "action_items": []})
         return SimpleNamespace(info=SimpleNamespace(key="gemini", name="Gemini"), model=chosen, complete_json=reply)
-    monkeypatch.setattr(module, "get_provider", provider)
+    monkeypatch.setattr(ai_registry, "get_provider", provider)
     response = client.post("/api/ai/keys", headers=headers,
         json={"provider": "gemini", "api_key": "fake-new-secret", "label": "New project"})
     assert response.status_code == 200

@@ -2,7 +2,7 @@
 import pytest
 
 from feedlens import pipeline
-from feedlens.analyzer import HeuristicAnalyzer
+from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db.repository import Database
 from feedlens.models import RawPost, RunRequest
 

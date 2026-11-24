@@ -8,7 +8,7 @@ from .tables import PostRow, RunRow
 
 class PostsMixin:
     def save_raw_posts(self, run_id: int, posts: list[RawPost]) -> None:
-        from ..post_duplicates import preserve_post_identities
+        from feedlens.analysis.duplicates import preserve_post_identities
         posts = preserve_post_identities(posts)
         with self.Session.begin() as s:
             # Rekey legacy hash collisions in place before marking rows pending; preserve post IDs.

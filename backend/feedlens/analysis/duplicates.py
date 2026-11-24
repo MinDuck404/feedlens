@@ -3,9 +3,12 @@ import hashlib
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
-from .models import RawPost
+from feedlens.models import RawPost
 
 
 def normalize_text(text: str) -> str:

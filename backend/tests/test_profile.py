@@ -8,10 +8,20 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from feedlens import api, pipeline
-from feedlens.analyzer import CLASSIFY_SCHEMA, HeuristicAnalyzer, LLMAnalyzer
+from feedlens.analysis.prompts import CLASSIFY_SCHEMA
+from feedlens.analysis.heuristic import HeuristicAnalyzer
+from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.db import Database
-from feedlens.job_profile import (MAX_CV_BYTES, CV_SCHEMA, JobProfile, ProfileError, analyze_cv, extract_cv_pdf,
-                                  load_profile, redact_contacts, relevant_roles, store_profile)
+from feedlens.jobs.profile import MAX_CV_BYTES
+from feedlens.jobs.profile import CV_SCHEMA
+from feedlens.jobs.profile import JobProfile
+from feedlens.jobs.profile import ProfileError
+from feedlens.jobs.profile import analyze_cv
+from feedlens.jobs.profile import extract_cv_pdf
+from feedlens.jobs.profile import load_profile
+from feedlens.jobs.profile import redact_contacts
+from feedlens.jobs.profile import relevant_roles
+from feedlens.jobs.profile import store_profile
 from feedlens.models import JobInfo, RawPost, RunRequest
 from tests.test_cloud import cloud, _signup
 
@@ -169,7 +179,7 @@ def test_primary_role_with_location_conflict_keeps_role_score_and_senior_becomes
 
 
 def test_profile_location_conflict_is_not_applied_to_remote_jobs():
-    from feedlens.analyzer import _location_conflict
+    from feedlens.jobs.scoring import _location_conflict
 
     assert _location_conflict("HCM or remote", "Hà Nội", "onsite") is True
     assert _location_conflict("HCM or remote", "Hà Nội", "remote") is False
@@ -180,7 +190,7 @@ def test_profile_location_conflict_is_not_applied_to_remote_jobs():
 
 
 def test_score_drops_a_wrong_ai_location_flag_when_the_place_fits():
-    from feedlens.analyzer import _score_job
+    from feedlens.jobs.scoring import _score_job
 
     profile = JobProfile(markdown="", primary_roles=["Backend Developer"])
     fits = JobInfo(title="IT Helpdesk", location="Q.12, TP.HCM", work_mode="onsite", match_type="primary",
@@ -194,7 +204,7 @@ def test_score_drops_a_wrong_ai_location_flag_when_the_place_fits():
 
 
 def test_location_extraction_requires_a_recognized_location():
-    from feedlens.analyzer import _extract_location
+    from feedlens.jobs.scoring import _extract_location
 
     assert _extract_location("làm việc tại một trong những công ty startup hàng đầu") == ""
     assert "hcm" in _extract_location("📍 Địa điểm: Q.12, TP.HCM")
@@ -215,7 +225,7 @@ def test_llm_trusts_semantic_primary_for_variant_role_titles():
 
 
 def test_profile_level_uses_criteria_then_markdown():
-    from feedlens.analyzer import _profile_level
+    from feedlens.jobs.scoring import _profile_level
 
     profile = JobProfile(markdown="## Level and years\nJunior developer with 1 year experience")
     assert _profile_level(profile) == ("junior", 1.0)
