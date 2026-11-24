@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { vi, type Key } from "./i18n/vi";
-import { en } from "./i18n/en";
-import { zh } from "./i18n/zh";
+import { vi, type Key } from "./locales/vi";
+import { en } from "./locales/en";
+import { zh } from "./locales/zh";
 
-export type { Key } from "./i18n/vi";
+export type { Key } from "./locales/vi";
 
 /** Đa ngôn ngữ: tự nhận theo trình duyệt (vi / en / zh), người dùng đổi được, lựa chọn lưu trên trình duyệt.
  *  Từ điển tiếng Việt là chuẩn; en và zh bắt buộc có đủ mọi khóa (TypeScript báo lỗi nếu thiếu). */

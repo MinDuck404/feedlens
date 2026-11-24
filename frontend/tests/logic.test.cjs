@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
 const ts = require("typescript");
 
 // Compile the existing TS modules without a second build or a test dependency.
@@ -25,7 +26,7 @@ global.window = new EventTarget();
 global.document = { documentElement: {} };
 
 const { groupName, parseTimestamp, serialWriter, isRemoteText } = require("../src/lib/logic.ts");
-const i18n = require("../src/i18n.tsx");
+const i18n = require("../src/i18n/index.tsx");
 const { api, ApiError } = require("../src/api/client.ts");
 const React = require("react");
 
@@ -288,27 +289,45 @@ test("large count captions render each localized count once in every locale", ()
 });
 
 test("all locales have identical keys and interpolation variables", () => {
-  const dictionaries = {};
+  const dictionaries = {}, namespaces = {};
+  const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
   for (const lang of ["vi", "en", "zh"]) {
-    const filename = require.resolve(`../src/i18n/${lang}.ts`);
-    const source = fs.readFileSync(filename, "utf8");
-    const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    function visit(node) {
-      if (ts.isVariableDeclaration(node) && node.name.getText(ast) === lang) {
-        const entries = node.initializer.properties.map((p) => [p.name.text, p.initializer.text]);
-        dictionaries[lang] = new Map(entries);
-        assert.equal(entries.length, dictionaries[lang].size, "duplicate dictionary key");
+    const folder = path.resolve(__dirname, "../src/i18n/locales", lang);
+    const files = fs.readdirSync(folder).filter((name) => name.endsWith(".ts") && name !== "index.ts").sort();
+    assert.ok(files.length, `${lang}: no namespaces found`);
+    dictionaries[lang] = new Map();
+    namespaces[lang] = new Map();
+    for (const filename of files) {
+      const source = fs.readFileSync(path.join(folder, filename), "utf8");
+      const ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const declaration = ast.statements.flatMap((node) => ts.isVariableStatement(node) ? [...node.declarationList.declarations] : [])
+        .find((node) => node.name.getText(ast) === path.basename(filename, ".ts"));
+      assert.ok(declaration && ts.isObjectLiteralExpression(declaration.initializer), `${lang}/${filename}: dictionary missing`);
+      const entries = declaration.initializer.properties.map((p) => {
+        assert.ok(ts.isPropertyAssignment(p) && ts.isStringLiteral(p.name) && ts.isStringLiteral(p.initializer), `${lang}/${filename}: expected a string entry`);
+        return [p.name.text, p.initializer.text];
+      });
+      const dictionary = new Map(entries);
+      assert.ok(entries.length, `${lang}/${filename}: empty dictionary`);
+      assert.equal(entries.length, dictionary.size, `${lang}/${filename}: duplicate dictionary key`);
+      namespaces[lang].set(filename, dictionary);
+      for (const [key, value] of entries) {
+        assert.ok(!dictionaries[lang].has(key), `${lang}/${filename}: duplicate key across namespaces: ${key}`);
+        dictionaries[lang].set(key, value);
       }
-      ts.forEachChild(node, visit);
     }
-    visit(ast);
-    assert.ok(dictionaries[lang], `${lang} dictionary missing`);
+    const merged = require(`../src/i18n/locales/${lang}/index.ts`)[lang];
+    assert.deepEqual(merged, Object.fromEntries(dictionaries[lang]), `${lang}: index must include every namespace`);
   }
   for (const lang of ["en", "zh"]) {
     assert.deepEqual([...dictionaries[lang].keys()].sort(), [...dictionaries.vi.keys()].sort());
-    for (const [key, value] of dictionaries.vi) {
-      const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-      assert.deepEqual(placeholders(dictionaries[lang].get(key)), placeholders(value), `${lang}: ${key}`);
+    assert.deepEqual([...namespaces[lang].keys()], [...namespaces.vi.keys()], `${lang}: namespace files differ`);
+    for (const [filename, dictionary] of namespaces.vi) {
+      const translated = namespaces[lang].get(filename);
+      assert.deepEqual([...translated.keys()].sort(), [...dictionary.keys()].sort(), `${lang}/${filename}: namespace keys differ`);
+      for (const [key, value] of dictionary) {
+        assert.deepEqual(placeholders(translated.get(key)), placeholders(value), `${lang}/${filename}: ${key}`);
+      }
     }
   }
 });
