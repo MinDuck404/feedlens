@@ -101,7 +101,7 @@ def test_client_and_bad_request_configuration_do_not_consume_daily_quota(tmp_pat
     db = Database(f"sqlite:///{tmp_path / 'configuration.db'}")
     key = db.add_key(db.local_user_id(), "gemini", "fake", "hint")
     clock = Clock(); provider = Provider("gemini-3.5-flash-lite", clock)
-    error = TypeError("unsupported thinking_level SECRET-DO-NOT-LOG") if status is None else RuntimeError("400 INVALID_ARGUMENT, project 429123: SECRET-DO-NOT-LOG")
+    error = TypeError("unsupported thinking_level sk-SECRET-DO-NOT-LOG") if status is None else RuntimeError("400 INVALID_ARGUMENT, project 429123: sk-SECRET-DO-NOT-LOG")
     if status:
         error.status_code = status
     calls = []
@@ -114,6 +114,8 @@ def test_client_and_bad_request_configuration_do_not_consume_daily_quota(tmp_pat
     with pytest.raises(Exception, match="configuration") as failure:
         scheduler.complete_json([Candidate(key.id, provider)], "s", "p", {}, on_state=states.append)
     assert "SECRET-DO-NOT-LOG" not in str(failure.value)
+    assert "SECRET-DO-NOT-LOG" not in str(states)
+    assert ("thinking_level" if status is None else "INVALID_ARGUMENT") in str(failure.value)
     assert not isinstance(failure.value, QuotaExhausted) and len(calls) == 1
     assert db.ai_usage(key.id, pacific_day())[provider.model]["requests"] == 0
     assert states[-1]["candidates"][0]["reason"] == "configuration"

@@ -167,8 +167,8 @@ class QuotaScheduler:
                   "project_shared": bool(project), "estimated_tokens": est_tokens,
                   "limit_tpm": limits.tpm, "limit_rpd": limits.rpd,
                   "requests_today": self.daily_requests(candidate, day), **failure}
-        if candidate.disabled and failure.get("kind") in {"auth", "model_missing"}:
-            reason = "invalid_key" if failure["kind"] == "auth" else "model_missing"
+        if candidate.disabled and failure.get("kind") in {"auth", "billing", "model_missing"}:
+            reason = "model_missing" if failure["kind"] == "model_missing" else "invalid_key"
         elif 0 in (limits.rpm, limits.tpm, limits.rpd):
             reason = "zero_quota"
             detail["metric"] = next(name for name, value in (("RPM", limits.rpm), ("TPM", limits.tpm), ("RPD", limits.rpd)) if value == 0)
@@ -286,6 +286,12 @@ class QuotaScheduler:
                     return candidate
                 if not waiting:
                     rejected = [self.rejection(c, est_tokens, day) for c in candidates]
+                    if rejected and all(item["reason"] == "invalid_key" for item in rejected):
+                        message = ("AI billing failed for all enabled AI keys; add credits or enable billing, then retry."
+                                   if any(item.get("kind") == "billing" for item in rejected) else
+                                   "401 Authentication failed for all enabled AI keys")
+                        on_state({"state": "error", "daily": False, "candidates": rejected, "detail": message})
+                        raise AIError(message) from None
                     available = [item for item in rejected if item["reason"] not in
                                  {"provider_daily", "daily_limit", "zero_quota", "invalid_key", "model_missing"}]
                     if available and all(item["reason"] == "service_unavailable" for item in available):
@@ -377,18 +383,25 @@ class QuotaScheduler:
             except Exception as exc:
                 message = str(exc)
                 status = next((getattr(exc, k, None) for k in ("status_code", "code", "status") if isinstance(getattr(exc, k, None), int)), None)
-                if status is None and (code := re.match(r"\s*(?:HTTP\s+)?(5\d\d)\b", message, re.I)):
+                if status is None and (code := re.match(r"\s*(?:HTTP\s+)?(402|5\d\d)\b", message, re.I)):
                     status = int(code[1])
                 if status is None and re.search(r"\b400\b.*INVALID_ARGUMENT", message, re.I):
                     status = 400
+                lowered = message.lower()
+                billing = (status == 402 or any(fragment in lowered for fragment in (
+                    "credit balance is too low", "insufficient_quota", "payment required"))
+                    or "billing" in lowered and any(fragment in lowered for fragment in ("not active", "disabled", "required")))
                 configuration = status == 400 or isinstance(exc, (TypeError, ValueError))
-                if configuration:
+                if configuration and not billing:
                     self._release_invalid_request(candidate, reservation, unsent=status is None)
+                    safe_message = re.sub(r"sk-[a-z0-9_-]+|AIza[a-z0-9_-]+|[a-z0-9_+/-]{25,}={0,2}",
+                                          "[REDACTED]", " ".join(message.split()), flags=re.I)[:300]
                     detail = {**self.rejection(candidate, est_tokens, pacific_day(self.now())),
-                              "reason": "configuration", "status": status or 0}
-                    on_state(candidate.progress("error", candidates=[detail]))
+                              "reason": "configuration", "status": status or 0, "detail": safe_message}
+                    on_state(candidate.progress("error", candidates=[detail], detail=safe_message))
                     raise AIConfigurationError(f"AI request configuration failed for {candidate.client.info.name} ({candidate.model})"
-                                               + (f"; HTTP {status}" if status else "; client validation failed")) from None
+                                               + (f"; HTTP {status}" if status else "; client validation failed")
+                                               + f": {safe_message}") from None
                 auth = status in {401, 403} or bool(re.search(r"\b(?:401|403)\b|UNAUTHENTICATED|invalid api.?key", message, re.I))
                 daily = daily_quota_error(message)
                 rate = status == 429 or bool(re.search(r"\b429\b|RESOURCE_EXHAUSTED", message, re.I))
@@ -399,7 +412,7 @@ class QuotaScheduler:
                 transient = (isinstance(exc, (ConnectionError, TimeoutError, OSError)) or status in {408, 500, 502, 503, 504, 529}
                              or bool(re.search(r"UNAVAILABLE|OVERLOADED|TIMEOUT|TIMED OUT|HIGH DEMAND|CONNECTION|CONNECTERROR|GETADDRINFO|DNS|SOCKET", message, re.I)))
                 with self.lock:
-                    if service:
+                    if billing or service:
                         self._release_invalid_request(candidate, reservation, unsent=False)
                     provider = getattr(candidate.client.info, "key", "")
                     if provider == "gemini" and (project := re.search(r"(?:projects/|project[_ ]?id\W+)([\w-]+)", message, re.I)):
@@ -412,16 +425,15 @@ class QuotaScheduler:
                         candidate.service_deadline = None
                         self.service_until.pop(pair, None)
                         self.service_failures.pop(pair, None)
-                    self.last_failures[candidate.pair] = {"kind": "auth" if auth else "model_missing" if missing else
-                                                         "daily" if daily else "rate_limit" if rate else "service" if service else "network" if transient else "other",
-                                                         "status": status or 0}
-                    if auth:
+                    self.last_failures[candidate.pair] = {"kind": "billing" if billing else "auth" if auth else "model_missing" if missing else
+                                                          "daily" if daily else "rate_limit" if rate else "service" if service else "network" if transient else "other",
+                                                          "status": status or 0}
+                    if billing or auth:
                         for c in candidates:
                             if c.key_id == candidate.key_id:
                                 c.disabled = True
+                                self.last_failures[c.pair] = self.last_failures[candidate.pair].copy()
                         self.status[candidate.key_id] = "invalid"
-                        if all(c.disabled and self.status.get(c.key_id) == "invalid" for c in candidates):
-                            raise AIError("401 Authentication failed for all enabled AI keys") from None
                     elif daily:
                         self.daily_blocked.add((pair, pacific_day(self.now())))
                         self.learned[pair] = learn_limits(message, self.limits(candidate))

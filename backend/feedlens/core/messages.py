@@ -15,6 +15,8 @@ def error_code(message: str, status: int = 500, *, run_error: bool = False, anal
         return "error.ai_key_unavailable"
     if "AI service temporarily unavailable" in message:
         return "error.ai_service_paused"
+    if "AI billing failed" in message:
+        return "error.ai_billing"
     if "AI request configuration failed" in message:
         return "error.ai_configuration"
     if "AI request exceeds TPM" in message:
