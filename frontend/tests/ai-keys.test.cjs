@@ -10,7 +10,7 @@ for (const extension of [".ts", ".tsx"]) require.extensions[extension] = (module
 };
 global.localStorage = { getItem: () => "en", setItem() {}, removeItem() {} };
 global.window = new EventTarget(); global.document = { documentElement: {} };
-const React = require("react"), { api } = require("../src/api.ts");
+const React = require("react"), { api } = require("../src/api/client.ts");
 const Component = require("../src/components/AIProviderKeys.tsx").default;
 const { TextField } = require("../src/components/ui/TextField.tsx");
 const tick = () => new Promise(setImmediate);

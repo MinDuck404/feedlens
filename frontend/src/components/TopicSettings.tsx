@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api } from "../api";
+import { api } from "../api/client";
 import { useI18n, type Key } from "../i18n";
-import { TOPIC_INKS, topicColor } from "../topics";
-import type { Topic, TopicApplyStatus, TopicColor } from "../types";
+import { TOPIC_INKS, topicColor } from "../lib/topics";
+import type { Topic, TopicApplyStatus, TopicColor } from "../api/types";
 import { Button, EmptyState, SkeletonCard, TextField } from "./ui";
 
 const blank = (): Omit<Topic, "id"> & { id?: number } => ({ name: "", description: "", include_keywords: [], exclude_keywords: [], enabled: true, color: "red" });

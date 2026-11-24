@@ -1,8 +1,8 @@
 import { Briefcase, Check, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 import { formatNumber, useI18n, type Key } from "../../i18n";
-import { isRemoteText, jobPresentation, matchesJobType } from "../../logic";
-import type { Post } from "../../types";
+import { isRemoteText, jobPresentation, matchesJobType } from "../../lib/logic";
+import type { Post } from "../../api/types";
 import { EmptyState, Select } from "../ui";
 import { PostSources } from "./PostList";
 

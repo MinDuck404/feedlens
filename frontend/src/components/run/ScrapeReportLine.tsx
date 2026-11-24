@@ -1,8 +1,8 @@
 import { ChevronDown, History, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { useI18n, type Key } from "../../i18n";
-import { formatDuration, runTimingSummary, scrapeSourceRows, type TimingKey } from "../../logic";
-import type { Preferences, RunRequest, SavedGroup, ScrapeReport } from "../../types";
+import { formatDuration, runTimingSummary, scrapeSourceRows, type TimingKey } from "../../lib/logic";
+import type { Preferences, RunRequest, SavedGroup, ScrapeReport } from "../../api/types";
 
 export function savedGroupsFor(prefs: Preferences | null | undefined, request: RunRequest): SavedGroup[] {
   const stored = (prefs as { saved_sources?: Record<string, SavedGroup[]> } | null | undefined)?.saved_sources ?? {};

@@ -1,8 +1,8 @@
 import { Check, Trash2 } from "lucide-react";
-import { groupName } from "../../logic";
+import { groupName } from "../../lib/logic";
 import { useI18n } from "../../i18n";
-import { PLATFORM_MODES, jobProfileSuggestions, sourceLines, type ModeDraft, type PlatformMode } from "../../platformModes";
-import type { JobProfile, Mode, Platform, SavedGroup } from "../../types";
+import { PLATFORM_MODES, jobProfileSuggestions, sourceLines, type ModeDraft, type PlatformMode } from "../../lib/platformModes";
+import type { JobProfile, Mode, Platform, SavedGroup } from "../../api/types";
 import { Button, IconButton, Select, SegmentedControl, TextField } from "../ui";
 import { Group, Toggle } from "./Controls";
 

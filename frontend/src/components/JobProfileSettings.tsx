@@ -1,8 +1,8 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { api } from "../api";
+import { api } from "../api/client";
 import { useI18n, type Key } from "../i18n";
-import type { AIProviderInfo, JobProfile } from "../types";
+import type { AIProviderInfo, JobProfile } from "../api/types";
 import { Button, Select, SkeletonCard, TextField } from "./ui";
 
 const EMPTY: JobProfile = { markdown: "", criteria: { work_modes: [], locations: [], min_salary: null, currency: "VND", level: "" }, primary_roles: [], adjacent_roles: [], allow_adjacent: true };

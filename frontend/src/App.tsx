@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, auth } from "./api";
+import { api, auth } from "./api/client";
 import Composer from "./components/Composer";
 import Login from "./components/Login";
 import Settings from "./components/Settings";
@@ -13,7 +13,7 @@ import { Button } from "./components/ui/Button";
 import { Skeleton, SkeletonCard } from "./components/ui/Skeleton";
 import { useI18n } from "./i18n";
 import { navigate, routeHref, useRoute } from "./router";
-import type { Me, Meta, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { Me, Meta, PlatformState, Preferences, Run, RunRequest } from "./api/types";
 
 export default function App() {
   const [meta, setMeta] = useState<Meta | null>(null);

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../api";
+import { api } from "../../api/client";
 import { formatNumber, useI18n } from "../../i18n";
-import { jobPresentation } from "../../logic";
+import { jobPresentation } from "../../lib/logic";
 import type { RunTab } from "../../router";
-import { filterTopicPosts, topicColor } from "../../topics";
-import type { Meta, Run, Topic } from "../../types";
+import { filterTopicPosts, topicColor } from "../../lib/topics";
+import type { Meta, Run, Topic } from "../../api/types";
 import { DigestView } from "./DigestView";
 import { JobsBoard } from "./JobsBoard";
 import { PostList } from "./PostList";

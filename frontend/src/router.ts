@@ -1,5 +1,5 @@
-import type { SearchFilters } from "./types";
-import { readSearchParams, searchParams } from "./search";
+import type { SearchFilters } from "./api/types";
+import { readSearchParams, searchParams } from "./lib/search";
 import { useEffect, useState } from "react";
 
 /** Router dựa trên hash (#/...): chạy được với server local lẫn GitHub Pages mà không cần cấu hình,

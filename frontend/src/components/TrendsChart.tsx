@@ -1,9 +1,9 @@
 import { useId, useState, type PointerEvent, type KeyboardEvent } from "react";
-import type { SearchFilters, TrendsResponse } from "../types";
+import type { SearchFilters, TrendsResponse } from "../api/types";
 import { useI18n, formatNumber } from "../i18n";
 import { routeHref } from "../router";
-import { trendSearchFilters } from "../search";
-import { trendColor, trendPath, trendPoints } from "../trends";
+import { trendSearchFilters } from "../lib/search";
+import { trendColor, trendPath, trendPoints } from "../lib/trends";
 
 interface Props {
   data: TrendsResponse;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { api } from "../../api";
+import { api } from "../../api/client";
 import { serverMessage, useI18n } from "../../i18n";
-import { formatDuration } from "../../logic";
-import type { Run } from "../../types";
+import { formatDuration } from "../../lib/logic";
+import type { Run } from "../../api/types";
 import { Button } from "../ui";
 import { QuotaDiagnostics, RetryAnalysis } from "./RetryAnalysis";
 

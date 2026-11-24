@@ -1,5 +1,5 @@
-import type { Key } from "./i18n";
-import type { Job, Post, RunRequest, SavedGroup, ScrapeSourceReport, StopReason } from "./types";
+import type { Key } from "../i18n";
+import type { Job, Post, RunRequest, SavedGroup, ScrapeSourceReport, StopReason } from "../api/types";
 import { PLATFORM_LABEL } from "./categories";
 
 type SourceRequest = Pick<RunRequest, "platform" | "source_type" | "sources"> & Partial<Pick<RunRequest, "mode" | "options">>;

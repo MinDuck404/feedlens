@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ExternalLink, Search, X } from "lucide-react";
-import { api } from "../api";
+import { api } from "../api/client";
 import { formatNumber, useI18n, type Key } from "../i18n";
-import { questionHistory, textParts } from "../search";
+import { questionHistory, textParts } from "../lib/search";
 import { routeHref } from "../router";
-import { topicColor } from "../topics";
-import type { AskResponse, SearchFilters, SearchPost, SearchResponse, Topic } from "../types";
+import { topicColor } from "../lib/topics";
+import type { AskResponse, SearchFilters, SearchPost, SearchResponse, Topic } from "../api/types";
 import { Button, Dialog, EmptyState, SegmentedControl, Select, SkeletonCard, TextField } from "./ui";
 
 interface Props { initialFilters?: SearchFilters; account: string; onNewRun: () => void; onSettings: () => void }

@@ -1,8 +1,8 @@
 import { ExternalLink, FileSearch } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../i18n";
-import { filterTopicPosts, topicColor } from "../../topics";
-import type { Post, Topic } from "../../types";
+import { filterTopicPosts, topicColor } from "../../lib/topics";
+import type { Post, Topic } from "../../api/types";
 import { EmptyState } from "../ui";
 import { categoryTone } from "./runPostFilters";
 

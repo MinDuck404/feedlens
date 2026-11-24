@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { api } from "../../api";
+import { api } from "../../api/client";
 import { useI18n } from "../../i18n";
 import { IconButton, Select } from "../ui";
 

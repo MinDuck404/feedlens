@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
-import { PLATFORM_LABEL } from "../categories";
+import { api } from "../api/client";
+import { PLATFORM_LABEL } from "../lib/categories";
 import { formatNumber, useI18n } from "../i18n";
 import { Sheet, Button, Skeleton, Select, SegmentedControl } from "./ui";
 import { Group, ModelPicker, Toggle } from "./composer/Controls";
 import { JobCriteria } from "./composer/JobCriteria";
 import { links, SourceMode } from "./composer/SourceMode";
 import { applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode,
-  migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../platformModes";
+  migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../lib/platformModes";
 import type {
   AIProviderInfo, JobProfile, Me, Meta, Mode, ModeOptions, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup,
-} from "../types";
+} from "../api/types";
 
 export { ModelPicker };
 

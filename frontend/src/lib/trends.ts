@@ -1,5 +1,5 @@
 import { TOPIC_INKS, topicColor } from "./topics";
-import type { TopicColor } from "./types";
+import type { TopicColor } from "../api/types";
 
 export function trendColor(hex: string): string {
   const key = (Object.keys(TOPIC_INKS) as TopicColor[]).find((key) => TOPIC_INKS[key][0].toLowerCase() === hex.toLowerCase());

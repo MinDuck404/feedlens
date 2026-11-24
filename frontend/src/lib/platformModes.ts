@@ -1,5 +1,5 @@
-import type { Key } from "./i18n";
-import type { JobProfile, Mode, ModeOptions, Platform, Preferences, RunRequest, SavedGroup, SourceType } from "./types";
+import type { Key } from "../i18n";
+import type { JobProfile, Mode, ModeOptions, Platform, Preferences, RunRequest, SavedGroup, SourceType } from "../api/types";
 
 type OptionValue = string | number | boolean | string[] | null;
 export interface ModeDraft { sourceText: string; sourceEntry?: string; count: number; options: Record<string, OptionValue> }

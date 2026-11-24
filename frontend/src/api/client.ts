@@ -1,6 +1,6 @@
-import { serverMessage, translate } from "./i18n";
-import { searchParams } from "./search";
-import { serialWriter } from "./logic";
+import { serverMessage, translate } from "../i18n";
+import { searchParams } from "../lib/search";
+import { serialWriter } from "../lib/logic";
 import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIKey, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).

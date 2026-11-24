@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { api } from "../../api";
+import { api } from "../../api/client";
 import { useI18n, type Key } from "../../i18n";
-import type { AIProviderInfo, Run } from "../../types";
+import type { AIProviderInfo, Run } from "../../api/types";
 import { ModelPicker } from "../Composer";
 import { Button, Select } from "../ui";
 

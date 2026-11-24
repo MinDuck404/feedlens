@@ -1,4 +1,4 @@
-import type { Post, TopicColor } from "./types";
+import type { Post, TopicColor } from "../api/types";
 
 // Shared print inks for topic tags and trend series, in light/dark order.
 export const TOPIC_INKS: Record<TopicColor, readonly [string, string]> = {

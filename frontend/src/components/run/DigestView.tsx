@@ -1,7 +1,7 @@
 import { Check, ExternalLink } from "lucide-react";
 import { useI18n } from "../../i18n";
-import { topicColor } from "../../topics";
-import type { Post, Run, Topic } from "../../types";
+import { topicColor } from "../../lib/topics";
+import type { Post, Run, Topic } from "../../api/types";
 import { categoryTone } from "./runPostFilters";
 
 export function DigestView({ d, name, posts, topics, onTopic, onCategory }: { d: NonNullable<Run["digest"]>; name: (c: string) => string; posts: Post[]; topics: Topic[]; onTopic: (id: number) => void; onCategory: (category: string) => void }) {

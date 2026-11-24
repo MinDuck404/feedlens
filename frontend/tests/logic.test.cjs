@@ -25,9 +25,9 @@ Object.defineProperty(global, "navigator", { configurable: true, value: { langua
 global.window = new EventTarget();
 global.document = { documentElement: {} };
 
-const { groupName, parseTimestamp, serialWriter, isRemoteText } = require("../src/logic.ts");
+const { groupName, parseTimestamp, serialWriter, isRemoteText } = require("../src/lib/logic.ts");
 const i18n = require("../src/i18n.tsx");
-const { api, ApiError } = require("../src/api.ts");
+const { api, ApiError } = require("../src/api/client.ts");
 const React = require("react");
 
 test("quota diagnostics identify each key/model and distinguish zero quota from oversized requests", () => {
@@ -102,7 +102,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 
 test("missing source requests and missing topic payloads do not crash a run", async () => {
-  const { describeRunSource } = require("../src/logic.ts");
+  const { describeRunSource } = require("../src/lib/logic.ts");
   assert.equal(describeRunSource(undefined, i18n.translate), i18n.translate("run.unknownSource"));
   const { Done } = require("../src/components/RunView.tsx");
   const oldTopics = api.topics, oldContext = React.useContext, oldLocation = window.location;
@@ -152,7 +152,7 @@ test("malformed and Unicode saved group names render without crashing", () => {
 });
 
 test("source scrape rows use saved names and treat missing status as complete", () => {
-  const { scrapeSourceRows } = require("../src/logic.ts");
+  const { scrapeSourceRows } = require("../src/lib/logic.ts");
   const rows = scrapeSourceRows([
     { label: "https://facebook.com/groups/tech/", target: 5, collected: 4, skipped_old: 0, stop_reason: "target_reached" },
     { label: "https://facebook.com/groups/123/", target: 20, collected: 0, skipped_old: 7, stop_reason: "caught_up", status: "running" },
@@ -167,7 +167,7 @@ test("source scrape rows use saved names and treat missing status as complete", 
 });
 
 test("offline completed run can offer full AI reanalysis", () => {
-  const { canReanalyzeOffline } = require("../src/logic.ts");
+  const { canReanalyzeOffline } = require("../src/lib/logic.ts");
   assert.equal(canReanalyzeOffline({ status: "done", ai_label: "bộ lọc từ khóa offline", posts: [{}] }), true);
   assert.equal(canReanalyzeOffline({ status: "analyzing", ai_label: "bộ lọc từ khóa offline", posts: [{}] }), false);
   assert.equal(canReanalyzeOffline({ status: "done", ai_label: "OpenAI", posts: [{}] }), false);
@@ -175,7 +175,7 @@ test("offline completed run can offer full AI reanalysis", () => {
 });
 
 test("run source descriptions localize new modes and retain legacy surface labels", () => {
-  const { describeRunSource } = require("../src/logic.ts");
+  const { describeRunSource } = require("../src/lib/logic.ts");
   const context = hooks(i18n.I18nProvider);
   try {
     for (const lang of ["vi", "en", "zh"]) {
@@ -198,7 +198,7 @@ test("run source descriptions localize new modes and retain legacy surface label
 });
 
 test("Jobs default only applies to bare LinkedIn Jobs URLs", () => {
-  const { defaultRunTab } = require("../src/logic.ts");
+  const { defaultRunTab } = require("../src/lib/logic.ts");
   const req = { platform: "linkedin", mode: "jobs" };
   assert.equal(defaultRunTab(req, "#/runs/12"), "jobs");
   assert.equal(defaultRunTab(req, "#/runs/12?foo=bar"), "jobs");
@@ -208,7 +208,7 @@ test("Jobs default only applies to bare LinkedIn Jobs URLs", () => {
 });
 
 test("observed job seed takes precedence without changing AI assessment or original data", () => {
-  const { jobPresentation } = require("../src/logic.ts");
+  const { jobPresentation } = require("../src/lib/logic.ts");
   const post = { url: "https://example.com/wrong", job: { title: "AI title", company: "AI company", location: "AI location", salary: "AI salary", work_mode: "onsite", match_score: 88, contact: "hr@example.test", match_reason: "CV fits" },
     job_seed: { title: "Python", company: "Observed company", location: "Hà Nội", salary_text: "30M", work_mode: "remote", url: "https://www.linkedin.com/jobs/view/123/" } };
   const result = jobPresentation(post);
@@ -470,7 +470,7 @@ test("saved sessions remain unchecked until verification and offer login only wh
 
 
 test("match type filtering preserves legacy jobs and isolates primary, adjacent and stretch", () => {
-  const { matchesJobType } = require("../src/logic.ts");
+  const { matchesJobType } = require("../src/lib/logic.ts");
   const types = ["primary", "adjacent", "stretch", "none", null, undefined];
   assert.equal(types.filter((type) => matchesJobType(type, "all")).length, 6);
   assert.deepEqual(types.filter((type) => matchesJobType(type, "primary")), ["primary"]);
@@ -665,7 +665,7 @@ test("theme preference applies explicit overrides and restores system styling be
 });
 
 test("continue analysis depends on saved content, not the failure status name", () => {
-  const { canContinueAnalysis } = require("../src/logic.ts");
+  const { canContinueAnalysis } = require("../src/lib/logic.ts");
   for (const status of ["error", "analysis_failed", "done"]) {
     assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: true }], digest: null }), true);
     assert.equal(canContinueAnalysis({ status, posts: [{ analyzed: false }], digest: {} }), true);
@@ -680,7 +680,7 @@ test("continue analysis depends on saved content, not the failure status name", 
 
 
 test("topic filters combine safely with category filters and support multiple tags", () => {
-  const { filterTopicPosts, TOPIC_INKS, topicColor } = require("../src/topics.ts");
+  const { filterTopicPosts, TOPIC_INKS, topicColor } = require("../src/lib/topics.ts");
   const posts = [{ id: 1, category: "tech", topic_ids: [4, 7] }, { id: 2, category: "job", topic_ids: [7] }, { id: 3, category: "tech" }];
   assert.equal(filterTopicPosts(posts, null), posts);
   assert.deepEqual(filterTopicPosts(posts, 4).map((p) => p.id), [1]);
@@ -710,7 +710,7 @@ test("topics CRUD, quick test and background progress use the backend contract",
 
 
 test("trend paths stay within a zero-based plot and handle one point", () => {
-  const { trendPoints, trendPath, trendColor } = require("../src/trends.ts");
+  const { trendPoints, trendPath, trendColor } = require("../src/lib/trends.ts");
   const points = trendPoints([0, 4, 0, 2], 730, 280, 4);
   assert.deepEqual(points.map((p) => p.y), [280, 0, 280, 140]);
   assert.ok(points.every((p) => p.x >= 0 && p.x <= 730 && p.y >= 0 && p.y <= 280));
@@ -750,7 +750,7 @@ test("changing trend filters cannot be overwritten by an older response", async 
 
 
 test("search links preserve repeated filters and explicit false without accepting unknown keys", () => {
-  const { searchParams, readSearchParams, trendSearchFilters } = require("../src/search.ts");
+  const { searchParams, readSearchParams, trendSearchFilters } = require("../src/lib/search.ts");
   const { parseRoute, routeHref } = require("../src/router.ts");
   const filters = { q: "React & 中文", categories: ["job", "tech"], topic_ids: [3, 5], has_link: false, min_score: 0 };
   assert.deepEqual(readSearchParams(searchParams(filters)), filters);
@@ -761,7 +761,7 @@ test("search links preserve repeated filters and explicit false without acceptin
 });
 
 test("snippet and citation tokens keep markup inert and link only returned post IDs", () => {
-  const { textParts, questionHistory } = require("../src/search.ts");
+  const { textParts, questionHistory } = require("../src/lib/search.ts");
   assert.deepEqual(textParts('<img src=x onerror=alert(1)> «React»', "snippet"), [{ text: '<img src=x onerror=alert(1)> ' }, { text: "React", highlight: true }]);
   assert.deepEqual(textParts("See [#12] and [#999]", "citation", [12]), [{ text: "See " }, { text: "[#12]", id: 12 }, { text: " and " }, { text: "[#999]" }]);
   const history = questionHistory(Array.from({ length: 30 }, (_, i) => `Question ${i}`), "Question 5");

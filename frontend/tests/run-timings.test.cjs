@@ -12,7 +12,7 @@ for (const extension of [".ts", ".tsx"]) {
   };
 }
 global.localStorage = { getItem: () => null, setItem: () => {} };
-const { formatDuration, runTimingSummary } = require("../src/logic.ts");
+const { formatDuration, runTimingSummary } = require("../src/lib/logic.ts");
 
 test("formatDuration uses minutes and seconds per language", () => {
   assert.equal(formatDuration(192.4, "vi"), "3 phút 12 giây");

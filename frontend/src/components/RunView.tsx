@@ -1,10 +1,10 @@
 import { RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ApiError, api } from "../api";
+import { ApiError, api } from "../api/client";
 import { serverMessage, useI18n } from "../i18n";
 import { routeHref, type RunTab } from "../router";
-import type { Meta, Preferences, Run, RunRequest } from "../types";
-import { canContinueAnalysis, canReanalyzeOffline, defaultRunTab, describeRunSource, parseTimestamp } from "../logic";
+import type { Meta, Preferences, Run, RunRequest } from "../api/types";
+import { canContinueAnalysis, canReanalyzeOffline, defaultRunTab, describeRunSource, parseTimestamp } from "../lib/logic";
 import { Button, IconButton, Skeleton, SkeletonCard } from "./ui";
 import { Done } from "./run/Done";
 import { InProgress } from "./run/InProgress";

@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import { useId, useState } from "react";
-import { api, auth, ApiError } from "../api";
+import { api, auth, ApiError } from "../api/client";
 import { serverMessage, useI18n } from "../i18n";
 import { Button } from "./ui/Button";
 import { TextField } from "./ui/TextField";

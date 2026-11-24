@@ -1,4 +1,4 @@
-import type { SearchFilters, TrendsResponse } from "./types";
+import type { SearchFilters, TrendsResponse } from "../api/types";
 
 const arrays = ["categories", "topic_ids", "work_modes", "locations"];
 const singles = ["q", "platform", "date_from", "date_to", "job_only", "min_salary_vnd", "min_score", "match_type", "has_link", "has_github"];

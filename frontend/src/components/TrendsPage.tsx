@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { TrendingUp, Layers, Sparkles, AlertCircle } from "lucide-react";
-import { api } from "../api";
+import { api } from "../api/client";
 import { formatNumber, useI18n } from "../i18n";
-import type { TrendsResponse } from "../types";
+import type { TrendsResponse } from "../api/types";
 import { TrendsChart } from "./TrendsChart";
 import { Button } from "./ui/Button";
 import { EmptyState } from "./ui/EmptyState";

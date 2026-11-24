@@ -1,8 +1,8 @@
 import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { parseTimestamp } from "../logic";
-import { API_BASE, api } from "../api";
-import type { AIKey, AIProviderInfo, Me, Meta, Preferences } from "../types";
+import { parseTimestamp } from "../lib/logic";
+import { API_BASE, api } from "../api/client";
+import type { AIKey, AIProviderInfo, Me, Meta, Preferences } from "../api/types";
 import AIProviderKeys from "./AIProviderKeys";
 import CookieSessions from "./CookieSessions";
 import TopicSettings from "./TopicSettings";
