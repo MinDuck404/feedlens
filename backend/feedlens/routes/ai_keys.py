@@ -17,6 +17,9 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
+from pydantic import ValidationError
+from pydantic import ValidatorFunctionWrapHandler
+from pydantic import model_validator
 
 from feedlens.ai.registry import forget_models
 from feedlens.ai.registry import list_models
@@ -138,6 +141,35 @@ from feedlens.core.auth import CurrentUser as User
 from feedlens.core.auth import current_user
 
 private = APIRouter()
+
+
+class CustomModelsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base_url: str = Field(min_length=1, max_length=2000)
+    api_key: str = Field("", max_length=500, repr=False)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def validate_private_input(cls, value: object, handler: ValidatorFunctionWrapHandler) -> CustomModelsBody:
+        try:
+            return handler(value)
+        except ValidationError as exc:
+            # Shared validation responses echo inputs, which may contain unsaved credentials.
+            detail = ("Invalid or unsafe custom endpoint URL"
+                      if any(error["loc"] == ("base_url",) for error in exc.errors(include_input=False)) else
+                      "Invalid custom model discovery request")
+            raise HTTPException(422, detail) from None
+
+
+@private.post("/ai/custom/models")
+async def custom_models(body: CustomModelsBody, user: User = Depends(current_user)) -> dict[str, list[str]]:
+    try:
+        models = await run_in_threadpool(CustomProvider.discover_models, body.base_url, body.api_key.strip())
+    except EndpointError:
+        raise HTTPException(422, "Invalid or unsafe custom endpoint URL") from None
+    except Exception:
+        raise HTTPException(400, "Custom endpoint connection failed") from None
+    return {"models": models}
 
 
 @private.get("/ai/providers")

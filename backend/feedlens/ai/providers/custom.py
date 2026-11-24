@@ -56,6 +56,11 @@ class PublicEndpointTransport(httpx.HTTPTransport):
         return super().handle_request(request)
 
 
+def _http_client() -> httpx.Client:
+    transport = PublicEndpointTransport() if config.settings.is_cloud else httpx.HTTPTransport()
+    return httpx.Client(transport=transport, follow_redirects=False, trust_env=False, timeout=30)
+
+
 class CustomProvider(AIProvider):
     info = ProviderInfo("custom", "Custom (OpenAI-compatible)", "", "", "", "")
 
@@ -65,9 +70,23 @@ class CustomProvider(AIProvider):
         super().__init__(model.strip(), api_key)
         self.base_url = validate_base_url(base_url)
         from openai import OpenAI
-        transport = PublicEndpointTransport() if config.settings.is_cloud else httpx.HTTPTransport()
         self.client = OpenAI(base_url=self.base_url, api_key=api_key or "local", max_retries=0,
-                             http_client=httpx.Client(transport=transport, follow_redirects=False, trust_env=False, timeout=30))
+                             http_client=_http_client())
+
+    @staticmethod
+    def discover_models(base_url: str, api_key: str = "") -> list[str]:
+        base_url = validate_base_url(base_url)
+        with _http_client() as client:
+            response = client.get(f"{base_url}/models", headers={"Authorization": f"Bearer {api_key}"} if api_key else {})
+            if response.status_code == 404:
+                return []
+            response.raise_for_status()
+            payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            raise ValueError("Invalid custom model list")
+        return sorted({item["id"].strip() for item in payload["data"]
+                       if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+                       and (not api_key or api_key not in item["id"])})[:500]
 
     def complete_json(self, system: str, prompt: str, schema: dict, effort: Effort = "low") -> dict:
         messages = [{"role": "system", "content": system + "\nReturn only a JSON object matching this schema:\n" + json.dumps(schema)},

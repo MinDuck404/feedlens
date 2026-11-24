@@ -102,6 +102,8 @@ export const api = {
   listKeys: () => call<AIKey[]>("/api/ai/keys"),
   addKey: (body: { provider: AIKey["provider"]; api_key?: string; label?: string; tier?: AIKey["tier"]; base_url?: string; default_model?: string }) =>
     call<AIKey>("/api/ai/keys", { method: "POST", body: JSON.stringify(body) }),
+  customModels: (body: { base_url: string; api_key?: string }) =>
+    call<{ models: string[] }>("/api/ai/custom/models", { method: "POST", body: JSON.stringify(body) }),
   updateKey: (id: number, body: Partial<Pick<AIKey, "label" | "enabled" | "tier">>) =>
     call<AIKey>(`/api/ai/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   reorderKeys: (provider: AIKey["provider"], ids: number[]) =>

@@ -169,3 +169,117 @@ def test_old_key_database_migrates_without_changing_keys_or_requests(tmp_path):
     request = RunRequest.model_validate({"platform": "facebook"})
     assert request.ai_provider == "auto" and request.ai_key_id is None
     database.engine.dispose()
+
+
+def test_unsaved_custom_model_discovery_is_private_sorted_and_never_saves_a_key(cloud, monkeypatch, caplog):
+    import logging
+    client = cloud(); headers = _signup(client)
+    secret = "synthetic-discovery-secret"
+    requests = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(socket.AF_INET, 0, 0, "", ("8.8.8.8", 443))])
+    def reply(self, request):
+        requests.append(request)
+        assert set(request.extensions["timeout"].values()) == {30}
+        return httpx.Response(200, json={"data": [{"id": "z-model"}, {"id": "a-model"}, {"id": "z-model"},
+            {"id": ""}, {"id": 7}, {}, "not a model", {"id": secret}, {"id": f"diagnostic-{secret}"}]})
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", reply)
+    body = {"base_url": "https://public.example/v1/", "api_key": secret}
+    assert client.post("/api/ai/custom/models", json=body).status_code == 401
+    with caplog.at_level(logging.INFO):
+        result = client.post("/api/ai/custom/models", headers=headers, json=body)
+    assert result.status_code == 200, result.text
+    assert result.json() == {"models": ["a-model", "z-model"]}
+    assert len(requests) == 1
+    assert requests[0].method == "GET" and requests[0].url.path == "/v1/models"
+    assert not requests[0].url.query
+    assert requests[0].headers["authorization"] == f"Bearer {secret}"
+    assert secret not in result.text and secret not in caplog.text
+    assert client.get("/api/ai/keys", headers=headers).json() == []
+
+
+@pytest.mark.parametrize("status,payload,expected_status,expected", [
+    (404, {"error": {"message": "Missing models API"}}, 200, {"models": []}),
+    (401, {"error": {"message": "synthetic-discovery-secret invalid key"}}, 400, {"code": "error.custom_connection"}),
+    (503, {"error": {"message": "Unavailable"}}, 400, {"code": "error.custom_connection"}),
+    (200, None, 400, {"code": "error.custom_connection"}),
+    (200, {"data": "not a list"}, 400, {"code": "error.custom_connection"}),
+    (302, {}, 400, {"code": "error.custom_connection"}),
+])
+def test_unsaved_custom_model_discovery_handles_missing_models_and_safe_errors(cloud, monkeypatch, caplog, status, payload, expected_status, expected):
+    client = cloud(); headers = _signup(client)
+    requests = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(socket.AF_INET, 0, 0, "", ("8.8.8.8", 443))])
+    def reply(self, request):
+        requests.append(request)
+        return httpx.Response(status, json=payload, headers={"location": "https://127.0.0.1/models"}) if payload is not None else httpx.Response(status, text="not JSON")
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", reply)
+    result = client.post("/api/ai/custom/models", headers=headers, json={"base_url": "https://public.example/v1", "api_key": "synthetic-discovery-secret"})
+    assert result.status_code == expected_status, result.text
+    assert all(result.json().get(key) == value for key, value in expected.items())
+    assert len(requests) == 1  # Redirects must not forward the key to another endpoint.
+    assert "synthetic-discovery-secret" not in result.text and "synthetic-discovery-secret" not in caplog.text
+    assert client.get("/api/ai/keys", headers=headers).json() == []
+
+
+def test_unsaved_custom_model_discovery_limits_results_and_accepts_no_api_key(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(socket.AF_INET, 0, 0, "", ("8.8.8.8", 443))])
+    def reply(self, request):
+        assert "authorization" not in request.headers
+        return httpx.Response(200, json={"data": [{"id": f"model-{i:04}"} for i in reversed(range(600))] + [{"id": "model-0000"}]})
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", reply)
+    result = client.post("/api/ai/custom/models", headers=headers, json={"base_url": "https://public.example/v1"})
+    assert result.status_code == 200, result.text
+    assert result.json() == {"models": [f"model-{i:04}" for i in range(500)]}
+
+
+def test_unsaved_custom_model_discovery_rejects_cloud_loopback_before_http(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", lambda *a: pytest.fail("unsafe endpoint must not reach HTTP"))
+    result = client.post("/api/ai/custom/models", headers=headers, json={"base_url": "https://127.0.0.1/v1", "api_key": "synthetic-discovery-secret"})
+    assert result.status_code == 422 and result.json()["code"] == "error.custom_endpoint"
+    assert "synthetic-discovery-secret" not in result.text
+
+
+@pytest.mark.parametrize("error_type", [httpx.ConnectError, httpx.ReadTimeout])
+def test_unsaved_custom_model_discovery_hides_connection_failure_details(cloud, monkeypatch, caplog, error_type):
+    client = cloud(); headers = _signup(client)
+    secret = "synthetic-discovery-secret"
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(socket.AF_INET, 0, 0, "", ("8.8.8.8", 443))])
+    def failed(self, request):
+        raise error_type(f"Connection failed for {secret}", request=request)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", failed)
+    result = client.post("/api/ai/custom/models", headers=headers,
+                         json={"base_url": "https://public.example/v1", "api_key": secret})
+    assert result.status_code == 400
+    assert result.json() == {"detail": "Custom endpoint connection failed", "code": "error.custom_connection"}
+    assert secret not in result.text and secret not in caplog.text
+    assert client.get("/api/ai/keys", headers=headers).json() == []
+
+
+def test_unsaved_custom_model_discovery_blocks_dns_rebinding_before_http(cloud, monkeypatch):
+    client = cloud(); headers = _signup(client)
+    addresses = iter(["8.8.8.8", "127.0.0.1"])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [(socket.AF_INET, 0, 0, "", (next(addresses), 443))])
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", lambda *a: pytest.fail("rebinding must not reach HTTP"))
+    result = client.post("/api/ai/custom/models", headers=headers,
+                         json={"base_url": "https://public.example/v1", "api_key": "synthetic-discovery-secret"})
+    assert result.status_code == 422
+    assert result.json() == {"detail": "Invalid or unsafe custom endpoint URL", "code": "error.custom_endpoint"}
+    assert "synthetic-discovery-secret" not in result.text
+
+
+@pytest.mark.parametrize("body,code", [
+    ({"api_key": "synthetic-discovery-secret"}, "error.custom_endpoint"),
+    ({"base_url": "", "api_key": "synthetic-discovery-secret"}, "error.custom_endpoint"),
+    ({"base_url": "https://public.example/v1", "api_key": "synthetic-discovery-secret" * 30}, "error.validation"),
+    ({"base_url": "https://public.example/v1", "api_key": "synthetic-discovery-secret", "synthetic-discovery-secret": True}, "error.validation"),
+    ([{"api_key": "synthetic-discovery-secret"}], "error.validation"),
+])
+def test_unsaved_custom_model_discovery_validation_never_echoes_credentials(cloud, monkeypatch, caplog, body, code):
+    client = cloud(); headers = _signup(client)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", lambda *a: pytest.fail("invalid bodies must not reach HTTP"))
+    result = client.post("/api/ai/custom/models", headers=headers, json=body)
+    assert result.status_code == 422 and result.json()["code"] == code
+    assert "synthetic-discovery-secret" not in result.text and "synthetic-discovery-secret" not in caplog.text
+    assert client.get("/api/ai/keys", headers=headers).json() == []

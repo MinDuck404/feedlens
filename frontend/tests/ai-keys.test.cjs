@@ -60,6 +60,24 @@ test("AI key client uses exact new routes and retains legacy save/delete", async
   } finally { global.fetch = original; }
 });
 
+test("unsaved custom model client sends credentials only in a POST body and localizes failures", async () => {
+  const { ApiError } = require("../src/api/client.ts"), i18n = require("../src/i18n/index.tsx");
+  const original = global.fetch, requests = [];
+  global.fetch = async (url, init) => {
+    requests.push({ url, method: init.method, body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ models: ["a-model", "z-model"] }));
+  };
+  try {
+    const body = { base_url: "https://models.example/v1", api_key: "synthetic-discovery-secret" };
+    assert.deepEqual(await api.customModels(body), { models: ["a-model", "z-model"] });
+    assert.deepEqual(requests, [{ url: "/api/ai/custom/models", method: "POST", body }]);
+    for (const [code, status] of [["error.custom_endpoint", 422], ["error.custom_connection", 400]]) {
+      global.fetch = async () => new Response(JSON.stringify({ code, detail: "backend diagnostic" }), { status });
+      await assert.rejects(api.customModels(body), (error) => error instanceof ApiError && error.code === code && error.message === i18n.translate(code));
+    }
+  } finally { global.fetch = original; }
+});
+
 test("provider lists sort priority, show plan/status/usage, and expose row controls", async () => {
   const original = { ...api }, changes = [], harness = hooks(Component);
   api.updateKey = async (...args) => changes.push(["patch", ...args]); api.reorderKeys = async (...args) => changes.push(["order", ...args]);
@@ -133,6 +151,102 @@ test("Settings loads and groups keys, then reloads metadata after mutations", as
 
 const customProvider = { key: "custom", name: "Custom (OpenAI-compatible)", configured: true, source: "db", hint: "", default_model: "local-model", key_url: "" };
 const customKey = { id: 12, provider: "custom", label: "", hint: "", priority: 0, enabled: true, tier: "free", status: "ok", usage_today: {}, base_url: "http://localhost:11434/v1", default_model: "local-model" };
+
+test("custom model discovery fills an empty model and keeps manual model input available", async () => {
+  const original = { ...api }, calls = [], harness = hooks(Component); let changed = 0;
+  api.customModels = async (body) => { calls.push(body); return { models: ["a-model", "z-model"] }; };
+  api.addKey = async () => assert.fail("Model discovery must not save credentials");
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => { changed++; } };
+  try {
+    let tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.customLoadModels").props.disabled, true);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "  https://models.example/v1  " } });
+    find(tree, (node) => node.type === TextField && node.props.type === "password").props.onChange({ target: { value: "  synthetic-key  " } });
+    tree = harness.render(props);
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    assert.deepEqual(calls, [{ base_url: "https://models.example/v1", api_key: "synthetic-key" }]);
+    const model = byAria(tree, "set.customDefaultModel");
+    assert.equal(model.props.value, "a-model");
+    const list = find(tree, (node) => node.type === "datalist");
+    assert.equal(model.props.list, list.props.id);
+    assert.deepEqual(list.props.children.map((node) => node.props.value), ["a-model", "z-model"]);
+    model.props.onChange({ target: { value: "manual-model" } }); tree = harness.render(props);
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    assert.equal(byAria(tree, "set.customDefaultModel").props.value, "manual-model");
+    assert.equal(changed, 0);
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("custom model discovery shows busy state and an accessible empty-list hint", async () => {
+  const original = { ...api }, harness = hooks(Component); let resolve;
+  api.customModels = () => new Promise((done) => { resolve = done; });
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => assert.fail("Discovery does not change saved keys") };
+  try {
+    let tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://models.example/v1" } }); tree = harness.render(props);
+    const loading = find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    const button = find(tree, (node) => node.props?.children === "set.customLoadingModels");
+    assert.equal(button.props.busy, true); assert.equal(button.props.disabled, true);
+    assert.equal(byAria(tree, "set.customBaseUrl").props.disabled, true);
+    assert.equal(find(tree, (node) => node.props?.children === "set.saveKey").props.disabled, true);
+    resolve({ models: [] }); await loading; tree = harness.render(props);
+    const hint = find(tree, (node) => node.props?.children === "set.customModelsEmpty");
+    assert.equal(hint.props.role, "status");
+    assert.equal(byAria(tree, "set.customDefaultModel").props["aria-describedby"], hint.props.id);
+    assert.equal(byAria(tree, "set.customDefaultModel").props.disabled, false);
+    byAria(tree, "set.customDefaultModel").props.onChange({ target: { value: "manual-model" } }); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.saveKey").props.disabled, false);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://other.example/v1" } }); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.customModelsEmpty"), null);
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("custom model discovery errors are translated and preserve unsaved fields", async () => {
+  const i18n = require("../src/i18n/index.tsx"), original = global.fetch;
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => {} };
+  try {
+    for (const [code, status] of [["error.custom_endpoint", 422], ["error.custom_connection", 400]]) {
+      global.fetch = async () => new Response(JSON.stringify({ code, detail: "upstream diagnostic" }), { status });
+      const harness = hooks(Component);
+      try {
+        let tree = harness.render(props);
+        find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+        byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://models.example/v1" } });
+        byAria(tree, "set.customDefaultModel").props.onChange({ target: { value: "manual-model" } });
+        find(tree, (node) => node.type === TextField && node.props.type === "password").props.onChange({ target: { value: "synthetic-key" } });
+        tree = harness.render(props);
+        await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+        assert.equal(find(tree, (node) => node.props?.role === "alert").props.children, i18n.translate(code));
+        assert.equal(byAria(tree, "set.customBaseUrl").props.value, "https://models.example/v1");
+        assert.equal(byAria(tree, "set.customDefaultModel").props.value, "manual-model");
+        assert.equal(find(tree, (node) => node.type === TextField && node.props.type === "password").props.value, "synthetic-key");
+        assert.equal(find(tree, (node) => node.props?.children === "set.customLoadModels").props.disabled, false);
+      } finally { harness.close(); }
+    }
+  } finally { global.fetch = original; }
+});
+
+test("custom model suggestions reset when credentials change or the form is cancelled", async () => {
+  const original = { ...api }, harness = hooks(Component);
+  api.customModels = async () => ({ models: ["a-model"] });
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => {} };
+  try {
+    let tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://models.example/v1" } }); tree = harness.render(props);
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    assert.ok(find(tree, (node) => node.type === "datalist"));
+    find(tree, (node) => node.type === TextField && node.props.type === "password").props.onChange({ target: { value: "replacement-key" } }); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.type === "datalist"), null);
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "act.cancel").props.onClick(); tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    assert.equal(byAria(tree, "set.customDefaultModel").props.value, "");
+    assert.equal(find(tree, (node) => node.type === "datalist"), null);
+  } finally { harness.close(); Object.assign(api, original); }
+});
 
 test("custom endpoint form requires URL/model, permits an empty key, and preserves fields after a failed save", async () => {
   const original = { ...api }, calls = [], harness = hooks(Component); let fail = true;
