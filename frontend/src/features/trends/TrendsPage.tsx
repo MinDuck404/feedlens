@@ -1,13 +1,13 @@
 import { useEffect, useState, useMemo } from "react";
 import { TrendingUp, Layers, Sparkles, AlertCircle } from "lucide-react";
-import { api } from "../api/client";
-import { formatNumber, useI18n } from "../i18n";
-import type { TrendsResponse } from "../api/types";
+import { api } from "../../api/client";
+import { formatNumber, useI18n } from "../../i18n";
+import type { TrendsResponse } from "../../api/types";
 import { TrendsChart } from "./TrendsChart";
-import { Button } from "./ui/Button";
-import { EmptyState } from "./ui/EmptyState";
-import { SegmentedControl } from "./ui/SegmentedControl";
-import { Skeleton } from "./ui/Skeleton";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { Skeleton } from "../../components/ui/Skeleton";
 
 export const TRENDS_FILTERS_KEY = "feedlens.trendsFilters";
 

@@ -722,7 +722,7 @@ test("trend paths stay within a zero-based plot and handle one point", () => {
 });
 
 test("changing trend filters cannot be overwritten by an older response", async () => {
-  const TrendsPage = require("../src/components/TrendsPage.tsx").default;
+  const TrendsPage = require("../src/features/trends/TrendsPage.tsx").default;
   const original = api.trends, originalContext = React.useContext;
   const context = hooks(i18n.I18nProvider);
   const value = context.render({ children: null }).props.value; context.close(); React.useContext = () => value;
@@ -801,7 +801,7 @@ test("run post filters ignore invalid categories, topics and non-post routes", (
 });
 
 test("trends filters parse, validate, and serialize with priority URL > storage > defaults", () => {
-  const { parseTrendsFilters, serializeTrendsFilters, DEFAULT_TRENDS_FILTERS } = require("../src/components/TrendsPage.tsx");
+  const { parseTrendsFilters, serializeTrendsFilters, DEFAULT_TRENDS_FILTERS } = require("../src/features/trends/TrendsPage.tsx");
 
   // 1. Defaults when empty
   const def = parseTrendsFilters("", null, false);
