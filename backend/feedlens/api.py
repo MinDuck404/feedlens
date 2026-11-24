@@ -6,10 +6,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
-from feedlens import config
-from feedlens.config import BACKEND_DIR, settings
+from feedlens.core import config
+from feedlens.core.config import BACKEND_DIR
+from feedlens.core.config import settings
 from feedlens.db.repository import Database
-from feedlens.messages import error_code
+from feedlens.core.messages import error_code
 from feedlens.routes.dependencies import db
 from feedlens.routes import auth, preferences, platforms, ai_keys, runs, agent
 from feedlens.routes.profile import profile_router

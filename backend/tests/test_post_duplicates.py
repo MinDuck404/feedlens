@@ -2,7 +2,7 @@
 import feedlens.routes.dependencies as dependencies
 import pytest
 
-from feedlens.models import RawPost
+from feedlens.core.models import RawPost
 from feedlens.analysis.duplicates import group_posts
 from feedlens.analysis.duplicates import normalize_text
 from tests.test_cloud import cloud, _signup
@@ -46,7 +46,7 @@ def test_technology_and_currency_symbols_remain_meaningful(left, right):
 def test_platforms_and_distinct_linkedin_job_ids_stay_separate():
     assert len(group_posts([post(), post(platform="reddit")])) == 2
     a = post().model_copy(update={"platform": "linkedin"})
-    from feedlens.models import JobSeed
+    from feedlens.core.models import JobSeed
     a.job_seed = JobSeed(job_id="1")
     b = a.model_copy(update={"job_seed": JobSeed(job_id="2")})
     assert len(group_posts([a, b])) == 2
@@ -58,9 +58,9 @@ def test_pipeline_analyzes_only_representatives_and_inherits_results(tmp_path, m
     from sqlalchemy import select
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.db import Database
+    from feedlens.db.repository import Database
     from feedlens.db.tables import PostRow
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
 
     db = Database(f"sqlite:///{tmp_path / 'posts.db'}")
     req = RunRequest(platform="facebook", ai_provider=provider, job_mode=True)
@@ -107,8 +107,9 @@ def test_migration_preserves_old_cards_until_reanalysis(tmp_path, monkeypatch):
     from sqlalchemy import text
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.db import Database
-    from feedlens.models import AnalyzedPost, RunRequest
+    from feedlens.db.repository import Database
+    from feedlens.core.models import AnalyzedPost
+    from feedlens.core.models import RunRequest
 
     url = f"sqlite:///{tmp_path / 'old.db'}"
     db = Database(url)
@@ -133,8 +134,8 @@ def test_migration_preserves_old_cards_until_reanalysis(tmp_path, monkeypatch):
 def test_pipeline_keeps_identical_short_posts_and_hash_collisions(tmp_path, monkeypatch):
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.db import Database
-    from feedlens.models import RunRequest
+    from feedlens.db.repository import Database
+    from feedlens.core.models import RunRequest
 
     db = Database(f"sqlite:///{tmp_path / 'short.db'}")
     req = RunRequest(platform="facebook", ai_provider="offline")
@@ -152,7 +153,7 @@ def test_api_exposes_sources_and_counts_only_representatives(cloud, monkeypatch)
     from feedlens import api
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
 
     client = cloud()
     headers = _signup(client)
@@ -176,8 +177,8 @@ def test_api_exposes_sources_and_counts_only_representatives(cloud, monkeypatch)
 def test_interrupted_analysis_keeps_duplicate_inheritance_and_retries_only_missing(tmp_path, monkeypatch):
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.db import Database
-    from feedlens.models import RunRequest
+    from feedlens.db.repository import Database
+    from feedlens.core.models import RunRequest
 
     db = Database(f"sqlite:///{tmp_path / 'retry.db'}")
     req = RunRequest(platform="facebook", ai_provider="openai")

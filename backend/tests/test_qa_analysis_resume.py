@@ -11,7 +11,8 @@ from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.models import RawPost, RunRequest
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 

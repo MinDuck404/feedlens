@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from feedlens.models import RunRequest
+from feedlens.core.models import RunRequest
 from feedlens.runs.pipeline import scrape
 
 CONFIG = Path.home() / ".feedlens" / "agent.json"
@@ -41,7 +41,7 @@ class Agent:
                                  headers={"Authorization": f"Bearer {token}"})
 
     def check(self) -> None:
-        from feedlens.browser import warn_if_no_native_browser
+        from feedlens.browser.profiles import warn_if_no_native_browser
         warn_if_no_native_browser()
         r = self.http.get("/api/auth/me")
         if r.status_code == 401:

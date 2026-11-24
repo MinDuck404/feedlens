@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import math
 from feedlens.ai.scheduler import MAX_OUTPUT
-from feedlens.models import CATEGORIES
-from feedlens.models import JobInfo
-from feedlens.models import RawPost
+from feedlens.core.models import CATEGORIES
+from feedlens.core.models import JobInfo
+from feedlens.core.models import RawPost
 
 
 BATCH_SIZE = 60

@@ -8,9 +8,12 @@ from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.prompts import KNOWN_JOBS_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.jobs.profile import JobProfile
-from feedlens.models import JobSeed, RawPost, RunRequest, Topic
+from feedlens.core.models import JobSeed
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
+from feedlens.core.models import Topic
 
 
 def seeded_post(job_id="4100000001", text="Python engineer at a technology company", **fields):

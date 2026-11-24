@@ -13,12 +13,12 @@ from pydantic import Field
 from feedlens.ai.registry import user_keys
 from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.analyzer import get_analyzer
-from feedlens.auth import CurrentUser
-from feedlens.auth import current_user
-from feedlens.models import MAX_TOPICS
-from feedlens.models import TOPIC_COLORS
-from feedlens.models import AnalyzedPost
-from feedlens.models import Topic
+from feedlens.core.auth import CurrentUser
+from feedlens.core.auth import current_user
+from feedlens.core.models import MAX_TOPICS
+from feedlens.core.models import TOPIC_COLORS
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import Topic
 
 # user_id -> {"state": idle|running|done|error, "done", "total", "error"}
 RETAG_JOBS: dict[int, dict] = {}

@@ -1,5 +1,8 @@
-from feedlens.db import Database
-from feedlens.models import AnalyzedPost, JobSeed, RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import JobSeed
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.runs.source_modes import SourceTarget
 from feedlens.runs.source_modes import allocate_targets
 from feedlens.runs.source_modes import normalize
@@ -83,7 +86,7 @@ def test_collect_report_and_cloud_agent_use_the_same_fair_plan(monkeypatch):
     from dataclasses import replace
     from types import SimpleNamespace
     from feedlens.runs import agent
-    from feedlens import browser
+    from feedlens.browser import profiles as browser
     from feedlens.runs import pipeline
 
     quotas = []

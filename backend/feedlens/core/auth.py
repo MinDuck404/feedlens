@@ -13,10 +13,14 @@ import hmac
 import time
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException, Request
+from fastapi import Depends
+from fastapi import Header
+from fastapi import HTTPException
+from fastapi import Request
 
-from .config import settings
-from .crypto import AGENT_PREFIX, sha256
+from feedlens.core.config import settings
+from feedlens.core.crypto import AGENT_PREFIX
+from feedlens.core.crypto import sha256
 
 TOKEN_TTL = 14 * 24 * 3600
 

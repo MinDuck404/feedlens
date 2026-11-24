@@ -17,7 +17,7 @@ from typing import Callable
 from urllib.parse import parse_qsl, urlsplit
 from playwright.sync_api import Page
 
-from ..models import RawPost
+from feedlens.core.models import RawPost
 from feedlens.scrapers.facebook.links import POST_LINK_RE
 from feedlens.scrapers.facebook.links import clean_facebook_author
 from feedlens.scrapers.facebook.links import facebook_ad_link

@@ -15,10 +15,11 @@ from feedlens.ai.base import AIProvider, ProviderInfo
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.analysis.heuristic import heuristic_category
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.runs.export import to_csv
 from feedlens.runs.export import to_markdown
-from feedlens.models import RawPost, RunRequest
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.scrapers.facebook.scraper import FacebookScraper
 from feedlens.scrapers.reddit.scraper import RedditScraper
 

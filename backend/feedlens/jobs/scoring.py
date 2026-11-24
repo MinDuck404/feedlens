@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from feedlens.jobs.profile import JobProfile
-from feedlens.models import JobInfo
+from feedlens.core.models import JobInfo
 
 
 MATCH_STOPWORDS = set("""

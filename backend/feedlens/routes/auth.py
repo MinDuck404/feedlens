@@ -1,24 +1,27 @@
 """Auth routes."""
 from __future__ import annotations
 
+import feedlens.db.repos.users as _ref_db_repos_users
+
 from collections import defaultdict, deque
 
 import time
 import re
-import feedlens.browser as browser_profiles
+import feedlens.browser.profiles as browser_profiles
 
-import feedlens.auth as auth_core
-import feedlens.config as config
-import feedlens.crypto as crypto
+import feedlens.core.auth as auth_core
+import feedlens.core.config as config
+import feedlens.core.crypto as crypto
 import feedlens.db as database_module
 import fastapi as fastapi
-import feedlens.models as models
+import feedlens.core.models as models
 import feedlens.routes.agent as agent_routes
 import feedlens.routes.dependencies as dependencies
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
-from ..auth import CurrentUser as User, current_user
+from feedlens.core.auth import CurrentUser as User
+from feedlens.core.auth import current_user
 
 public = APIRouter()
 private = APIRouter()
@@ -87,7 +90,7 @@ def register(body: Credentials, request: Request):
     _fail_attempt(f"reg:{ip}")  # giới hạn số tài khoản tạo từ một IP
     try:
         uid = dependencies.db().create_user(email, crypto.hash_password(body.password))
-    except database_module.EmailTaken:
+    except _ref_db_repos_users.EmailTaken:
         raise fastapi.HTTPException(409, "Email này đã có tài khoản. Hãy đăng nhập.")
     return {"token": auth_core.issue_token(uid), "email": email}
 

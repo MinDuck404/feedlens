@@ -12,8 +12,8 @@ from fastapi.responses import JSONResponse
 from feedlens.ai.registry import user_keys
 from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.analyzer import get_analyzer
-from feedlens.auth import CurrentUser
-from feedlens.auth import current_user
+from feedlens.core.auth import CurrentUser
+from feedlens.core.auth import current_user
 from feedlens.jobs.profile import MAX_CV_BYTES
 from feedlens.jobs.profile import JobProfile
 from feedlens.jobs.profile import ProfileError

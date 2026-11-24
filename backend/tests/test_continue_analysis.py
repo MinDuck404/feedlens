@@ -6,7 +6,8 @@ import pytest
 from feedlens import api
 from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
-from feedlens.models import RawPost, RunRequest
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 
@@ -298,7 +299,7 @@ def test_ai_upgrade_with_no_results_cannot_complete_or_relabel_offline_rows(clou
 
 def test_analysis_provenance_migrates_legacy_labels_without_losing_rows(tmp_path):
     from sqlalchemy import text
-    from feedlens.db import Database
+    from feedlens.db.repository import Database
 
     url = f"sqlite:///{tmp_path / 'provenance.db'}"
     database = Database(url)

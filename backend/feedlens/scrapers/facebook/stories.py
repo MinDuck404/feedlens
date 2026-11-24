@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 from urllib.parse import urljoin
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
-from feedlens.models import RawPost
+from feedlens.core.models import RawPost
 from feedlens.scrapers.facebook.links import clean_facebook_author
 from feedlens.scrapers.facebook.links import facebook_ad_link
 from feedlens.scrapers.facebook.links import is_facebook_content_url

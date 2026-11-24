@@ -11,8 +11,9 @@ import pytest
 
 from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
-from feedlens.db import Database
-from feedlens.models import RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 
 
 def test_cross_posted_jobs_do_not_stop_later_group(monkeypatch):
@@ -272,7 +273,7 @@ def test_execute_run_saves_incremental_sources_progress(tmp_path, monkeypatch):
     monkeypatch.setitem(pipeline.SCRAPERS, "facebook", FakeScraper)
 
     from contextlib import contextmanager
-    from feedlens import browser
+    from feedlens.browser import profiles as browser
 
     @contextmanager
     def fake_context(*args, **kwargs):

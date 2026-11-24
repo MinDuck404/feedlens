@@ -10,8 +10,8 @@ from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaExhausted, QuotaScheduler
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.analysis.prompts import classification_batch_size
-from feedlens.messages import progress_message
-from feedlens.models import RawPost
+from feedlens.core.messages import progress_message
+from feedlens.core.models import RawPost
 from tests.test_ai_quota import Clock, Provider
 
 
@@ -227,9 +227,9 @@ def test_empty_output_does_not_spend_two_requests_for_every_batch(monkeypatch):
 
 def test_220_jobs_with_cv_require_eleven_reads_and_one_digest(tmp_path, monkeypatch):
     from feedlens.runs import pipeline
-    from feedlens.db import Database
+    from feedlens.db.repository import Database
     from feedlens.jobs.profile import JobProfile
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
     db = Database(f"sqlite:///{tmp_path / '220.db'}")
     uid = db.local_user_id()
     db.set_job_profile(uid, JobProfile(markdown="Python CV", primary_roles=["Developer"]).model_dump_json())

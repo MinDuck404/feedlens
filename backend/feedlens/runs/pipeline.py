@@ -12,13 +12,13 @@ from feedlens.ai.scheduler import AnalysisStopped
 from feedlens.ai.scheduler import check_stopped
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.analyzer import get_analyzer
-from feedlens.config import settings
-from feedlens.db import Database
-from feedlens.models import AnalyzedPost
-from feedlens.models import PostGroup
-from feedlens.models import PostSource
-from feedlens.models import RawPost
-from feedlens.models import RunRequest
+from feedlens.core.config import settings
+from feedlens.db.repository import Database
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import PostGroup
+from feedlens.core.models import PostSource
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.analysis.duplicates import group_posts
 from feedlens.analysis.duplicates import preserve_post_identities
 from feedlens.jobs.profile import load_profile
@@ -50,7 +50,7 @@ def request_stop(run_id: int, replacement: RunRequest | None = None) -> bool:
 def scrape(req: RunRequest, seen: set[str], on_progress: Callable[[int, str], None],
            report: dict | None = None) -> list[RawPost]:
     """Lướt bằng profile Chrome riêng của FeedLens trên máy này (agent / chế độ local)."""
-    from feedlens.browser import open_context  # chỉ cần Playwright khi thật sự lướt
+    from feedlens.browser.profiles import open_context  # chỉ cần Playwright khi thật sự lướt
 
     normalize(req, run_cap(req))  # Reject invalid sources before opening a profile.
     with open_context(req.platform, headless=req.headless) as ctx:
@@ -419,7 +419,7 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
     """Chế độ 'Server': lướt trên server bằng cookie đã lưu của user, rồi phân tích."""
     import json
 
-    from feedlens.crypto import decrypt
+    from feedlens.core.crypto import decrypt
     from feedlens.runs.server_runner import SERVER_SLOT
     from feedlens.runs.server_runner import CookieInvalid
     from feedlens.runs.server_runner import scrape_with_cookies

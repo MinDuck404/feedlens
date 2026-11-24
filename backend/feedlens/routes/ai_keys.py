@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 import feedlens.ai.registry as ai_registry
-import feedlens.crypto as crypto
+import feedlens.core.crypto as crypto
 import fastapi as fastapi
 import fastapi.concurrency as fastapi_concurrency
 import feedlens.routes.dependencies as dependencies
@@ -22,10 +22,10 @@ from feedlens.ai.registry import list_models
 from feedlens.ai.scheduler import Candidate
 from feedlens.ai.scheduler import pacific_day
 from feedlens.ai.scheduler import scheduler_for
-from feedlens.auth import CurrentUser
-from feedlens.auth import current_user
-from feedlens.crypto import encrypt
-from feedlens.crypto import key_hint
+from feedlens.core.auth import CurrentUser
+from feedlens.core.auth import current_user
+from feedlens.core.crypto import encrypt
+from feedlens.core.crypto import key_hint
 
 
 class NewKey(BaseModel):
@@ -115,8 +115,8 @@ from fastapi import APIRouter
 from fastapi import Depends
 from pydantic import BaseModel
 from pydantic import Field
-from feedlens.auth import CurrentUser as User
-from feedlens.auth import current_user
+from feedlens.core.auth import CurrentUser as User
+from feedlens.core.auth import current_user
 
 private = APIRouter()
 

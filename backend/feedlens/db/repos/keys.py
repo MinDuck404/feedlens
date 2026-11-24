@@ -1,8 +1,13 @@
 """Keys persistence for Database."""
 from __future__ import annotations
 
-from sqlalchemy import case, delete, func, select, true
-from .tables import AIUsageRow, ApiKeyRow
+from sqlalchemy import case
+from sqlalchemy import delete
+from sqlalchemy import func
+from sqlalchemy import select
+from sqlalchemy import true
+from feedlens.db.tables import AIUsageRow
+from feedlens.db.tables import ApiKeyRow
 
 
 class KeysMixin:

@@ -12,8 +12,8 @@ from pydantic import BaseModel
 from pydantic import Field
 from pypdf import PdfReader
 
-from feedlens.crypto import decrypt
-from feedlens.crypto import encrypt
+from feedlens.core.crypto import decrypt
+from feedlens.core.crypto import encrypt
 
 MAX_CV_BYTES = 5 * 1024 * 1024
 ShortText = Annotated[str, Field(min_length=1, max_length=120)]

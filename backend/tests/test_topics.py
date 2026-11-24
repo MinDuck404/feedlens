@@ -7,7 +7,9 @@ from feedlens.routes import topics as topics_api
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.analysis.topics import heuristic_topics
-from feedlens.models import AnalyzedPost, RawPost, Topic
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import RawPost
+from feedlens.core.models import Topic
 from tests.test_cloud import cloud, _signup  # noqa: F401 — fixture
 
 
@@ -22,7 +24,7 @@ def fake_llm(handler):
 
 
 def test_retag_skips_pending_rows_before_applying_the_post_limit(cloud, monkeypatch):
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
     client = cloud()
     _signup(client)
     db = dependencies.db()
@@ -135,7 +137,7 @@ def test_apply_retags_old_posts_and_test_endpoint(cloud):
     h = _signup(client, "retag@example.test")
     user = dependencies.db().get_user_by_email("retag@example.test")
     db = dependencies.db()
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
     run_id = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run_id, [AnalyzedPost(platform="facebook", source="g", text="Repo hay github.com/x/y", summary="repo"),
                            AnalyzedPost(platform="facebook", source="g", text="Bán xe máy", summary="xe")])

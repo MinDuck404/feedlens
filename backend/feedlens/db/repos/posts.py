@@ -1,9 +1,22 @@
 """Posts persistence for Database."""
 from __future__ import annotations
 
-from sqlalchemy import JSON, Text, case, cast, delete, func, or_, select, true
-from ..models import AnalyzedPost, JobInfo, JobSeed, PostGroup, RawPost
-from .tables import PostRow, RunRow
+from sqlalchemy import JSON
+from sqlalchemy import Text
+from sqlalchemy import case
+from sqlalchemy import cast
+from sqlalchemy import delete
+from sqlalchemy import func
+from sqlalchemy import or_
+from sqlalchemy import select
+from sqlalchemy import true
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import JobInfo
+from feedlens.core.models import JobSeed
+from feedlens.core.models import PostGroup
+from feedlens.core.models import RawPost
+from feedlens.db.tables import PostRow
+from feedlens.db.tables import RunRow
 
 
 class PostsMixin:

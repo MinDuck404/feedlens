@@ -4,7 +4,9 @@ import time
 
 import pytest
 
-from feedlens.cookies import CookieError, cookie_hint, parse_cookies
+from feedlens.browser.cookies import CookieError
+from feedlens.browser.cookies import cookie_hint
+from feedlens.browser.cookies import parse_cookies
 
 FB_JSON = json.dumps([
     {"domain": ".facebook.com", "name": "c_user", "value": "100012345678", "path": "/", "secure": True,
@@ -65,7 +67,7 @@ def test_cookie_sessions_api_encrypted_and_isolated(cloud):
 
 def test_server_run_uses_cookies_and_marks_invalid(cloud, monkeypatch):
     from feedlens.runs import server_runner
-    from feedlens.models import RawPost
+    from feedlens.core.models import RawPost
     c = cloud()
     a = _signup(c)
     req = {"platform": "facebook", "source_type": "group", "sources": ["g1", "g2"], "count": 5,

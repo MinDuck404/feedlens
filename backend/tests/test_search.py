@@ -9,7 +9,9 @@ import pytest
 from feedlens import api
 from feedlens.routes import search as search_api
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.models import AnalyzedPost, JobInfo, RunRequest
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import JobInfo
+from feedlens.core.models import RunRequest
 from tests.test_cloud import _signup, cloud  # noqa: F401 — fixture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -275,7 +277,7 @@ def test_ask_edited_filters_skip_parser_and_provider_errors_are_codes(cloud, mon
 
 
 def test_unknown_ai_topic_does_not_broaden_search_and_snippet_markers_do_not_nest(cloud, monkeypatch):
-    from feedlens.db.repository import _make_snippet
+    from feedlens.db.repos.search import _make_snippet
     snippet = _make_snippet("ReactJS and React", "", ["React", "ReactJS"])
     assert "««" not in snippet and "«ReactJS»" in snippet
     client = cloud(); headers = _signup(client, "invalid-topic-ask@example.test")

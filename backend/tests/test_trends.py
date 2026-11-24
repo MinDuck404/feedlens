@@ -3,7 +3,8 @@ import feedlens.routes.dependencies as dependencies
 from datetime import datetime, timedelta, timezone
 
 from feedlens import api
-from feedlens.models import AnalyzedPost, RunRequest
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import _signup, cloud  # noqa: F401 — fixture
 
 

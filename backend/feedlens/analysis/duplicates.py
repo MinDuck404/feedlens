@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
-from feedlens.models import RawPost
+from feedlens.core.models import RawPost
 
 
 def normalize_text(text: str) -> str:

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.db.tables import UserRow
 from sqlalchemy import create_engine, text
 import pytest
@@ -44,7 +44,7 @@ class Provider:
 def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode, tpm, count, expected_batches, monkeypatch):
     import re
     from feedlens.analysis.llm import LLMAnalyzer
-    from feedlens.models import RawPost
+    from feedlens.core.models import RawPost
 
     clock = Clock()
     provider = Provider("gemini-3.5-flash-lite", clock)
@@ -70,7 +70,7 @@ def test_classification_batch_size_respects_output_budget_and_model_tpm(job_mode
 def test_omitted_items_from_a_large_batch_share_one_retry(monkeypatch):
     import re
     from feedlens.analysis.llm import LLMAnalyzer
-    from feedlens.models import RawPost
+    from feedlens.core.models import RawPost
 
     analyzer = LLMAnalyzer(Provider("gemini-3.5-flash-lite", Clock()))
     calls = []
@@ -178,8 +178,9 @@ def test_new_key_routes_are_private_ordered_and_never_leak_secrets(cloud, monkey
 def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, monkeypatch):
     from feedlens.runs import pipeline
     from feedlens.analysis.llm import LLMAnalyzer
-    from feedlens.messages import error_code
-    from feedlens.models import RawPost, RunRequest
+    from feedlens.core.messages import error_code
+    from feedlens.core.models import RawPost
+    from feedlens.core.models import RunRequest
     from tests.test_core import FakeProvider
     db = Database(f"sqlite:///{tmp_path / 'partial.db'}")
     user = db.local_user_id(); key = db.add_key(user, "gemini", "cipher", "1234")
@@ -285,7 +286,7 @@ def test_custom_system_calls_share_analyzer_quota():
 def test_get_analyzer_uses_all_enabled_keys_and_shared_persistent_scheduler(tmp_path, monkeypatch):
     from feedlens.analysis import analyzer as module
     from feedlens.ai.registry import user_key_list
-    from feedlens.crypto import encrypt
+    from feedlens.core.crypto import encrypt
     db = Database(f"sqlite:///{tmp_path / 'credentials.db'}")
     user = db.local_user_id()
     first = db.add_key(user, "gemini", encrypt("first-secret"), "cret")

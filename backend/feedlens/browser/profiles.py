@@ -13,14 +13,18 @@ import sys
 import threading
 import tempfile
 import time
-from contextlib import closing, contextmanager, nullcontext
+from contextlib import closing
+from contextlib import contextmanager
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable
+from typing import Iterator
 
-from playwright.sync_api import BrowserContext, sync_playwright
+from playwright.sync_api import BrowserContext
+from playwright.sync_api import sync_playwright
 
-from .config import settings
+from feedlens.core.config import settings
 from feedlens.scrapers.base import is_blocked_url
 
 

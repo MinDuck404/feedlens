@@ -1,5 +1,5 @@
 """Dữ liệu giả để xem thử giao diện mà không cần đăng nhập."""
-from .models import RawPost
+from feedlens.core.models import RawPost
 
 _G = "Việc làm IT (dữ liệu mẫu)"
 _RAW = [

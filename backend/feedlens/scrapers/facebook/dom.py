@@ -16,7 +16,7 @@ import time
 from html import escape
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from feedlens.models import RawPost
+from feedlens.core.models import RawPost
 from feedlens.scrapers.facebook.links import clean_facebook_author
 from feedlens.scrapers.facebook.links import facebook_ad_link
 from feedlens.scrapers.facebook.links import facebook_dom_permalink

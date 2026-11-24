@@ -4,20 +4,21 @@ from __future__ import annotations
 
 import threading
 import json
-import feedlens.browser as browser_profiles
+import feedlens.browser.profiles as browser_profiles
 
-import feedlens.config as config
-import feedlens.cookies as cookie_helpers
-import feedlens.crypto as crypto
+import feedlens.core.config as config
+import feedlens.browser.cookies as cookie_helpers
+import feedlens.core.crypto as crypto
 import fastapi as fastapi
 import fastapi.concurrency as fastapi_concurrency
-import feedlens.messages as messages
+import feedlens.core.messages as messages
 import feedlens.routes.dependencies as dependencies
 import feedlens.runs.pipeline as run_pipeline
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from ..auth import CurrentUser as User, current_user
+from feedlens.core.auth import CurrentUser as User
+from feedlens.core.auth import current_user
 
 private = APIRouter()
 
@@ -92,7 +93,7 @@ def delete_session(p: str, user: User = Depends(current_user)):
 @private.post("/sessions/{p}/check")
 async def check_session_cookie(p: str, user: User = Depends(current_user)):
     """Thử mở trang chủ bằng cookie từ server (mất ~10 giây, chờ nếu server đang lướt)."""
-    from ..crypto import decrypt
+    from feedlens.core.crypto import decrypt
     from feedlens.runs.server_runner import check_cookies
 
     _server_scrape_on()

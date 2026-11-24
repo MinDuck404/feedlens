@@ -4,7 +4,8 @@ import pytest
 from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db.repository import Database
-from feedlens.models import RawPost, RunRequest
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 
 
 @pytest.fixture

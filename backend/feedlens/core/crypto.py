@@ -6,9 +6,10 @@ import hashlib
 import hmac
 import secrets
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken
 
-from .config import settings
+from feedlens.core.config import settings
 
 # ------------------------------------------------------------------ mật khẩu (scrypt)
 _N, _R, _P = 2**14, 8, 1

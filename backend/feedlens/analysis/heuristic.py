@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from feedlens.models import CATEGORIES
-from feedlens.models import AnalyzedPost
-from feedlens.models import CategoryDigest
-from feedlens.models import Digest
-from feedlens.models import JobInfo
-from feedlens.models import TopicDigest
+from feedlens.core.models import CATEGORIES
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import CategoryDigest
+from feedlens.core.models import Digest
+from feedlens.core.models import JobInfo
+from feedlens.core.models import TopicDigest
 from feedlens.analysis.prompts import _seeded_job
 from feedlens.analysis.topics import _topic_groups
 from feedlens.analysis.topics import heuristic_topics

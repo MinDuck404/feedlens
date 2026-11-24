@@ -9,7 +9,7 @@ import webbrowser
 
 
 def _request_from_args(a):
-    from .models import RunRequest
+    from feedlens.core.models import RunRequest
 
     req = RunRequest(platform=a.platform, source_type=a.source_type, sources=a.sources, count=a.count,
                       mode=getattr(a, "mode", None), options=getattr(a, "options", {}),
@@ -53,8 +53,9 @@ def _push_cookies(a) -> None:
     import httpx
 
     from feedlens.runs.agent import load_config
-    from .browser import open_context, profile_dir
-    from .cookies import DOMAIN
+    from feedlens.browser.profiles import open_context
+    from feedlens.browser.profiles import profile_dir
+    from feedlens.browser.cookies import DOMAIN
 
     cfg = load_config()
     server = (a.server or cfg.get("server") or os.getenv("FEEDLENS_SERVER", "")).rstrip("/")
@@ -145,7 +146,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.stderr.flush()
         os._exit(0)
     elif a.cmd == "login":
-        from .browser import interactive_login
+        from feedlens.browser.profiles import interactive_login
         print("Đăng nhập trong cửa sổ Chrome vừa mở. FeedLens chỉ lưu cookie phiên, không lưu mật khẩu.")
         print("✅ Đã đăng nhập" if interactive_login(a.platform) else "❌ Chưa phát hiện phiên đăng nhập")
     elif a.cmd == "push":
@@ -173,7 +174,7 @@ def main(argv: list[str] | None = None) -> None:
     elif a.cmd == "cookies":
         _push_cookies(a)
     elif a.cmd == "clean-cache":
-        from .browser import clean_all_caches
+        from feedlens.browser.profiles import clean_all_caches
 
         results = clean_all_caches()
         if not results:
@@ -182,10 +183,10 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{platform}: {before / 1048576:.0f}MB -> {after / 1048576:.0f}MB")
     elif a.cmd == "demo":
         from feedlens.runs import pipeline
-        from .config import settings
-        from .db import Database
+        from feedlens.core.config import settings
+        from feedlens.db.repository import Database
         from .demo import DEMO_POSTS
-        from .models import RunRequest
+        from feedlens.core.models import RunRequest
 
         db = Database(settings.database_url)
         req = RunRequest(platform="facebook", source_type="group", sources=["https://www.facebook.com/groups/demo"],
@@ -196,10 +197,10 @@ def main(argv: list[str] | None = None) -> None:
         pipeline.execute_run(db, run_id, req, uid)
         print(f"Đã tạo lượt mẫu #{run_id}. Chạy `feedlens serve` để xem.")
     elif a.cmd == "run":
-        from .config import settings
-        from .db import Database
+        from feedlens.core.config import settings
+        from feedlens.db.repository import Database
         from feedlens.runs.export import to_markdown
-        from .models import RunRequest
+        from feedlens.core.models import RunRequest
         from feedlens.runs.pipeline import execute_run
 
         db = Database(settings.database_url)

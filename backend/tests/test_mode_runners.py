@@ -1,4 +1,6 @@
 
+import feedlens.db.repository as _ref_db_repository
+
 import feedlens.routes.dependencies as dependencies
 import feedlens.runs.pipeline as run_pipeline
 
@@ -17,7 +19,9 @@ import pytest
 from feedlens import api
 from feedlens.runs import pipeline
 from feedlens.runs import server_runner
-from feedlens.models import JobSeed, RawPost, RunRequest
+from feedlens.core.models import JobSeed
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.runs.source_modes import normalize
 from tests.test_cloud import cloud, _agent, _signup
 
@@ -30,7 +34,7 @@ def fast_scrape(monkeypatch):
 
 
 def test_plan_is_shared_by_local_and_cookie_runners(monkeypatch):
-    from feedlens import browser
+    from feedlens.browser import profiles as browser
     calls = []
     class Fake:
         def collect(self, page, url, label, count, seen, progress, **kwargs):
@@ -181,7 +185,7 @@ def test_cli_retains_type_and_accepts_mode_options(monkeypatch, arguments, expec
     def capture(args):
         captured.append(original(args))
         raise KeyboardInterrupt
-    monkeypatch.setattr(db, "Database", lambda *a: None)
+    monkeypatch.setattr(_ref_db_repository, "Database", lambda *a: None)
     monkeypatch.setattr(cli, "_request_from_args", capture)
     with pytest.raises(KeyboardInterrupt):
         cli.main(["run", *arguments])
@@ -190,8 +194,8 @@ def test_cli_retains_type_and_accepts_mode_options(monkeypatch, arguments, expec
 
 def test_cli_demo_still_runs_with_valid_source_plan(monkeypatch, tmp_path):
     from feedlens import cli, db
-    database = db.Database(f"sqlite:///{tmp_path / 'demo.db'}")
-    monkeypatch.setattr(db, "Database", lambda *a: database)
+    database = _ref_db_repository.Database(f"sqlite:///{tmp_path / 'demo.db'}")
+    monkeypatch.setattr(_ref_db_repository, "Database", lambda *a: database)
     monkeypatch.setattr(pipeline, "scrape", pipeline.scrape)  # Restore the demo's temporary override.
     cli.main(["demo"])
     assert database.list_runs()[0]["status"] == "done"

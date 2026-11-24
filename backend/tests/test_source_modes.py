@@ -5,9 +5,13 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from pydantic import ValidationError
 
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.db.tables import RunRow
-from feedlens.models import AnalyzedPost, JobInfo, JobSeed, RawPost, RunRequest
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import JobInfo
+from feedlens.core.models import JobSeed
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.runs.source_modes import effective_mode
 from feedlens.runs.source_modes import legacy_agent_compatible
 from feedlens.runs.source_modes import normalize

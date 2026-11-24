@@ -11,8 +11,8 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from ..config import settings
-from ..crypto import decrypt
+from feedlens.core.config import settings
+from feedlens.core.crypto import decrypt
 from feedlens.ai.providers.anthropic import AnthropicProvider
 from .base import AIProvider
 from feedlens.ai.providers.gemini import GeminiProvider

@@ -5,7 +5,9 @@ import json
 from feedlens.runs.export import to_csv
 from feedlens.runs.export import to_json
 from feedlens.runs.export import to_markdown
-from feedlens.models import AnalyzedPost, JobInfo, JobSeed
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import JobInfo
+from feedlens.core.models import JobSeed
 
 
 def sample(mode=True):

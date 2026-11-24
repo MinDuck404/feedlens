@@ -14,7 +14,7 @@ from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.jobs.profile import MAX_CV_BYTES
 from feedlens.jobs.profile import CV_SCHEMA
 from feedlens.jobs.profile import JobProfile
@@ -25,7 +25,9 @@ from feedlens.jobs.profile import load_profile
 from feedlens.jobs.profile import redact_contacts
 from feedlens.jobs.profile import relevant_roles
 from feedlens.jobs.profile import store_profile
-from feedlens.models import JobInfo, RawPost, RunRequest
+from feedlens.core.models import JobInfo
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 

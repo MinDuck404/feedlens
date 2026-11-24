@@ -2,7 +2,7 @@
 import subprocess
 from types import SimpleNamespace
 
-from feedlens import browser
+from feedlens.browser import profiles as browser
 
 
 class FakeProc:

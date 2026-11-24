@@ -8,7 +8,8 @@ import fastapi as fastapi
 import feedlens.routes.dependencies as dependencies
 
 from fastapi import APIRouter, Depends, Request
-from ..auth import CurrentUser as User, current_user
+from feedlens.core.auth import CurrentUser as User
+from feedlens.core.auth import current_user
 
 private = APIRouter()
 

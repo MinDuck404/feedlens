@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from feedlens.runs import pipeline
-from feedlens.models import RunRequest
+from feedlens.core.models import RunRequest
 
 GROUPS = [f"https://www.facebook.com/groups/g{i}" for i in range(13)]
 

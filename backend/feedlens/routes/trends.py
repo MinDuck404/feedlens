@@ -14,11 +14,11 @@ from fastapi import Depends
 from fastapi import Query
 from sqlalchemy import select
 
-from feedlens.auth import CurrentUser
-from feedlens.auth import current_user
+from feedlens.core.auth import CurrentUser
+from feedlens.core.auth import current_user
 from feedlens.db.tables import PostRow
 from feedlens.db.tables import RunRow
-from feedlens.models import CATEGORIES
+from feedlens.core.models import CATEGORIES
 
 TOPIC_PALETTE: dict[str, str] = {
     "red": "#AE3824",

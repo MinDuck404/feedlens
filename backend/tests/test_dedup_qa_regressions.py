@@ -10,11 +10,15 @@ from sqlalchemy import select
 from feedlens import api
 from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from feedlens.db.tables import PostRow
 from feedlens.runs.export import to_csv
 from feedlens.runs.export import to_markdown
-from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import PostGroup
+from feedlens.core.models import PostSource
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.analysis.duplicates import group_posts
 from feedlens.analysis.duplicates import preserve_post_identities
 from tests.test_cloud import cloud, _signup

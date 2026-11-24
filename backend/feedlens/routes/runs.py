@@ -5,12 +5,12 @@ from __future__ import annotations
 import feedlens.ai.registry as ai_registry
 import feedlens.analysis.heuristic as heuristic_analysis
 import feedlens.analysis.prompts as analysis_prompts
-import feedlens.config as config
+import feedlens.core.config as config
 import fastapi as fastapi
 import fastapi.responses as fastapi_responses
 import feedlens.jobs.profile as job_profile
-import feedlens.messages as messages
-import feedlens.models as models
+import feedlens.core.messages as messages
+import feedlens.core.models as models
 import feedlens.routes.agent as agent_routes
 import feedlens.routes.dependencies as dependencies
 import feedlens.runs.export as run_exports
@@ -19,8 +19,9 @@ import feedlens.runs.pipeline as run_pipeline
 from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from ..auth import CurrentUser as User, current_user
-from ..models import RunRequest
+from feedlens.core.auth import CurrentUser as User
+from feedlens.core.auth import current_user
+from feedlens.core.models import RunRequest
 
 private = APIRouter()
 

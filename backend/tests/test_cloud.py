@@ -2,7 +2,7 @@
 
 import feedlens.ai.registry as ai_registry
 import fastapi as fastapi
-import feedlens as feedlens_package
+import feedlens.browser.profiles as browser_profiles
 import feedlens.routes.auth as auth_routes
 import feedlens.routes.platforms as platform_routes
 import feedlens.runs.pipeline as run_pipeline
@@ -19,10 +19,14 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from feedlens import ai, api, auth, config, crypto
+from feedlens import ai
+from feedlens import api
+from feedlens.core import auth
+from feedlens.core import config
+from feedlens.core import crypto
 from feedlens.ai import registry
-from feedlens.config import _normalize_db_url
-from feedlens.db import Database
+from feedlens.core.config import _normalize_db_url
+from feedlens.db.repository import Database
 
 SECRET = "s" * 40
 POSTS = [{"platform": "facebook", "source": "g", "text": "Tuyển Python dev remote, lương 30tr"},
@@ -319,9 +323,9 @@ def test_local_platform_session_is_unknown_until_explicit_check(cloud, tmp_path,
     monkeypatch.setattr(platform_routes, "_session_cache", {})
     monkeypatch.setattr(platform_routes, "_login_state", {})
     monkeypatch.setattr(platform_routes, "_session_started", True)  # Startup worker is covered separately; inspect manual checks here.
-    monkeypatch.setattr(feedlens_package.browser, "profile_dir", lambda platform: tmp_path / platform)
+    monkeypatch.setattr(browser_profiles, "profile_dir", lambda platform: tmp_path / platform)
     (tmp_path / "facebook").mkdir()
-    monkeypatch.setattr(feedlens_package.browser, "check_session", lambda platform: platform == "facebook")
+    monkeypatch.setattr(browser_profiles, "check_session", lambda platform: platform == "facebook")
     platforms = {p["key"]: p for p in client.get("/api/platforms").json()}
     assert platforms["facebook"]["has_profile"] is True
     assert all(p["logged_in"] is None for p in platforms.values())

@@ -1,10 +1,14 @@
 """Users persistence for Database."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from sqlalchemy import delete, select
+from datetime import datetime
+from datetime import timezone
+from sqlalchemy import delete
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from .tables import JobProfileRow, PlatformSessionRow, UserRow
+from feedlens.db.tables import JobProfileRow
+from feedlens.db.tables import PlatformSessionRow
+from feedlens.db.tables import UserRow
 
 
 LOCAL_EMAIL = "local@feedlens"

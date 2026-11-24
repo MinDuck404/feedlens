@@ -5,8 +5,9 @@ from feedlens import api
 from feedlens.runs import pipeline
 from feedlens.ai import registry
 from feedlens.analysis.heuristic import HeuristicAnalyzer
-from feedlens.db import Database
-from feedlens.models import RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from feedlens.db.tables import UserRow
 from sqlalchemy import text
 from tests.test_cloud import cloud, _signup

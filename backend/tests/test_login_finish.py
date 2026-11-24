@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from feedlens import api, browser
+from feedlens import api
+from feedlens.browser import profiles as browser
 from tests.test_browser_detection import cloud, local_state
 from tests.test_browser_login import setup
 
@@ -202,8 +203,12 @@ def test_manual_playwright_finish_closes_context_and_respects_verification(monke
 
 
 def test_topic_refresh_never_summarizes_unread_placeholders(tmp_path):
-    from feedlens.db import Database
-    from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
+    from feedlens.db.repository import Database
+    from feedlens.core.models import AnalyzedPost
+    from feedlens.core.models import PostGroup
+    from feedlens.core.models import PostSource
+    from feedlens.core.models import RawPost
+    from feedlens.core.models import RunRequest
     from feedlens.routes.topics import refresh_topic_digests
     db = Database(f"sqlite:///{tmp_path / 'topics.db'}")
     uid = db.local_user_id()
@@ -221,10 +226,13 @@ def test_topic_refresh_never_summarizes_unread_placeholders(tmp_path):
 
 def test_cli_markdown_exports_only_analyzed_posts(monkeypatch, tmp_path, capsys):
     from feedlens import cli
-    from feedlens import config
+    from feedlens.core import config
     from feedlens.runs import pipeline
-    from feedlens.db import Database
-    from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost
+    from feedlens.db.repository import Database
+    from feedlens.core.models import AnalyzedPost
+    from feedlens.core.models import PostGroup
+    from feedlens.core.models import PostSource
+    from feedlens.core.models import RawPost
     monkeypatch.setattr(config, "settings", SimpleNamespace(database_url=f"sqlite:///{tmp_path / 'cli.db'}"))
     def interrupted(db, rid, req, uid):
         raw = [RawPost(platform="facebook", source="feed", text=text) for text in ("Read post", "DO NOT EXPORT UNREAD")]

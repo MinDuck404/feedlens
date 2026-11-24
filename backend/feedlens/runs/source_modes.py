@@ -13,13 +13,13 @@ from urllib.parse import quote
 from urllib.parse import urlencode
 from urllib.parse import urlsplit
 
-from feedlens.models import EmptyOptions
-from feedlens.models import FacebookGroupOptions
-from feedlens.models import LinkedInJobsOptions
-from feedlens.models import LinkedInPostsOptions
-from feedlens.models import RedditSearchOptions
-from feedlens.models import RedditSubredditOptions
-from feedlens.models import RunRequest
+from feedlens.core.models import EmptyOptions
+from feedlens.core.models import FacebookGroupOptions
+from feedlens.core.models import LinkedInJobsOptions
+from feedlens.core.models import LinkedInPostsOptions
+from feedlens.core.models import RedditSearchOptions
+from feedlens.core.models import RedditSubredditOptions
+from feedlens.core.models import RunRequest
 
 MODE_OPTIONS = {
     "facebook": {"feed": EmptyOptions, "group": FacebookGroupOptions,

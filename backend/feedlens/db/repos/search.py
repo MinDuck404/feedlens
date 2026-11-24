@@ -6,8 +6,10 @@ import heapq
 import unicodedata
 from datetime import date
 from typing import Any
-from sqlalchemy import select, text
-from .tables import PostRow, RunRow
+from sqlalchemy import select
+from sqlalchemy import text
+from feedlens.db.tables import PostRow
+from feedlens.db.tables import RunRow
 
 
 def _parse_post_date(posted_at: str | None, run_created_at: Any) -> date:

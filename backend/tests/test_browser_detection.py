@@ -9,7 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from feedlens import api, browser
+from feedlens import api
+from feedlens.browser import profiles as browser
 from tests.test_cloud import cloud, _signup, _agent
 
 
@@ -198,7 +199,7 @@ def test_legacy_profile_stays_chrome_and_launch_failure_does_not_fall_back(monke
 def test_local_run_missing_browser_maps_to_browser_missing_code(cloud, monkeypatch, diagnostic):
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
 
     client = cloud(mode="local")
     req = RunRequest(platform="facebook", ai_provider="offline")
@@ -211,7 +212,7 @@ def test_local_run_missing_browser_maps_to_browser_missing_code(cloud, monkeypat
 
 
 def test_cloud_agent_fail_missing_browser_maps_to_browser_missing_code(cloud):
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
 
     client = cloud()
     headers = _signup(client)
@@ -306,7 +307,7 @@ def test_server_scrape_missing_browser_maps_to_browser_missing_code(cloud, monke
     import playwright.sync_api
     from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
-    from feedlens.models import RunRequest
+    from feedlens.core.models import RunRequest
 
     client = cloud()
     headers = _signup(client)

@@ -1,5 +1,5 @@
 
-import feedlens as feedlens_package
+import feedlens.browser.profiles as browser_profiles
 import feedlens.routes.dependencies as dependencies
 import feedlens.routes.platforms as platform_routes
 import re
@@ -11,14 +11,15 @@ import pytest
 from sqlalchemy import text
 
 from feedlens import api
-from feedlens import browser
+from feedlens.browser import profiles as browser
 from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.db import Database
-from feedlens.messages import error_code
-from feedlens.models import RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.messages import error_code
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 
@@ -142,7 +143,7 @@ def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tm
     monkeypatch.setattr(platform_routes, "_session_cache", {})
     monkeypatch.setattr(platform_routes, "_session_checks", {})
     monkeypatch.setattr(platform_routes, "_session_started", False)
-    monkeypatch.setattr(feedlens_package.browser, "profile_dir", lambda p: tmp_path / p)
+    monkeypatch.setattr(browser_profiles, "profile_dir", lambda p: tmp_path / p)
     for p in ("facebook", "linkedin"):
         (tmp_path / p).mkdir()
     calls = []
@@ -150,7 +151,7 @@ def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tm
         assert pipeline._platform_locks[p].locked()
         calls.append(p)
         return p == "facebook"
-    monkeypatch.setattr(feedlens_package.browser, "check_session", check)
+    monkeypatch.setattr(browser_profiles, "check_session", check)
     lock = pipeline._platform_locks["facebook"]
     lock.acquire()
     try:
@@ -178,7 +179,7 @@ def test_cloud_skips_startup_checks(cloud, monkeypatch):
     client = cloud()
     headers = _signup(client)
     monkeypatch.setattr(platform_routes, "_session_started", False)
-    monkeypatch.setattr(feedlens_package.browser, "check_session", lambda *a: pytest.fail("Cloud opened a profile"))
+    monkeypatch.setattr(browser_profiles, "check_session", lambda *a: pytest.fail("Cloud opened a profile"))
     assert client.get("/api/platforms", headers=headers).json() == []
     assert platform_routes._session_started is False
 

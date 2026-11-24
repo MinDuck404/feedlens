@@ -15,8 +15,9 @@ from feedlens.runs import pipeline
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler
 from feedlens.analysis.llm import LLMAnalyzer
-from feedlens.db import Database
-from feedlens.models import RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 

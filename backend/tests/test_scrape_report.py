@@ -1,8 +1,10 @@
 from types import SimpleNamespace
 
 from feedlens.runs import pipeline
-from feedlens.db import Database
-from feedlens.models import AnalyzedPost, RawPost, RunRequest
+from feedlens.db.repository import Database
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 
 
 def make_db(tmp_path):

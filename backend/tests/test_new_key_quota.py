@@ -10,7 +10,7 @@ import pytest
 
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaExhausted, QuotaScheduler, pacific_day, scheduler_for
-from feedlens.db import Database
+from feedlens.db.repository import Database
 from tests.test_ai_quota import Clock, Provider
 from tests.test_cloud import cloud
 
@@ -64,8 +64,9 @@ def test_new_key_added_after_scheduler_creation_is_used_on_continue(cloud, monke
     from feedlens.runs import pipeline
     from feedlens.analysis import analyzer as module
     from feedlens.routes import ai_keys as ai_keys_api
-    from feedlens.crypto import encrypt
-    from feedlens.models import RawPost, RunRequest
+    from feedlens.core.crypto import encrypt
+    from feedlens.core.models import RawPost
+    from feedlens.core.models import RunRequest
     from tests.test_cloud import _signup
     client = cloud()
     headers = _signup(client)

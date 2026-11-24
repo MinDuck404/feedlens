@@ -1,5 +1,5 @@
 """Thông báo chờ hạn mức / đổi model phải có mã riêng, để giao diện không đè bằng "Đang phân tích bài"."""
-from feedlens.messages import progress_message
+from feedlens.core.messages import progress_message
 
 
 def test_quota_wait_message_gets_its_own_code_and_vars():

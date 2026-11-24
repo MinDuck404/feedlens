@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Literal, Optional
+from typing import Literal
+from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import model_validator
 
 Platform = Literal["facebook", "linkedin", "x", "reddit"]
 SourceType = Literal["feed", "group", "search"]

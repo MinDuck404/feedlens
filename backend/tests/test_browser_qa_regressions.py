@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from feedlens import api
-from feedlens import browser
+from feedlens.browser import profiles as browser
 from feedlens.runs import server_runner
 from tests.test_browser_detection import cloud, fake_playwright, local_state, no_native
 

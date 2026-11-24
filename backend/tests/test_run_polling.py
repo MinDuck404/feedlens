@@ -7,7 +7,9 @@ import pytest
 from feedlens import api
 from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
-from feedlens.models import AnalyzedPost, RawPost, RunRequest
+from feedlens.core.models import AnalyzedPost
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
 from tests.test_cloud import cloud, _signup
 
 

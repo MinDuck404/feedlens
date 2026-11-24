@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from typing import Any
 from sqlalchemy import select
-from ..models import Digest, RawPost, RunRequest
-from .tables import RunRow
+from feedlens.core.models import Digest
+from feedlens.core.models import RawPost
+from feedlens.core.models import RunRequest
+from feedlens.db.tables import RunRow
 
 
 def _run_dict(r: RunRow) -> dict:

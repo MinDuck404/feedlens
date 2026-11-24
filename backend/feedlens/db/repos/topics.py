@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from ..models import Topic
-from .tables import PostRow, RunRow, TopicRow
+from feedlens.core.models import Topic
+from feedlens.db.tables import PostRow
+from feedlens.db.tables import RunRow
+from feedlens.db.tables import TopicRow
 
 
 def _topic(r: TopicRow) -> Topic:

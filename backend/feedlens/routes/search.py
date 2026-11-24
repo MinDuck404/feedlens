@@ -23,10 +23,10 @@ from feedlens.ai.registry import user_keys
 from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.prompts import LANGUAGE_NAMES
 from feedlens.analysis.analyzer import get_analyzer
-from feedlens.auth import CurrentUser
-from feedlens.auth import current_user
-from feedlens.models import CATEGORIES
-from feedlens.messages import error_code
+from feedlens.core.auth import CurrentUser
+from feedlens.core.auth import current_user
+from feedlens.core.models import CATEGORIES
+from feedlens.core.messages import error_code
 
 ASK_FILTER_SCHEMA = {
     "type": "object",
