@@ -1,12 +1,12 @@
 import { Briefcase, ChevronRight, Inbox, Plus } from "lucide-react";
-import { describeRunSource, parseTimestamp } from "../lib/logic";
-import { PLATFORM_LABEL } from "../lib/categories";
-import { formatNumber, useI18n, type Key } from "../i18n";
-import { routeHref } from "../router";
-import type { Run } from "../api/types";
-import { STATUS_CLS } from "../features/sidebar/Sidebar";
-import { Button } from "./ui/Button";
-import { EmptyState } from "./ui/EmptyState";
+import { describeRunSource, parseTimestamp } from "../../lib/logic";
+import { PLATFORM_LABEL } from "../../lib/categories";
+import { formatNumber, useI18n, type Key } from "../../i18n";
+import { routeHref } from "../../router";
+import type { Run } from "../../api/types";
+import { STATUS_CLS } from "../sidebar/Sidebar";
+import { Button } from "../../components/ui/Button";
+import { EmptyState } from "../../components/ui/EmptyState";
 
 interface Props {
   runs: Run[];

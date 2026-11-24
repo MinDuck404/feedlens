@@ -4,7 +4,7 @@ import Composer from "./features/composer/Composer";
 import Login from "./components/Login";
 import Settings from "./features/settings/Settings";
 import RunView from "./features/run/RunView";
-import HistoryPage from "./components/HistoryPage";
+import HistoryPage from "./features/history/HistoryPage";
 import AskPage from "./features/ask/AskPage";
 import TrendsPage from "./features/trends/TrendsPage";
 import Sidebar from "./features/sidebar/Sidebar";
