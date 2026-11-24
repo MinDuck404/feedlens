@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp, ExternalLink, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { api } from "../../api/client";
-import { formatNumber, useI18n, type Key } from "../../i18n";
+import { formatNumber, useI18n } from "../../i18n";
 import type { AIKey, AIProviderInfo } from "../../api/types";
 import { Button, IconButton, Select, TextField } from "../../components/ui";
 
@@ -143,7 +143,6 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
           onChange={(event) => { setSecret(event.target.value); setCustomModels(null); }} />
         {custom && <span className="mt-1.5 block text-xs text-ink-soft">{t("set.customKeyOptional")}</span>}
       </label>
-      {/* shortcut: English-only keys await locale parity, remove casts when vi/zh gain these keys. */}
       {custom && <div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-0 flex-1">
@@ -152,11 +151,11 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
               onChange={(event) => setDefaultModel(event.target.value)} />
           </div>
           <Button size="sm" variant="outline" busy={loadingModels} disabled={pending || !available || !baseUrl.trim()} onClick={loadModels}>
-            {t((loadingModels ? "set.customLoadingModels" : "set.customLoadModels") as Key)}
+            {t(loadingModels ? "set.customLoadingModels" : "set.customLoadModels")}
           </Button>
         </div>
         {!!customModels?.length && <datalist id={modelListId}>{customModels.map((model) => <option key={model} value={model}>{model}</option>)}</datalist>}
-        {customModels?.length === 0 && <p id={`${modelListId}-hint`} role="status" className="mt-1.5 text-xs text-ink-soft">{t("set.customModelsEmpty" as Key)}</p>}
+        {customModels?.length === 0 && <p id={`${modelListId}-hint`} role="status" className="mt-1.5 text-xs text-ink-soft">{t("set.customModelsEmpty")}</p>}
       </div>}
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.keyTier")}</span>
         <Select value={tier} disabled={pending} onChange={(event) => setTier(event.target.value as AIKey["tier"])}>
