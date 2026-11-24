@@ -15,7 +15,7 @@ def _request_from_args(a):
                       mode=getattr(a, "mode", None), options=getattr(a, "options", {}),
                       job_mode=a.jobs, keywords=a.keywords, profile=a.profile, only_new=a.only_new,
                       headless=a.headless, ai_provider=a.ai, ai_model=a.model)
-    from .source_modes import normalize
+    from feedlens.runs.source_modes import normalize
     normalize(req)
     return req
 
@@ -23,7 +23,7 @@ def _request_from_args(a):
 def _push(a) -> None:
     import httpx
 
-    from .pipeline import scrape
+    from feedlens.runs.pipeline import scrape
 
     if not a.server or not a.token:
         sys.exit("Thiếu --server/--token (hoặc biến FEEDLENS_SERVER / FEEDLENS_AGENT_TOKEN).")
@@ -52,7 +52,7 @@ def _push_cookies(a) -> None:
 
     import httpx
 
-    from .agent import load_config
+    from feedlens.runs.agent import load_config
     from .browser import open_context, profile_dir
     from .cookies import DOMAIN
 
@@ -150,12 +150,14 @@ def main(argv: list[str] | None = None) -> None:
         print("✅ Đã đăng nhập" if interactive_login(a.platform) else "❌ Chưa phát hiện phiên đăng nhập")
     elif a.cmd == "push":
         if not a.server or not a.token:
-            from .agent import load_config
+            from feedlens.runs.agent import load_config
             cfg = load_config()
             a.server, a.token = a.server or cfg.get("server", ""), a.token or cfg.get("token", "")
         _push(a)
     elif a.cmd == "agent":
-        from .agent import Agent, load_config, save_config
+        from feedlens.runs.agent import Agent
+        from feedlens.runs.agent import load_config
+        from feedlens.runs.agent import save_config
 
         cfg = load_config()
         server = a.server or cfg.get("server") or os.getenv("FEEDLENS_SERVER", "")
@@ -179,7 +181,7 @@ def main(argv: list[str] | None = None) -> None:
         for platform, before, after in results:
             print(f"{platform}: {before / 1048576:.0f}MB -> {after / 1048576:.0f}MB")
     elif a.cmd == "demo":
-        from . import pipeline
+        from feedlens.runs import pipeline
         from .config import settings
         from .db import Database
         from .demo import DEMO_POSTS
@@ -196,9 +198,9 @@ def main(argv: list[str] | None = None) -> None:
     elif a.cmd == "run":
         from .config import settings
         from .db import Database
-        from .export import to_markdown
+        from feedlens.runs.export import to_markdown
         from .models import RunRequest
-        from .pipeline import execute_run
+        from feedlens.runs.pipeline import execute_run
 
         db = Database(settings.database_url)
         req = _request_from_args(a)

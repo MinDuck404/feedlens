@@ -1,22 +1,32 @@
 """/api/search & /api/ask: Tìm kiếm nhanh (FTS5 / LIKE) và Hỏi đáp có trích dẫn."""
 from __future__ import annotations
 
-import re
-from datetime import date, datetime, timezone
-from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+import re
+from datetime import date
+from datetime import datetime
+from datetime import timezone
+from typing import Annotated
+from typing import Literal
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import ValidationError
+from pydantic import ConfigDict
 
 from feedlens.ai.registry import resolve_provider_key
 from feedlens.ai.registry import user_keys
-from .ai.registry import preferred_provider
+from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.prompts import LANGUAGE_NAMES
 from feedlens.analysis.analyzer import get_analyzer
-from .auth import CurrentUser, current_user
-from .models import CATEGORIES
-from .messages import error_code
+from feedlens.auth import CurrentUser
+from feedlens.auth import current_user
+from feedlens.models import CATEGORIES
+from feedlens.messages import error_code
 
 ASK_FILTER_SCHEMA = {
     "type": "object",

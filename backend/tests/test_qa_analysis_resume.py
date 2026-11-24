@@ -1,9 +1,13 @@
+
+import feedlens.routes.dependencies as dependencies
+import feedlens.routes.runs as run_routes
 import json
 import re
 from types import SimpleNamespace
 
 import pytest
-from feedlens import api, pipeline
+from feedlens import api
+from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
@@ -52,8 +56,8 @@ class BatchQuotaAI(HeuristicAnalyzer):
 def test_quota_exhausted_at_different_batches(cloud, monkeypatch, fail_at, expected_ai, expected_pending):
     """Kiểm tra hết hạn mức ở batch đầu, giữa, cuối: checkpoint lưu đúng số bài, trạng thái failed, gửi tiếp thành công."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     req = RunRequest(platform="facebook", ai_provider="openai")
     rid = database.create_run(req, user_id)
@@ -62,7 +66,7 @@ def test_quota_exhausted_at_different_batches(cloud, monkeypatch, fail_at, expec
 
     # Chạy lần đầu với AI gặp lỗi quota ở batch chỉ định
     fake_quota = BatchQuotaAI(label="OpenAI GPT", fail_at_batch=fail_at, batch_size=2)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake_quota)
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Không được cào web"))
@@ -100,8 +104,8 @@ def test_quota_exhausted_at_different_batches(cloud, monkeypatch, fail_at, expec
 def test_repeated_continue_while_still_exhausted_maintains_counts_and_labels(cloud, monkeypatch):
     """Gửi tiếp 2 lần liên tiếp khi vẫn hết hạn mức: không lệch count, không mất nhãn AI."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     req = RunRequest(platform="facebook", ai_provider="openai")
     rid = database.create_run(req, user_id)
@@ -110,7 +114,7 @@ def test_repeated_continue_while_still_exhausted_maintains_counts_and_labels(clo
 
     # Lần đầu: Lưu được batch 0 (2 bài), ném lỗi ở batch 1
     fake_initial = BatchQuotaAI(label="OpenAI GPT", fail_at_batch=1, batch_size=2)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake_initial)
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Không được cào web"))
@@ -150,8 +154,8 @@ def test_repeated_continue_while_still_exhausted_maintains_counts_and_labels(clo
 def test_change_model_on_continue_analyzes_remaining_and_merges_label(cloud, monkeypatch):
     """Đổi model giữa 2 lần: chỉ gửi các bài chưa đọc, gộp ai_label và hoàn tất."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     req = RunRequest(platform="facebook", ai_provider="gemini", ai_model="gemini-2.5-flash")
     rid = database.create_run(req, user_id)
@@ -160,7 +164,7 @@ def test_change_model_on_continue_analyzes_remaining_and_merges_label(cloud, mon
 
     # Lần 1: Chạy Gemini, phân tích được 2 bài (batch 0) thì hết quota ở batch 1
     gemini_ai = BatchQuotaAI(label="Gemini (gemini-2.5-flash)", fail_at_batch=1, batch_size=2)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "gemini")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "gemini")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: gemini_ai)
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Không được cào web"))
@@ -172,7 +176,7 @@ def test_change_model_on_continue_analyzes_remaining_and_merges_label(cloud, mon
 
     # Lần 2: Người dùng đổi sang OpenAI GPT-4o-mini, xử lý thành công 2 bài còn lại
     openai_ai = BatchQuotaAI(label="OpenAI (gpt-4o-mini)", fail_at_batch=-1, batch_size=2)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: openai_ai)
 
     response = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"ai_provider": "openai", "ai_model": "gpt-4o-mini"})
@@ -201,8 +205,8 @@ def test_change_model_on_continue_analyzes_remaining_and_merges_label(cloud, mon
 def test_retry_analysis_returns_409_when_already_analyzing(cloud):
     """Khi run đang ở status='analyzing', gọi /analysis phải trả về HTTP 409 Conflict."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     rid = database.create_run(RunRequest(platform="facebook", ai_provider="openai"), user_id, status="analyzing")
     database.save_raw_posts(rid, [RawPost(platform="facebook", source="feed", text="Đang phân tích...")])
@@ -218,8 +222,8 @@ def test_retry_analysis_returns_409_when_already_analyzing(cloud):
 def test_fail_interrupted_run_can_be_continued(cloud, monkeypatch):
     """Run bị ngắt do server tắt (status=analyzing) được fail_interrupted chuyển sang analysis_failed và gửi tiếp thành công."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     rid = database.create_run(RunRequest(platform="facebook", ai_provider="openai"), user_id, status="analyzing")
     raw = [RawPost(platform="facebook", source="feed", text=f"Bài đăng trước khi tắt server {i}") for i in range(3)]
@@ -238,7 +242,7 @@ def test_fail_interrupted_run_can_be_continued(cloud, monkeypatch):
 
     # Gửi tiếp sau khi server bật lại
     fake_ai = BatchQuotaAI(label="OpenAI GPT", fail_at_batch=-1, batch_size=3)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: fake_ai)
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Không được cào web"))
@@ -260,8 +264,8 @@ def test_fail_interrupted_run_can_be_continued(cloud, monkeypatch):
 def test_ai_retries_omitted_items_then_finishes_with_retryable_offline_jobs(cloud, monkeypatch, initial_reads):
     """Bài thiếu được gửi lại một lần; bài vẫn thiếu có kết quả offline và được gửi tiếp riêng."""
     client = cloud(); headers = _signup(client)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    database = api.db()
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    database = dependencies.db()
 
     req = RunRequest(platform="facebook", ai_provider="openai", job_mode=True, keywords=["Python"])
     rid = database.create_run(req, user_id)
@@ -287,7 +291,7 @@ def test_ai_retries_omitted_items_then_finishes_with_retryable_offline_jobs(clou
 
     analyzer = LLMAnalyzer(SimpleNamespace(info=SimpleNamespace(name="OpenAI"), model="test-lite"))
     monkeypatch.setattr(analyzer, "_json_call", reply)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: analyzer)
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     monkeypatch.setattr(pipeline, "scrape", lambda *args: pytest.fail("Không được cào web"))
@@ -328,7 +332,7 @@ def test_ai_retries_omitted_items_then_finishes_with_retryable_offline_jobs(clou
 
 def test_quota_error_on_omitted_item_retry_preserves_successful_items(cloud, monkeypatch):
     client = cloud(); headers = _signup(client)
-    database = api.db()
+    database = dependencies.db()
     user_id = database.get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", ai_provider="openai")
     rid = database.create_run(req, user_id)
@@ -356,7 +360,7 @@ def test_quota_error_on_omitted_item_retry_preserves_successful_items(cloud, mon
 @pytest.mark.parametrize("broken_singleton", [False, True])
 def test_truncated_classification_splits_batches_and_keeps_all_posts(cloud, monkeypatch, broken_singleton):
     client = cloud(); headers = _signup(client)
-    database = api.db()
+    database = dependencies.db()
     user_id = database.get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", ai_provider="openai", job_mode=True, keywords=["Python"])
     rid = database.create_run(req, user_id)
@@ -401,11 +405,11 @@ def test_cannot_retry_analysis_of_other_user_run(cloud):
     """User B không thể tiếp tục hoặc can thiệp phân tích lượt của User A (trả về 404)."""
     client = cloud()
     headers_a = _signup(client, email="user_a@x.io")
-    user_a_id = api.db().get_user_by_email("user_a@x.io").id
+    user_a_id = dependencies.db().get_user_by_email("user_a@x.io").id
 
     # User A tạo run
-    rid_a = api.db().create_run(RunRequest(platform="facebook", ai_provider="openai"), user_a_id, status="analysis_failed")
-    api.db().save_raw_posts(rid_a, [RawPost(platform="facebook", source="feed", text="Dữ liệu riêng tư của User A")])
+    rid_a = dependencies.db().create_run(RunRequest(platform="facebook", ai_provider="openai"), user_a_id, status="analysis_failed")
+    dependencies.db().save_raw_posts(rid_a, [RawPost(platform="facebook", source="feed", text="Dữ liệu riêng tư của User A")])
 
     # User B đăng nhập
     headers_b = _signup(client, email="user_b@x.io")

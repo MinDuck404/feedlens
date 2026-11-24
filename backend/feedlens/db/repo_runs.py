@@ -73,7 +73,7 @@ class RunsMixin:
 
     def claim_next_pending(self, user_id: int, protocol_version: int = 1) -> dict | None:
         """Old agents only claim legacy-equivalent requests; never silently run a new mode."""
-        from ..source_modes import legacy_agent_compatible
+        from feedlens.runs.source_modes import legacy_agent_compatible
         with self.Session.begin() as s:
             q = (select(RunRow).where(RunRow.user_id == user_id, RunRow.status == "pending")
                  .order_by(RunRow.id))

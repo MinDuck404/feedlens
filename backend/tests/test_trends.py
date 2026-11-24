@@ -1,3 +1,5 @@
+
+import feedlens.routes.dependencies as dependencies
 from datetime import datetime, timedelta, timezone
 
 from feedlens import api
@@ -8,7 +10,7 @@ from tests.test_cloud import _signup, cloud  # noqa: F401 — fixture
 def test_trends_user_isolation(cloud):
     client = cloud()
     a, b = _signup(client, "user-a@example.test"), _signup(client, "user-b@example.test")
-    db = api.db()
+    db = dependencies.db()
     user_a = db.get_user_by_email("user-a@example.test")
     user_b = db.get_user_by_email("user-b@example.test")
 
@@ -41,7 +43,7 @@ def test_trends_user_isolation(cloud):
 def test_trends_day_and_week_bucketing(cloud):
     client = cloud()
     h = _signup(client, "buckets@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("buckets@example.test")
 
     now = datetime.now(timezone.utc)
@@ -87,7 +89,7 @@ def test_trends_day_and_week_bucketing(cloud):
 def test_trends_group_topics(cloud):
     client = cloud()
     h = _signup(client, "topics-trend@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("topics-trend@example.test")
 
     # Create 2 topics
@@ -121,7 +123,7 @@ def test_trends_group_topics(cloud):
 def test_trends_date_fallback(cloud):
     client = cloud()
     h = _signup(client, "fallback@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("fallback@example.test")
 
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
@@ -144,7 +146,7 @@ def test_trends_date_fallback(cloud):
 
 
 def test_week_buckets_obey_exact_date_window(cloud, monkeypatch):
-    from feedlens import trends_api
+    from feedlens.routes import trends as trends_api
     class Clock(datetime):
         @classmethod
         def now(cls, tz=None):
@@ -152,7 +154,7 @@ def test_week_buckets_obey_exact_date_window(cloud, monkeypatch):
     monkeypatch.setattr(trends_api, "datetime", Clock)
     client = cloud()
     headers = _signup(client, "exact-window@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("exact-window@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"p-{day}", category="tech", posted_at=f"2026-11-{day:02}T10:00:00Z") for day in [15, 16, 17]])
@@ -163,7 +165,7 @@ def test_week_buckets_obey_exact_date_window(cloud, monkeypatch):
 
 
 def test_growth_compares_equal_previous_period_and_zero_is_not_percent(cloud, monkeypatch):
-    from feedlens import trends_api
+    from feedlens.routes import trends as trends_api
     class Clock(datetime):
         @classmethod
         def now(cls, tz=None):
@@ -171,7 +173,7 @@ def test_growth_compares_equal_previous_period_and_zero_is_not_percent(cloud, mo
     monkeypatch.setattr(trends_api, "datetime", Clock)
     client = cloud()
     headers = _signup(client, "growth@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("growth@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"stable-{day}", category="tech", posted_at=f"2026-11-{day:02}") for day in range(3, 17)] + [
@@ -189,7 +191,7 @@ def test_growth_compares_equal_previous_period_and_zero_is_not_percent(cloud, mo
 
 
 def test_dates_normalize_utc_and_reject_invalid_suffix():
-    from feedlens.trends_api import parse_post_date
+    from feedlens.routes.trends import parse_post_date
     fallback = datetime(2026, 11, 15, tzinfo=timezone.utc)
     assert parse_post_date("2026-11-15T00:30:00+07:00", fallback) == ((fallback - timedelta(days=1)).date(), False)
     assert parse_post_date("2026-11-14 garbage", fallback) == (fallback.date(), True)
@@ -201,7 +203,7 @@ def test_growth_uses_real_positive_baseline_and_ignores_other_users_topic(cloud)
     other = _signup(client, "other-topic@example.test")
     topic = client.post("/api/topics", headers=headers, json={"name": "Mine"}).json()
     foreign = client.post("/api/topics", headers=other, json={"name": "Foreign"}).json()
-    db = api.db(); user = db.get_user_by_email("positive-growth@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("positive-growth@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     today = datetime.now(timezone.utc).date()
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", category="tech", text=f"growth-{i}", posted_at=(today - timedelta(days=8 if i == 0 else 0)).isoformat(), topic_ids=[topic["id"], foreign["id"]]) for i in range(3)])

@@ -226,7 +226,7 @@ def test_empty_output_does_not_spend_two_requests_for_every_batch(monkeypatch):
 
 
 def test_220_jobs_with_cv_require_eleven_reads_and_one_digest(tmp_path, monkeypatch):
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.db import Database
     from feedlens.jobs.profile import JobProfile
     from feedlens.models import RunRequest

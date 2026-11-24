@@ -1,5 +1,12 @@
 """Chế độ cloud: nhiều tài khoản, API key mã hóa theo user, hàng đợi việc cho agent."""
 
+import feedlens.ai.registry as ai_registry
+import fastapi as fastapi
+import feedlens as feedlens_package
+import feedlens.routes.auth as auth_routes
+import feedlens.routes.platforms as platform_routes
+import feedlens.runs.pipeline as run_pipeline
+
 import feedlens.ai.base as ai_base
 import dataclasses
 import os
@@ -28,10 +35,10 @@ def cloud(tmp_path, monkeypatch):
 
     def make(**over):
         s = dataclasses.replace(config.settings, **{"mode": "cloud", "secret": SECRET, "allow_signup": True, **over})
-        for mod in (auth, api, crypto, registry):
+        for mod in (auth, config, crypto, registry):
             monkeypatch.setattr(mod, "settings", s)
         api.app.state.db = Database(f"sqlite:///{(tmp_path / 'c.db').as_posix()}")
-        api._attempts.clear()
+        auth_routes._attempts.clear()
         registry._MODEL_CACHE.clear()
         return TestClient(api.app)
 
@@ -84,7 +91,7 @@ def test_register_login_and_lockout(cloud):
     assert c.post("/api/auth/register", json={"email": "b@x.io", "password": "short"}).status_code == 400
     assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "wrong"}).status_code == 401
     assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "password1"}).status_code == 200
-    for _ in range(api.LOGIN_MAX_FAILS):
+    for _ in range(auth_routes.LOGIN_MAX_FAILS):
         c.post("/api/auth/login", json={"email": "a@x.io", "password": "wrong"})
     assert c.post("/api/auth/login", json={"email": "a@x.io", "password": "password1"}).status_code == 429
 
@@ -122,7 +129,7 @@ class StubProvider(ai_base.AIProvider):
 
 def test_api_keys_are_per_user_encrypted_and_masked(cloud, monkeypatch):
     monkeypatch.setitem(registry.PROVIDERS, "gemini", StubProvider)
-    monkeypatch.setitem(api.PROVIDERS, "gemini", StubProvider)
+    monkeypatch.setitem(ai_registry.PROVIDERS, "gemini", StubProvider)
     monkeypatch.setenv("GEMINI_API_KEY", "owner-env-key")  # cloud KHÔNG được dùng key của chủ server
     c = cloud()
     a, b = _signup(c, "a@x.io"), _signup(c, "b@x.io")
@@ -263,7 +270,7 @@ def test_ui_progress_and_failures_keep_diagnostics_with_codes(cloud):
     pending = c.get(f"/api/runs/{run_id}", headers=h).json()
     assert pending["progress"]["message_code"] == "progress.pending"
     assert pending["progress"]["message"]
-    api.PROGRESS[run_id] = {"phase": "scraping", "done": 2, "target": 10, "message": "Đang chờ xác minh đăng nhập"}
+    run_pipeline.PROGRESS[run_id] = {"phase": "scraping", "done": 2, "target": 10, "message": "Đang chờ xác minh đăng nhập"}
     assert c.get(f"/api/runs/{run_id}", headers=h).json()["progress"]["message_code"] == "progress.verification"
     api.app.state.db.update_run(run_id, status="error", error="Cookie đã hết hiệu lực")
     failed = c.get(f"/api/runs/{run_id}", headers=h).json()
@@ -295,9 +302,9 @@ def test_unknown_errors_use_request_context_except_stored_run_failures(cloud, mo
     h = _signup(c)
 
     def unavailable(*args):
-        raise api.HTTPException(status, "Unexpected provider response")
+        raise fastapi.HTTPException(status, "Unexpected provider response")
 
-    monkeypatch.setattr(api, "provider_status", unavailable)
+    monkeypatch.setattr(ai_registry, "provider_status", unavailable)
     response = c.get("/api/ai/providers", headers=h)
     assert response.status_code == status
     assert response.json() == {"code": "error.request_failed", "detail": "Unexpected provider response"}
@@ -309,12 +316,12 @@ def test_unknown_errors_use_request_context_except_stored_run_failures(cloud, mo
 
 def test_local_platform_session_is_unknown_until_explicit_check(cloud, tmp_path, monkeypatch):
     client = cloud(mode="local")
-    monkeypatch.setattr(api, "_session_cache", {})
-    monkeypatch.setattr(api, "_login_state", {})
-    monkeypatch.setattr(api, "_session_started", True)  # Startup worker is covered separately; inspect manual checks here.
-    monkeypatch.setattr(api.browser, "profile_dir", lambda platform: tmp_path / platform)
+    monkeypatch.setattr(platform_routes, "_session_cache", {})
+    monkeypatch.setattr(platform_routes, "_login_state", {})
+    monkeypatch.setattr(platform_routes, "_session_started", True)  # Startup worker is covered separately; inspect manual checks here.
+    monkeypatch.setattr(feedlens_package.browser, "profile_dir", lambda platform: tmp_path / platform)
     (tmp_path / "facebook").mkdir()
-    monkeypatch.setattr(api.browser, "check_session", lambda platform: platform == "facebook")
+    monkeypatch.setattr(feedlens_package.browser, "check_session", lambda platform: platform == "facebook")
     platforms = {p["key"]: p for p in client.get("/api/platforms").json()}
     assert platforms["facebook"]["has_profile"] is True
     assert all(p["logged_in"] is None for p in platforms.values())

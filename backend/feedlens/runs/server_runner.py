@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from typing import Callable, Iterator
+from typing import Callable
+from typing import Iterator
 
-from .models import RawPost, RunRequest
+from feedlens.models import RawPost
+from feedlens.models import RunRequest
 
 # Một Chromium mỗi lúc trên toàn server
 SERVER_SLOT = threading.Semaphore(1)
@@ -30,7 +32,7 @@ class CookieInvalid(RuntimeError):
 def cookie_page(cookies: list[dict]) -> Iterator:
     from playwright.sync_api import sync_playwright
 
-    from .browser import detect_browser
+    from feedlens.browser import detect_browser
 
     with sync_playwright() as pw:
         opts = dict(headless=True, args=["--disable-dev-shm-usage", "--disable-gpu", "--mute-audio"])
@@ -50,9 +52,9 @@ def cookie_page(cookies: list[dict]) -> Iterator:
 
 def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
                         on_progress: Callable[[int, str], None], report: dict | None = None) -> list[RawPost]:
-    from .pipeline import collect_all
+    from feedlens.runs.pipeline import collect_all
     from feedlens.scrapers.base import NeedsVerification
-    from .source_modes import normalize
+    from feedlens.runs.source_modes import normalize
 
     normalize(req)  # Validate before launching a cookie browser too.
     with cookie_page(cookies) as page:
@@ -67,7 +69,7 @@ def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
 
 def check_cookies(platform: str, cookies: list[dict]) -> tuple[bool, str]:
     """Mở trang chủ bằng cookie; ok nếu không bị chuyển sang trang đăng nhập/xác minh."""
-    from .cookies import SESSION_COOKIE
+    from feedlens.cookies import SESSION_COOKIE
     from feedlens.scrapers.base import has_login_form
     from feedlens.scrapers.base import is_blocked_url
 

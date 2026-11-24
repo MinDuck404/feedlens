@@ -1,10 +1,13 @@
+
+import feedlens.routes.dependencies as dependencies
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from feedlens import api, search_api
+from feedlens import api
+from feedlens.routes import search as search_api
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.models import AnalyzedPost, JobInfo, RunRequest
 from tests.test_cloud import _signup, cloud  # noqa: F401 — fixture
@@ -26,7 +29,7 @@ def fake_llm(handler):
 def test_search_user_isolation(cloud):
     client = cloud()
     a, b = _signup(client, "search-a@example.test"), _signup(client, "search-b@example.test")
-    db = api.db()
+    db = dependencies.db()
     user_a = db.get_user_by_email("search-a@example.test")
     user_b = db.get_user_by_email("search-b@example.test")
 
@@ -58,7 +61,7 @@ def test_search_user_isolation(cloud):
 def test_search_filters_and_fts_vs_like(cloud):
     client = cloud()
     h = _signup(client, "filters@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("filters@example.test")
 
     # Tạo 1 topic
@@ -137,7 +140,7 @@ def test_ask_needs_key_when_offline(cloud):
 def test_ask_with_fixtures_and_fake_llm(cloud, monkeypatch):
     client = cloud()
     h = _signup(client, "ask-ai@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("ask-ai@example.test")
 
     # Tạo post mẫu
@@ -224,7 +227,7 @@ def test_ask_no_posts_found_does_not_call_step3(cloud, monkeypatch):
 
 def test_search_applies_salary_location_match_type_and_validates_dates(cloud):
     client = cloud(); headers = _signup(client, "job-search@example.test")
-    db = api.db(); user = db.get_user_by_email("job-search@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("job-search@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"React salary {i}", category="job", job=JobInfo(title="React", salary=salary, location="Hà Nội", work_mode="远程", match_type="primary")) for i,salary in enumerate(["35-45M VND", "25 triệu/tháng", "2000 USD", "35M VND annually", "35000000USD", "9" * 500 + "M VND"])])
     result = client.get("/api/search?min_salary_vnd=30000000&locations=Hanoi&match_type=primary&work_modes=remote", headers=headers).json()
@@ -237,7 +240,7 @@ def test_search_applies_salary_location_match_type_and_validates_dates(cloud):
 def test_fts_keeps_owned_ids_in_sql_and_pagination_counts_all_matches(cloud):
     from sqlalchemy import event
     client = cloud(); headers = _signup(client, "sql-search@example.test")
-    db = api.db(); user = db.get_user_by_email("sql-search@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("sql-search@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text=f"React test-{i}") for i in range(6)])
     statements = []
@@ -254,7 +257,7 @@ def test_fts_keeps_owned_ids_in_sql_and_pagination_counts_all_matches(cloud):
 
 def test_ask_edited_filters_skip_parser_and_provider_errors_are_codes(cloud, monkeypatch):
     client = cloud(); headers = _signup(client, "edited-ask@example.test")
-    db = api.db(); user = db.get_user_by_email("edited-ask@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("edited-ask@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="React sample", summary="React")])
     post = db.get_posts(run)[0]
@@ -286,7 +289,7 @@ def test_unknown_ai_topic_does_not_broaden_search_and_snippet_markers_do_not_nes
 
 def test_chinese_substring_search_uses_like_when_unicode61_cannot_segment(cloud):
     client = cloud(); headers = _signup(client, "chinese-search@example.test")
-    db = api.db(); user = db.get_user_by_email("chinese-search@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("chinese-search@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="招聘支持远程工作的开发人员")])
     result = client.get("/api/search", params={"q": "远程"}, headers=headers).json()
@@ -296,7 +299,7 @@ def test_chinese_substring_search_uses_like_when_unicode61_cannot_segment(cloud)
 def test_fts_repairs_old_row_ids_and_metadata_updates_do_not_reindex(cloud):
     from sqlalchemy import text
     client = cloud(); headers = _signup(client, "fts-migrate@example.test")
-    db = api.db(); user = db.get_user_by_email("fts-migrate@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("fts-migrate@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="React repair")])
     post = db.get_posts(run)[0]
@@ -314,7 +317,7 @@ def test_fts_repairs_old_row_ids_and_metadata_updates_do_not_reindex(cloud):
 
 def test_symbol_search_is_literal_instead_of_match_all(cloud):
     client = cloud(); headers = _signup(client, "symbol-search@example.test")
-    db = api.db(); user = db.get_user_by_email("symbol-search@example.test")
+    db = dependencies.db(); user = db.get_user_by_email("symbol-search@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [AnalyzedPost(platform="facebook", source="feed", text="100% remote"), AnalyzedPost(platform="facebook", source="feed", text="ordinary post notgithub.com/spam")])
     result = client.get("/api/search", params={"q": "%"}, headers=headers).json()
@@ -325,7 +328,7 @@ def test_symbol_search_is_literal_instead_of_match_all(cloud):
 def test_prefix_and_multiword_and_special_character_search(cloud):
     client = cloud()
     headers = _signup(client, "prefix-search@example.test")
-    db = api.db()
+    db = dependencies.db()
     user = db.get_user_by_email("prefix-search@example.test")
     run = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run, [

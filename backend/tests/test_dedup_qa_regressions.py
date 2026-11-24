@@ -1,14 +1,19 @@
+
+import feedlens.routes.dependencies as dependencies
+import feedlens.routes.runs as run_routes
 import csv
 import io
 
 import pytest
 from sqlalchemy import select
 
-from feedlens import api, pipeline
+from feedlens import api
+from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db import Database
 from feedlens.db.tables import PostRow
-from feedlens.export import to_csv, to_markdown
+from feedlens.runs.export import to_csv
+from feedlens.runs.export import to_markdown
 from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
 from feedlens.analysis.duplicates import group_posts
 from feedlens.analysis.duplicates import preserve_post_identities
@@ -84,43 +89,43 @@ def test_missing_representative_row_still_returns_group_without_include_raw(tmp_
 def test_legacy_reanalysis_rekeys_existing_rows_without_orphan_pending(cloud, monkeypatch, same_observation):
     client = cloud()
     headers = _signup(client)
-    uid = api.db().get_user_by_email("a@x.io").id
+    uid = dependencies.db().get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", ai_provider="openai")
-    rid = api.db().create_run(req, uid, status="done")
+    rid = dependencies.db().create_run(req, uid, status="done")
     raw = [post("Ai cần tuyển dev inbox", "Group A"), post("Ai cần tuyển dev inbox", "Group A" if same_observation else "Group B")]
-    api.db().save_posts(rid, [AnalyzedPost(**p.model_dump(), analyzed_by="Fake AI") for p in raw])
-    original_ids = {p.id for p in api.db().get_posts(rid)}
+    dependencies.db().save_posts(rid, [AnalyzedPost(**p.model_dump(), analyzed_by="Fake AI") for p in raw])
+    original_ids = {p.id for p in dependencies.db().get_posts(rid)}
     fake_ai(monkeypatch)
-    monkeypatch.setattr(api, "_check_ai", lambda *args: "openai")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *args: "openai")
     monkeypatch.setattr(pipeline, "_spawn", lambda target, run_id, *args: target(*args))
     result = client.post(f"/api/runs/{rid}/analysis", headers=headers, json={"mode": "reanalyze_all", "ai_provider": "openai"})
     assert result.status_code == 200
-    assert api.db().get_run(rid)["status"] == "done"
-    with api.db().Session() as session:
+    assert dependencies.db().get_run(rid)["status"] == "done"
+    with dependencies.db().Session() as session:
         rows = session.scalars(select(PostRow).where(PostRow.run_id == rid)).all()
         assert {row.id for row in rows} == original_ids
         assert all(row.analyzed_by != "pending" for row in rows)
     count = 1 if same_observation else 2
-    assert api.db().analysis_counts(rid) == {"ai": count, "offline": 0, "pending": 0, "total": count}
+    assert dependencies.db().analysis_counts(rid) == {"ai": count, "offline": 0, "pending": 0, "total": count}
 
 
 def test_history_search_trends_and_retagging_count_representatives_and_keep_legacy(cloud, monkeypatch):
     client = cloud()
     headers = _signup(client)
-    uid = api.db().get_user_by_email("a@x.io").id
+    uid = dependencies.db().get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", ai_provider="openai")
     fake_ai(monkeypatch)
-    rid = api.db().create_run(req, uid)
+    rid = dependencies.db().create_run(req, uid)
     raw = [post(TEXT + " #Hiring" * i, f"Group {i}", f"https://example.test/{i}") for i in range(3)]
-    pipeline.execute_analysis(api.db(), rid, req, raw, uid)
-    old = api.db().create_run(req, uid, status="done")
-    api.db().save_posts(old, [AnalyzedPost(**p.model_dump(), analyzed_by="Fake AI") for p in raw])
-    foreign = api.db().create_user("other@test.example", "fake-hash")
-    other = api.db().create_run(req, foreign)
-    pipeline.execute_analysis(api.db(), other, req, raw, foreign)
-    assert len(api.db().user_posts(uid)) == 4
+    pipeline.execute_analysis(dependencies.db(), rid, req, raw, uid)
+    old = dependencies.db().create_run(req, uid, status="done")
+    dependencies.db().save_posts(old, [AnalyzedPost(**p.model_dump(), analyzed_by="Fake AI") for p in raw])
+    foreign = dependencies.db().create_user("other@test.example", "fake-hash")
+    other = dependencies.db().create_run(req, foreign)
+    pipeline.execute_analysis(dependencies.db(), other, req, raw, foreign)
+    assert len(dependencies.db().user_posts(uid)) == 4
     for fts in (True, False):
-        found, total = api.db().search_posts(uid, q="Acme", limit=2, offset=1, _use_fts=fts)
+        found, total = dependencies.db().search_posts(uid, q="Acme", limit=2, offset=1, _use_fts=fts)
         assert total == 4 and len(found) == 2
     assert client.get("/api/search?q=Acme", headers=headers).json()["total"] == 4
     assert client.get("/api/trends?days=30", headers=headers).json()["summary"]["total_posts"] == 4

@@ -1,3 +1,9 @@
+
+import threading
+
+import feedlens.routes.auth as auth_routes
+import feedlens.routes.dependencies as dependencies
+import feedlens.routes.platforms as platform_routes
 from contextlib import contextmanager
 from types import SimpleNamespace
 
@@ -41,8 +47,8 @@ def no_native(monkeypatch):
 def local_state(monkeypatch, tmp_path):
     monkeypatch.setattr(browser, "settings", SimpleNamespace(profiles_dir=tmp_path, browser_channel="chrome"))
     for name in ("_login_state", "_session_cache", "_session_checks", "_login_errors", "_login_finish"):
-        monkeypatch.setattr(api, name, {}, raising=False)
-    monkeypatch.setattr(api, "_session_started", True)
+        monkeypatch.setattr(platform_routes, name, {}, raising=False)
+    monkeypatch.setattr(platform_routes, "_session_started", True)
 
 
 def test_login_api_missing_browser_returns_error_without_ghost_profile(cloud, monkeypatch, tmp_path):
@@ -50,7 +56,7 @@ def test_login_api_missing_browser_returns_error_without_ghost_profile(cloud, mo
     local_state(monkeypatch, tmp_path)
     no_native(monkeypatch)
     fake_playwright(monkeypatch, tmp_path / "missing", RuntimeError("Executable doesn't exist"))
-    monkeypatch.setattr(api.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(threading, "Thread", ImmediateThread)
     response = client.post("/api/platforms/facebook/login")
     assert response.status_code == 503
     assert response.json()["code"] == "error.browser_missing"
@@ -64,7 +70,7 @@ def test_login_worker_runtime_error_is_reported_not_swallowed(cloud, monkeypatch
     local_state(monkeypatch, tmp_path)
     monkeypatch.setattr(browser, "find_chrome", lambda: "chrome")
     monkeypatch.setattr(browser, "detect_browser", lambda *a, **k: browser.BrowserInfo("chrome", "chrome"))
-    monkeypatch.setattr(api.threading, "Thread", ImmediateThread)
+    monkeypatch.setattr(threading, "Thread", ImmediateThread)
     monkeypatch.setattr(browser, "interactive_login", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("profile locked")))
     assert client.post("/api/platforms/facebook/login").status_code == 200
     state = client.get("/api/platforms").json()[0]
@@ -190,16 +196,16 @@ def test_legacy_profile_stays_chrome_and_launch_failure_does_not_fall_back(monke
 
 @pytest.mark.parametrize("diagnostic", ["Browser not found: Chrome", "Executable doesn't exist at /custom/path"])
 def test_local_run_missing_browser_maps_to_browser_missing_code(cloud, monkeypatch, diagnostic):
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.models import RunRequest
 
     client = cloud(mode="local")
     req = RunRequest(platform="facebook", ai_provider="offline")
-    rid = api.db().create_run(req, api.db().local_user_id())
+    rid = dependencies.db().create_run(req, dependencies.db().local_user_id())
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: HeuristicAnalyzer())
     monkeypatch.setattr(pipeline, "scrape", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(diagnostic)))
-    pipeline.execute_run(api.db(), rid, req)
+    pipeline.execute_run(dependencies.db(), rid, req)
     detail = client.get(f"/api/runs/{rid}").json()
     assert detail["status"] == "error" and detail["error_code"] == "error.browser_missing"
 
@@ -210,8 +216,8 @@ def test_cloud_agent_fail_missing_browser_maps_to_browser_missing_code(cloud):
     client = cloud()
     headers = _signup(client)
     agent = _agent(client, headers)
-    uid = api.db().get_user_by_email("a@x.io").id
-    rid = api.db().create_run(RunRequest(platform="facebook"), uid)
+    uid = dependencies.db().get_user_by_email("a@x.io").id
+    rid = dependencies.db().create_run(RunRequest(platform="facebook"), uid)
     assert client.post(f"/api/agent/runs/{rid}/fail", headers=agent, json={"error": "Executable doesn't exist"}).status_code == 200
     assert client.get(f"/api/runs/{rid}", headers=headers).json()["error_code"] == "error.browser_missing"
 
@@ -231,7 +237,7 @@ def test_browser_status_and_cloud_isolation(cloud, monkeypatch, tmp_path, name):
     assert state["browser"] == name
     assert state["missing"] is (name is None)
     assert state["oauth_limited"] is (name == "chromium")
-    assert api._browser_installed() is (name is not None)
+    assert auth_routes._browser_installed() is (name is not None)
     client = cloud()
     headers = _signup(client)
     response = client.post("/api/platforms/facebook/login", headers=headers)
@@ -274,7 +280,7 @@ def test_partial_playwright_launch_failure_is_cleaned_without_touching_old_profi
 
 def test_agent_check_warns_without_blocking_or_installing_a_browser(monkeypatch, tmp_path, capsys):
     import httpx
-    from feedlens.agent import Agent
+    from feedlens.runs.agent import Agent
 
     no_native(monkeypatch)
     agent = Agent("https://example.test", "fake-token")
@@ -298,20 +304,20 @@ def test_native_browser_does_not_print_a_startup_warning(monkeypatch, capsys):
 
 def test_server_scrape_missing_browser_maps_to_browser_missing_code(cloud, monkeypatch, tmp_path):
     import playwright.sync_api
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.analysis.heuristic import HeuristicAnalyzer
     from feedlens.models import RunRequest
 
     client = cloud()
     headers = _signup(client)
-    uid = api.db().get_user_by_email("a@x.io").id
+    uid = dependencies.db().get_user_by_email("a@x.io").id
     assert client.put("/api/sessions/facebook", headers=headers, json={"cookies": "c_user=123; xs=synthetic"}).status_code == 200
     req = RunRequest(platform="facebook", ai_provider="offline", runner="server")
-    rid = api.db().create_run(req, uid)
+    rid = dependencies.db().create_run(req, uid)
     no_native(monkeypatch)
     fake_playwright(monkeypatch, tmp_path / "missing")
     monkeypatch.setattr(playwright.sync_api, "sync_playwright", browser.sync_playwright)
     monkeypatch.setattr(pipeline, "get_analyzer", lambda *args: HeuristicAnalyzer())
-    pipeline.execute_server_run(api.db(), rid, req, uid)
+    pipeline.execute_server_run(dependencies.db(), rid, req, uid)
     detail = client.get(f"/api/runs/{rid}", headers=headers).json()
     assert detail["status"] == "error" and detail["error_code"] == "error.browser_missing"

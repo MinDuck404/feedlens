@@ -1,4 +1,6 @@
 
+import feedlens.routes.dependencies as dependencies
+
 import feedlens.ai.registry as ai_registry
 
 import feedlens.analysis.prompts as analysis_prompts
@@ -11,7 +13,7 @@ from feedlens.db.tables import UserRow
 from sqlalchemy import create_engine, text
 import pytest
 from datetime import datetime, timezone
-from feedlens import ai_keys_api
+from feedlens.routes import ai_keys as ai_keys_api
 from feedlens.ai.scheduler import QuotaExhausted, pacific_day
 from tests.test_cloud import cloud, _signup
 
@@ -160,7 +162,7 @@ def test_new_key_routes_are_private_ordered_and_never_leak_secrets(cloud, monkey
     assert client.put("/api/ai/keys/order", headers=a, json={"provider":"gemini","ids":ids[::-1]}).status_code == 200
     assert client.get("/api/ai/keys", headers=a).json()[0]["id"] == ids[1]
     from feedlens import api
-    db = api.db()
+    db = dependencies.db()
     assert db.reserve_ai_usage(ids[1], "gemini-3.8-flash", pacific_day(), 100, 20)
     usage = client.get("/api/ai/keys", headers=a).json()[0]["usage_today"]
     assert usage == {"gemini-3.8-flash": {"requests": 1, "limit_rpd": 20}}
@@ -174,7 +176,7 @@ def test_new_key_routes_are_private_ordered_and_never_leak_secrets(cloud, monkey
 
 
 def test_exhausted_daily_quota_keeps_completed_batches_and_raw_posts(tmp_path, monkeypatch):
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.analysis.llm import LLMAnalyzer
     from feedlens.messages import error_code
     from feedlens.models import RawPost, RunRequest

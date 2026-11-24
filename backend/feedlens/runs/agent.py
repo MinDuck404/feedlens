@@ -12,8 +12,8 @@ from pathlib import Path
 
 import httpx
 
-from .models import RunRequest
-from .pipeline import scrape
+from feedlens.models import RunRequest
+from feedlens.runs.pipeline import scrape
 
 CONFIG = Path.home() / ".feedlens" / "agent.json"
 POLL_SECONDS = 2
@@ -41,7 +41,7 @@ class Agent:
                                  headers={"Authorization": f"Bearer {token}"})
 
     def check(self) -> None:
-        from .browser import warn_if_no_native_browser
+        from feedlens.browser import warn_if_no_native_browser
         warn_if_no_native_browser()
         r = self.http.get("/api/auth/me")
         if r.status_code == 401:
@@ -69,7 +69,7 @@ class Agent:
             time.sleep(backoff)
 
     def handle(self, run_id: int, req: RunRequest) -> None:
-        from .pipeline import total_target
+        from feedlens.runs.pipeline import total_target
         target = total_target(req)
         print(f"\nLượt #{run_id}: lướt {req.platform} ({req.mode}), {target} bài")
         last = 0.0

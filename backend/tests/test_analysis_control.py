@@ -1,4 +1,8 @@
 """Run controls never spend quota for queued work after a stop request."""
+
+import feedlens.routes.dependencies as dependencies
+import feedlens.routes.runs as run_routes
+import feedlens.runs.pipeline as run_pipeline
 import re
 import threading
 import time
@@ -6,7 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from feedlens import api, pipeline
+from feedlens import api
+from feedlens.runs import pipeline
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler
 from feedlens.analysis.llm import LLMAnalyzer
@@ -81,15 +86,15 @@ def test_stop_endpoint_authorization_conflict_and_change_model(cloud, monkeypatc
     client = cloud()
     headers = _signup(client)
     other = _signup(client, "other@example.test")
-    uid = api.db().get_user_by_email("a@x.io").id
-    rid = api.db().create_run(RunRequest(platform="facebook", ai_provider="offline"), uid)
+    uid = dependencies.db().get_user_by_email("a@x.io").id
+    rid = dependencies.db().create_run(RunRequest(platform="facebook", ai_provider="offline"), uid)
     url = f"/api/runs/{rid}/analysis/stop"
     assert client.post(url, headers=other).status_code == 404
     result = client.post(url, headers=headers)
     assert result.status_code == 409 and result.json()["code"] == "error.analysis_not_running"
-    api.db().update_run(rid, status="analyzing")
-    monkeypatch.setattr(api, "request_stop", lambda run_id, replacement=None: replacement.ai_model == "chosen")
-    monkeypatch.setattr(api, "_check_ai", lambda *a: "gemini")
+    dependencies.db().update_run(rid, status="analyzing")
+    monkeypatch.setattr(run_pipeline, "request_stop", lambda run_id, replacement=None: replacement.ai_model == "chosen")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *a: "gemini")
     result = client.post(url, headers=headers, json={"ai_provider": "gemini", "ai_model": "chosen"})
     assert result.status_code == 202 and result.json()["stopping"] is True
 
@@ -97,8 +102,8 @@ def test_stop_endpoint_authorization_conflict_and_change_model(cloud, monkeypatc
 def test_change_model_interrupts_wait_and_automatically_resumes(cloud, monkeypatch):
     client = cloud()
     headers = _signup(client)
-    uid = api.db().get_user_by_email("a@x.io").id
-    db = api.db()
+    uid = dependencies.db().get_user_by_email("a@x.io").id
+    db = dependencies.db()
     req = RunRequest(platform="facebook", ai_provider="gemini", ai_model="waiting")
     rid = db.create_run(req, uid)
     waiting = threading.Event()
@@ -126,7 +131,7 @@ def test_change_model_interrupts_wait_and_automatically_resumes(cloud, monkeypat
         monkeypatch.setattr(scheduler, "acquire", acquire)
         return analyzer
     monkeypatch.setattr(pipeline, "get_analyzer", analyzer_for)
-    monkeypatch.setattr(api, "_check_ai", lambda *a: "gemini")
+    monkeypatch.setattr(run_routes, "_check_ai", lambda *a: "gemini")
     raw = [RawPost(platform="facebook", source="feed", text="Raw content available during AI wait")]
     pipeline.start_analysis(db, rid, req, raw, uid)
     assert waiting.wait(5)

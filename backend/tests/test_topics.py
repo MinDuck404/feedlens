@@ -1,6 +1,9 @@
+
+import feedlens.routes.dependencies as dependencies
 from types import SimpleNamespace
 
-from feedlens import api, topics_api
+from feedlens import api
+from feedlens.routes import topics as topics_api
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.analysis.topics import heuristic_topics
@@ -22,7 +25,7 @@ def test_retag_skips_pending_rows_before_applying_the_post_limit(cloud, monkeypa
     from feedlens.models import RunRequest
     client = cloud()
     _signup(client)
-    db = api.db()
+    db = dependencies.db()
     uid = db.get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook")
     read_run = db.create_run(req, uid)
@@ -130,8 +133,8 @@ def test_topic_digest_lists_empty_topics_and_summarizes_only_matched():
 def test_apply_retags_old_posts_and_test_endpoint(cloud):
     client = cloud()
     h = _signup(client, "retag@example.test")
-    user = api.db().get_user_by_email("retag@example.test")
-    db = api.db()
+    user = dependencies.db().get_user_by_email("retag@example.test")
+    db = dependencies.db()
     from feedlens.models import RunRequest
     run_id = db.create_run(RunRequest(platform="facebook"), user.id, status="done")
     db.save_batch(run_id, [AnalyzedPost(platform="facebook", source="g", text="Repo hay github.com/x/y", summary="repo"),

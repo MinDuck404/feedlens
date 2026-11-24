@@ -1,17 +1,24 @@
 """/api/topics: chủ đề của người dùng, thử khớp nhanh, và gắn chủ đề lại cho các lượt cũ."""
 from __future__ import annotations
 
+
 import threading
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
+from fastapi import Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 from feedlens.ai.registry import user_keys
-from .ai.registry import preferred_provider
+from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.analyzer import get_analyzer
-from .auth import CurrentUser, current_user
-from .models import MAX_TOPICS, TOPIC_COLORS, AnalyzedPost, Topic
+from feedlens.auth import CurrentUser
+from feedlens.auth import current_user
+from feedlens.models import MAX_TOPICS
+from feedlens.models import TOPIC_COLORS
+from feedlens.models import AnalyzedPost
+from feedlens.models import Topic
 
 # user_id -> {"state": idle|running|done|error, "done", "total", "error"}
 RETAG_JOBS: dict[int, dict] = {}

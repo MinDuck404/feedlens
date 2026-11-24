@@ -4,7 +4,8 @@ import csv
 import io
 import json
 
-from .models import CATEGORIES, AnalyzedPost
+from feedlens.models import CATEGORIES
+from feedlens.models import AnalyzedPost
 
 SEED_FIELDS = ("title", "company", "location", "work_mode", "salary_text", "url", "job_id", "posted_at")
 

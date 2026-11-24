@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from feedlens import pipeline
+from feedlens.runs import pipeline
 from feedlens.db import Database
 from feedlens.models import AnalyzedPost, RawPost, RunRequest
 

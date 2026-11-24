@@ -1,3 +1,7 @@
+
+import feedlens as feedlens_package
+import feedlens.routes.dependencies as dependencies
+import feedlens.routes.platforms as platform_routes
 import re
 import time
 from contextlib import contextmanager
@@ -6,7 +10,9 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import text
 
-from feedlens import api, browser, pipeline
+from feedlens import api
+from feedlens import browser
+from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
@@ -105,10 +111,10 @@ def test_retry_api_exports_raw_and_checks_ownership_and_active_state(cloud, monk
     a, b = _signup(client), _signup(client, "other@example.test")
     user_id = api.app.state.db.get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", ai_provider="offline")
-    rid = api.db().create_run(req, user_id)
+    rid = dependencies.db().create_run(req, user_id)
     raw = [RawPost(platform="facebook", source="group", author="Alice", text="Raw text still readable", url="https://example.test/post")]
-    api.db().save_raw_posts(rid, raw)
-    pipeline.fail_run(api.db(), rid, "401 Unauthorized")
+    dependencies.db().save_raw_posts(rid, raw)
+    pipeline.fail_run(dependencies.db(), rid, "401 Unauthorized")
     r = client.get(f"/api/runs/{rid}", headers=a).json()
     assert r["error_code"] == "error.ai_auth" and r["posts"][0]["analyzed"] is False
     for fmt in ("md", "json"):
@@ -122,7 +128,7 @@ def test_retry_api_exports_raw_and_checks_ownership_and_active_state(cloud, monk
     assert calls and calls[0][0] is pipeline.execute_analysis
     assert calls[0][4].ai_provider == "auto" and calls[0][4].ai_model == "new-model"
     assert client.post(f"/api/runs/{rid}/analysis", headers=a, json={"ai_provider": "offline"}).status_code == 409
-    assert api.db().get_raw_posts(rid) == raw
+    assert dependencies.db().get_raw_posts(rid) == raw
 
 
 @pytest.mark.parametrize("message,code", [("401 API key invalid", "ai_auth"), ("API key not valid", "ai_auth"),
@@ -133,10 +139,10 @@ def test_analysis_error_codes(message, code):
 
 def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tmp_path, monkeypatch):
     client = cloud(mode="local")
-    monkeypatch.setattr(api, "_session_cache", {})
-    monkeypatch.setattr(api, "_session_checks", {})
-    monkeypatch.setattr(api, "_session_started", False)
-    monkeypatch.setattr(api.browser, "profile_dir", lambda p: tmp_path / p)
+    monkeypatch.setattr(platform_routes, "_session_cache", {})
+    monkeypatch.setattr(platform_routes, "_session_checks", {})
+    monkeypatch.setattr(platform_routes, "_session_started", False)
+    monkeypatch.setattr(feedlens_package.browser, "profile_dir", lambda p: tmp_path / p)
     for p in ("facebook", "linkedin"):
         (tmp_path / p).mkdir()
     calls = []
@@ -144,7 +150,7 @@ def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tm
         assert pipeline._platform_locks[p].locked()
         calls.append(p)
         return p == "facebook"
-    monkeypatch.setattr(api.browser, "check_session", check)
+    monkeypatch.setattr(feedlens_package.browser, "check_session", check)
     lock = pipeline._platform_locks["facebook"]
     lock.acquire()
     try:
@@ -155,7 +161,7 @@ def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tm
     finally:
         lock.release()
     for _ in range(100):
-        if not api._session_checks:
+        if not platform_routes._session_checks:
             break
         time.sleep(.01)
     states = {p["key"]: p for p in client.get("/api/platforms").json()}
@@ -171,10 +177,10 @@ def test_startup_checks_are_sequential_cached_and_wait_for_scrape_lock(cloud, tm
 def test_cloud_skips_startup_checks(cloud, monkeypatch):
     client = cloud()
     headers = _signup(client)
-    monkeypatch.setattr(api, "_session_started", False)
-    monkeypatch.setattr(api.browser, "check_session", lambda *a: pytest.fail("Cloud opened a profile"))
+    monkeypatch.setattr(platform_routes, "_session_started", False)
+    monkeypatch.setattr(feedlens_package.browser, "check_session", lambda *a: pytest.fail("Cloud opened a profile"))
     assert client.get("/api/platforms", headers=headers).json() == []
-    assert api._session_started is False
+    assert platform_routes._session_started is False
 
 
 def test_session_check_headless_timeout_and_network_failure_is_unknown(tmp_path, monkeypatch):

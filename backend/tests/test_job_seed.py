@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from feedlens import pipeline
+from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.prompts import KNOWN_JOBS_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer

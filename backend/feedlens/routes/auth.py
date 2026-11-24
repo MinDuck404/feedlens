@@ -1,33 +1,67 @@
 """Auth routes."""
 from __future__ import annotations
 
+from collections import defaultdict, deque
+
+import time
+import re
+import feedlens.browser as browser_profiles
+
+import feedlens.auth as auth_core
+import feedlens.config as config
+import feedlens.crypto as crypto
+import feedlens.db as database_module
+import fastapi as fastapi
+import feedlens.models as models
+import feedlens.routes.agent as agent_routes
+import feedlens.routes.dependencies as dependencies
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from ..auth import CurrentUser as User, current_user
-from .. import api
 
 public = APIRouter()
 private = APIRouter()
 
 
+_attempts: dict[str, deque] = defaultdict(deque)
+
+LOGIN_WINDOW, LOGIN_MAX_FAILS = 15 * 60, 10
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+def _throttle(*keys: str) -> None:
+    now = time.time()
+    for k in keys:
+        q = _attempts[k]
+        while q and q[0] < now - LOGIN_WINDOW:
+            q.popleft()
+        if len(q) >= LOGIN_MAX_FAILS:
+            raise fastapi.HTTPException(429, "Thử quá nhiều lần. Đợi 15 phút rồi thử lại.")
+
+def _fail_attempt(*keys: str) -> None:
+    for k in keys:
+        _attempts[k].append(time.time())
+
+
 @public.get("/health")
 def health():
-    out = {"ok": True, "mode": api.settings.mode, "db": api.db().engine.dialect.name}
-    if api.settings.is_cloud and api.settings.server_scrape:
-        out["browser"] = api._browser_installed()
+    out = {"ok": True, "mode": config.settings.mode, "db": dependencies.db().engine.dialect.name}
+    if config.settings.is_cloud and config.settings.server_scrape:
+        out["browser"] = _browser_installed()
     return out
 
 
 def _browser_installed() -> bool:
-    return not api.browser.browser_status(headless=True)["missing"]
+    return not browser_profiles.browser_status(headless=True)["missing"]
 
 
 @public.get("/meta")
 def meta():
-    return {"mode": api.settings.mode, "auth_required": api.settings.auth_enabled, "config_error": api.misconfigured(),
-            "config_error_code": "error.config" if api.misconfigured() else None,
-            "signup_open": api.settings.allow_signup, "server_scrape": api.settings.is_cloud and api.settings.server_scrape,
-            "categories": api.CATEGORIES, "max_posts": api.settings.max_posts}
+    return {"mode": config.settings.mode, "auth_required": config.settings.auth_enabled, "config_error": auth_core.misconfigured(),
+            "config_error_code": "error.config" if auth_core.misconfigured() else None,
+            "signup_open": config.settings.allow_signup, "server_scrape": config.settings.is_cloud and config.settings.server_scrape,
+            "categories": models.CATEGORIES, "max_posts": config.settings.max_posts}
 
 
 class Credentials(BaseModel):
@@ -37,43 +71,43 @@ class Credentials(BaseModel):
 
 @public.post("/auth/register")
 def register(body: Credentials, request: Request):
-    if err := api.misconfigured():
-        raise api.HTTPException(503, err)
-    if not api.settings.is_cloud:
-        raise api.HTTPException(409, "Chế độ local không cần tài khoản.")
-    if not api.settings.allow_signup:
-        raise api.HTTPException(403, "Server này đang đóng đăng ký.")
+    if err := auth_core.misconfigured():
+        raise fastapi.HTTPException(503, err)
+    if not config.settings.is_cloud:
+        raise fastapi.HTTPException(409, "Chế độ local không cần tài khoản.")
+    if not config.settings.allow_signup:
+        raise fastapi.HTTPException(403, "Server này đang đóng đăng ký.")
     ip = request.client.host if request.client else "?"
-    api._throttle(f"reg:{ip}")
+    _throttle(f"reg:{ip}")
     email = body.email.strip().lower()
-    if not api.EMAIL_RE.match(email):
-        raise api.HTTPException(400, "Email không hợp lệ.")
+    if not EMAIL_RE.match(email):
+        raise fastapi.HTTPException(400, "Email không hợp lệ.")
     if len(body.password) < 8:
-        raise api.HTTPException(400, "Mật khẩu cần ít nhất 8 ký tự.")
-    api._fail_attempt(f"reg:{ip}")  # giới hạn số tài khoản tạo từ một IP
+        raise fastapi.HTTPException(400, "Mật khẩu cần ít nhất 8 ký tự.")
+    _fail_attempt(f"reg:{ip}")  # giới hạn số tài khoản tạo từ một IP
     try:
-        uid = api.db().create_user(email, api.hash_password(body.password))
-    except api.EmailTaken:
-        raise api.HTTPException(409, "Email này đã có tài khoản. Hãy đăng nhập.")
-    return {"token": api.issue_token(uid), "email": email}
+        uid = dependencies.db().create_user(email, crypto.hash_password(body.password))
+    except database_module.EmailTaken:
+        raise fastapi.HTTPException(409, "Email này đã có tài khoản. Hãy đăng nhập.")
+    return {"token": auth_core.issue_token(uid), "email": email}
 
 
 @public.post("/auth/login")
 def login(body: Credentials, request: Request):
-    if err := api.misconfigured():
-        raise api.HTTPException(503, err)
-    if not api.settings.is_cloud:
+    if err := auth_core.misconfigured():
+        raise fastapi.HTTPException(503, err)
+    if not config.settings.is_cloud:
         return {"token": "", "email": "local"}
     ip = request.client.host if request.client else "?"
     email = body.email.strip().lower()
-    api._throttle(f"ip:{ip}", f"email:{email}")
-    u = api.db().get_user_by_email(email)
-    if not u or not api.verify_password(body.password, u.password_hash):
-        api._fail_attempt(f"ip:{ip}", f"email:{email}")
-        raise api.HTTPException(401, "Sai email hoặc mật khẩu.")
-    return {"token": api.issue_token(u.id), "email": u.email}
+    _throttle(f"ip:{ip}", f"email:{email}")
+    u = dependencies.db().get_user_by_email(email)
+    if not u or not crypto.verify_password(body.password, u.password_hash):
+        _fail_attempt(f"ip:{ip}", f"email:{email}")
+        raise fastapi.HTTPException(401, "Sai email hoặc mật khẩu.")
+    return {"token": auth_core.issue_token(u.id), "email": u.email}
 
 
 @private.get("/auth/me")
 def me(user: User = Depends(current_user)):
-    return {"email": user.email, "agent": api._agent_info(user.id)}
+    return {"email": user.email, "agent": agent_routes._agent_info(user.id)}

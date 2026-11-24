@@ -64,7 +64,7 @@ def test_cookie_sessions_api_encrypted_and_isolated(cloud):
 
 
 def test_server_run_uses_cookies_and_marks_invalid(cloud, monkeypatch):
-    from feedlens import server_runner
+    from feedlens.runs import server_runner
     from feedlens.models import RawPost
     c = cloud()
     a = _signup(c)

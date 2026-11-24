@@ -9,14 +9,15 @@ for _k in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "GEMIN
 
 import pytest
 
-from feedlens import pipeline
+from feedlens.runs import pipeline
 from feedlens.ai.registry import resolve_provider_key
 from feedlens.ai.base import AIProvider, ProviderInfo
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
 from feedlens.analysis.heuristic import heuristic_category
 from feedlens.db import Database
-from feedlens.export import to_csv, to_markdown
+from feedlens.runs.export import to_csv
+from feedlens.runs.export import to_markdown
 from feedlens.models import RawPost, RunRequest
 from feedlens.scrapers.facebook.scraper import FacebookScraper
 from feedlens.scrapers.reddit.scraper import RedditScraper
@@ -330,7 +331,7 @@ def test_waits_for_user_verification_instead_of_returning_nothing():
 
 
 def test_count_is_per_source():
-    from feedlens.pipeline import total_target
+    from feedlens.runs.pipeline import total_target
     assert total_target(RunRequest(platform="facebook", count=40)) == 40
     assert total_target(RunRequest(platform="facebook", source_type="group", sources=["a", "b", "c"], count=40)) == 120
     assert total_target(RunRequest(platform="facebook", source_type="group", sources=[str(i) for i in range(30)], count=100)) == 500

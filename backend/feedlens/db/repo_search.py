@@ -11,7 +11,7 @@ from .tables import PostRow, RunRow
 
 
 def _parse_post_date(posted_at: str | None, run_created_at: Any) -> date:
-    from ..trends_api import parse_post_date
+    from feedlens.routes.trends import parse_post_date
     return parse_post_date(posted_at, run_created_at)[0]
 
 

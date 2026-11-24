@@ -1,3 +1,5 @@
+
+import feedlens.routes.platforms as platform_routes
 import sqlite3
 import subprocess
 from types import SimpleNamespace
@@ -146,7 +148,7 @@ def test_login_finish_round_trip_closes_process_and_checks_session(cloud, monkey
             if self.terminated:
                 return 0
             entered.set()
-            api._login_finish["facebook"].wait(timeout)
+            platform_routes._login_finish["facebook"].wait(timeout)
             raise subprocess.TimeoutExpired("browser", timeout)
         def terminate(self):
             self.terminated = True
@@ -167,11 +169,11 @@ def test_finish_endpoint_signals_active_login_and_keeps_cloud_isolated(cloud, mo
     client = cloud(mode="local")
     local_state(monkeypatch, tmp_path)
     event = threading.Event()
-    monkeypatch.setattr(api, "_login_finish", {"facebook": event}, raising=False)
-    api._login_state["facebook"] = "waiting"
+    monkeypatch.setattr(platform_routes, "_login_finish", {"facebook": event}, raising=False)
+    platform_routes._login_state["facebook"] = "waiting"
     response = client.post("/api/platforms/facebook/login/finish")
     assert response.status_code == 200 and event.is_set()
-    assert api._session_checks["facebook"] == "checking"
+    assert platform_routes._session_checks["facebook"] == "checking"
     assert client.post("/api/platforms/x/login/finish").status_code == 409
     client = cloud()
     from tests.test_cloud import _signup
@@ -202,7 +204,7 @@ def test_manual_playwright_finish_closes_context_and_respects_verification(monke
 def test_topic_refresh_never_summarizes_unread_placeholders(tmp_path):
     from feedlens.db import Database
     from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
-    from feedlens.topics_api import refresh_topic_digests
+    from feedlens.routes.topics import refresh_topic_digests
     db = Database(f"sqlite:///{tmp_path / 'topics.db'}")
     uid = db.local_user_id()
     rid = db.create_run(RunRequest(platform="facebook"), uid)
@@ -218,7 +220,9 @@ def test_topic_refresh_never_summarizes_unread_placeholders(tmp_path):
 
 
 def test_cli_markdown_exports_only_analyzed_posts(monkeypatch, tmp_path, capsys):
-    from feedlens import cli, config, pipeline
+    from feedlens import cli
+    from feedlens import config
+    from feedlens.runs import pipeline
     from feedlens.db import Database
     from feedlens.models import AnalyzedPost, PostGroup, PostSource, RawPost
     monkeypatch.setattr(config, "settings", SimpleNamespace(database_url=f"sqlite:///{tmp_path / 'cli.db'}"))

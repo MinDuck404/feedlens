@@ -1,9 +1,13 @@
+
+import feedlens.routes.auth as auth_routes
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 
-from feedlens import api, browser, server_runner
+from feedlens import api
+from feedlens import browser
+from feedlens.runs import server_runner
 from tests.test_browser_detection import cloud, fake_playwright, local_state, no_native
 
 
@@ -28,7 +32,7 @@ def test_headless_shell_only_can_run_server_but_cannot_open_login(monkeypatch, t
         assert opened is page
     assert launched[0]["headless"] is True
     assert "executable_path" not in launched[0] or launched[0]["executable_path"] == str(shell)
-    assert api._browser_installed()
+    assert auth_routes._browser_installed()
     with pytest.raises(browser.BrowserNotFoundError):
         browser.interactive_login("facebook")
 

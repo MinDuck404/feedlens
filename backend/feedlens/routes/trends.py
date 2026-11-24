@@ -1,15 +1,24 @@
 """/api/trends: gom số liệu xu hướng bài viết theo danh mục hoặc chủ đề người dùng."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Any
+from typing import Literal
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
 from sqlalchemy import select
 
-from .auth import CurrentUser, current_user
-from .db.tables import PostRow, RunRow
-from .models import CATEGORIES
+from feedlens.auth import CurrentUser
+from feedlens.auth import current_user
+from feedlens.db.tables import PostRow
+from feedlens.db.tables import RunRow
+from feedlens.models import CATEGORIES
 
 TOPIC_PALETTE: dict[str, str] = {
     "red": "#AE3824",

@@ -1,7 +1,7 @@
 """Thời gian từng giai đoạn của lượt: lướt (scrapers.py ghi chi tiết), AI phân tích, tóm tắt."""
 import pytest
 
-from feedlens import pipeline
+from feedlens.runs import pipeline
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db.repository import Database
 from feedlens.models import RawPost, RunRequest

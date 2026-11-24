@@ -191,6 +191,6 @@ class RunRequest(BaseModel):
     @classmethod
     def source_mode(cls, value):
         if isinstance(value, dict):
-            from .source_modes import prepare_request
+            from feedlens.runs.source_modes import prepare_request
             return prepare_request(value)
         return value

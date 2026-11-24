@@ -1,4 +1,8 @@
-from feedlens import api, pipeline
+
+import feedlens.ai.registry as ai_registry
+import feedlens.routes.dependencies as dependencies
+from feedlens import api
+from feedlens.runs import pipeline
 from feedlens.ai import registry
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.db import Database
@@ -11,7 +15,7 @@ from tests.test_cloud import cloud, _signup
 def test_default_ai_is_per_user_validated_and_survives_stale_preferences(cloud, monkeypatch):
     client = cloud()
     a, b = _signup(client), _signup(client, "second@example.test")
-    monkeypatch.setattr(api, "list_models", lambda *args: ["demo-model"])
+    monkeypatch.setattr(ai_registry, "list_models", lambda *args: ["demo-model"])
     assert client.put("/api/ai/default", json={"provider": "gemini"}).status_code == 401
     assert client.put("/api/ai/default", headers=a, json={"provider": "unknown"}).status_code == 404
     assert client.put("/api/ai/default", headers=a, json={"provider": "gemini"}).status_code == 400
@@ -26,8 +30,8 @@ def test_default_ai_is_per_user_validated_and_survives_stale_preferences(cloud, 
     assert prefs["composer"]["count"] == 40
     assert [p["key"] for p in client.get("/api/ai/providers", headers=a).json() if p.get("is_default")] == ["gemini"]
     client.delete("/api/ai/keys/gemini", headers=a)
-    user_id = api.db().get_user_by_email("a@x.io").id
-    assert api.db().get_default_ai(user_id) is None
+    user_id = dependencies.db().get_user_by_email("a@x.io").id
+    assert dependencies.db().get_default_ai(user_id) is None
     assert [p["key"] for p in client.get("/api/ai/providers", headers=a).json() if p.get("is_default")] == ["anthropic"]
 
 

@@ -232,7 +232,7 @@ def test_facebook_regular_post_with_permalink_has_no_snapshot(facebook_page):
 
 
 def test_collect_all_records_report_per_source(monkeypatch):
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.models import RunRequest
 
     class Fake:

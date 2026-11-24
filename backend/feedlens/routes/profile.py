@@ -1,11 +1,19 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from __future__ import annotations
+
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import File
+from fastapi import Form
+from fastapi import UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from feedlens.ai.registry import user_keys
-from .ai.registry import preferred_provider
+from feedlens.ai.registry import preferred_provider
 from feedlens.analysis.analyzer import get_analyzer
-from .auth import CurrentUser, current_user
+from feedlens.auth import CurrentUser
+from feedlens.auth import current_user
 from feedlens.jobs.profile import MAX_CV_BYTES
 from feedlens.jobs.profile import JobProfile
 from feedlens.jobs.profile import ProfileError

@@ -1,6 +1,9 @@
 from feedlens.db import Database
 from feedlens.models import AnalyzedPost, JobSeed, RawPost, RunRequest
-from feedlens.source_modes import SourceTarget, allocate_targets, normalize, total_target
+from feedlens.runs.source_modes import SourceTarget
+from feedlens.runs.source_modes import allocate_targets
+from feedlens.runs.source_modes import normalize
+from feedlens.runs.source_modes import total_target
 
 
 def test_thirteen_groups_share_the_five_hundred_post_cap():
@@ -79,7 +82,9 @@ def test_collect_report_and_cloud_agent_use_the_same_fair_plan(monkeypatch):
     from contextlib import contextmanager
     from dataclasses import replace
     from types import SimpleNamespace
-    from feedlens import agent, browser, pipeline
+    from feedlens.runs import agent
+    from feedlens import browser
+    from feedlens.runs import pipeline
 
     quotas = []
     class Collector:

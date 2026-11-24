@@ -1,4 +1,7 @@
 
+import feedlens.routes.dependencies as dependencies
+import feedlens.runs.pipeline as run_pipeline
+
 import random
 import time
 import feedlens.scrapers.base as scraper_base
@@ -11,9 +14,11 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from feedlens import api, pipeline, server_runner
+from feedlens import api
+from feedlens.runs import pipeline
+from feedlens.runs import server_runner
 from feedlens.models import JobSeed, RawPost, RunRequest
-from feedlens.source_modes import normalize
+from feedlens.runs.source_modes import normalize
 from tests.test_cloud import cloud, _agent, _signup
 
 
@@ -152,7 +157,7 @@ def test_linkedin_jobs_only_new_and_time_budget_use_common_loop(monkeypatch, fas
 
 
 def test_agent_advertises_protocol_two(monkeypatch):
-    from feedlens import agent
+    from feedlens.runs import agent
     client = agent.Agent.__new__(agent.Agent)
     calls = []
     def get(path, **kwargs):
@@ -200,7 +205,7 @@ def test_cli_demo_still_runs_with_valid_source_plan(monkeypatch, tmp_path):
 ])
 def test_invalid_run_returns_422_before_queue_or_browser(cloud, monkeypatch, payload):
     client = cloud(); h = _signup(client)
-    monkeypatch.setattr(api, "start_run", lambda *a: pytest.fail("Must validate before launch"))
+    monkeypatch.setattr(run_pipeline, "start_run", lambda *a: pytest.fail("Must validate before launch"))
     response = client.post("/api/runs", headers=h, json=payload)
     assert response.status_code == 422 and response.json()["code"] == "error.validation"
     assert client.get("/api/runs", headers=h).json() == []
@@ -222,15 +227,15 @@ def test_agent_protocol_negotiation_keeps_old_requests_usable(cloud):
 
 def test_retry_analysis_keeps_mode_options_and_report(cloud, monkeypatch):
     client = cloud(); h = _signup(client)
-    uid = api.db().get_user_by_email("a@x.io").id
+    uid = dependencies.db().get_user_by_email("a@x.io").id
     req = RunRequest(platform="facebook", mode="page", sources=["example"], ai_provider="offline")
-    rid = api.db().create_run(req, uid, status="error")
+    rid = dependencies.db().create_run(req, uid, status="error")
     report = {"target": 2, "collected": 1, "skipped_old": 3, "stop_reason": "no_more_posts"}
-    api.db().update_run(rid, request={**req.model_dump(), "scrape_report": report})
-    api.db().save_raw_posts(rid, [RawPost(platform="facebook", source="example", text="Saved original post")])
+    dependencies.db().update_run(rid, request={**req.model_dump(), "scrape_report": report})
+    dependencies.db().save_raw_posts(rid, [RawPost(platform="facebook", source="example", text="Saved original post")])
     called = []
-    monkeypatch.setattr(api, "start_analysis", lambda db, run_id, request, raw, user_id: called.append(request))
+    monkeypatch.setattr(run_pipeline, "start_analysis", lambda db, run_id, request, raw, user_id: called.append(request))
     assert client.post(f"/api/runs/{rid}/analysis", headers=h, json={"ai_provider": "offline"}).status_code == 200
-    stored = api.db().get_run(rid)["request"]
+    stored = dependencies.db().get_run(rid)["request"]
     assert stored["mode"] == "page" and stored["options"] == {} and stored["scrape_report"] == report
     assert called[0].mode == "page"

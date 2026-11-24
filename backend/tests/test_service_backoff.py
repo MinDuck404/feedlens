@@ -3,7 +3,7 @@ import threading
 
 import pytest
 
-from feedlens import pipeline
+from feedlens.runs import pipeline
 from feedlens.ai.limits import Limits
 from feedlens.ai.scheduler import Candidate, QuotaScheduler, pacific_day
 from feedlens.analysis.llm import LLMAnalyzer

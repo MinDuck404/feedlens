@@ -8,7 +8,10 @@ from pydantic import ValidationError
 from feedlens.db import Database
 from feedlens.db.tables import RunRow
 from feedlens.models import AnalyzedPost, JobInfo, JobSeed, RawPost, RunRequest
-from feedlens.source_modes import effective_mode, legacy_agent_compatible, normalize, total_target
+from feedlens.runs.source_modes import effective_mode
+from feedlens.runs.source_modes import legacy_agent_compatible
+from feedlens.runs.source_modes import normalize
+from feedlens.runs.source_modes import total_target
 
 
 @pytest.mark.parametrize("platform,source_type,sources,mode", [

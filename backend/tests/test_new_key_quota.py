@@ -1,5 +1,7 @@
 """New credentials must not inherit another credential's runtime quota identity."""
 
+import feedlens.routes.dependencies as dependencies
+
 import feedlens.ai.registry as ai_registry
 
 from types import SimpleNamespace
@@ -59,15 +61,15 @@ def test_rejected_candidates_report_the_actual_local_reason(limits, tokens, reas
 
 def test_new_key_added_after_scheduler_creation_is_used_on_continue(cloud, monkeypatch):
     from feedlens import api
-    from feedlens import pipeline
+    from feedlens.runs import pipeline
     from feedlens.analysis import analyzer as module
-    from feedlens import ai_keys_api
+    from feedlens.routes import ai_keys as ai_keys_api
     from feedlens.crypto import encrypt
     from feedlens.models import RawPost, RunRequest
     from tests.test_cloud import _signup
     client = cloud()
     headers = _signup(client)
-    db = api.db(); uid = db.get_user_by_email("a@x.io").id
+    db = dependencies.db(); uid = db.get_user_by_email("a@x.io").id
     old = db.add_key(uid, "gemini", encrypt("fake-old-secret"), "hint", "Old")
     scheduler = scheduler_for(db)
     model = "gemini-3.5-flash-lite"

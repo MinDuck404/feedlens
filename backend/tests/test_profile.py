@@ -1,3 +1,5 @@
+
+import feedlens.routes.dependencies as dependencies
 import json
 from io import BytesIO
 from pathlib import Path
@@ -7,7 +9,8 @@ import pytest
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from feedlens import api, pipeline
+from feedlens import api
+from feedlens.runs import pipeline
 from feedlens.analysis.prompts import CLASSIFY_SCHEMA
 from feedlens.analysis.heuristic import HeuristicAnalyzer
 from feedlens.analysis.llm import LLMAnalyzer
@@ -68,8 +71,8 @@ def test_profile_crud_isolation_encryption_and_cv_is_not_saved(cloud, tmp_path):
     assert response.status_code == 200, response.text
     stored = response.json()
     assert "mail@example.test" not in stored["markdown"] and "0901234567" not in stored["markdown"] and "Main Street" not in stored["markdown"]
-    user = api.db().get_user_by_email("cv-a@example.test")
-    payload = api.db().get_job_profile(user.id)
+    user = dependencies.db().get_user_by_email("cv-a@example.test")
+    payload = dependencies.db().get_job_profile(user.id)
     assert payload.startswith("fernet:") and "CV_PRIVATE_MARKER" not in payload
     assert client.get("/api/profile", headers=b).json() is None
     assert client.delete("/api/profile", headers=b).status_code == 200
