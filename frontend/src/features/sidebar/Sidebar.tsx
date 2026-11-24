@@ -10,14 +10,14 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { api, ApiError } from "../api/client";
-import { PLATFORM_LABEL } from "../lib/categories";
-import { describeRunSource } from "../lib/logic";
-import { serverMessage, useI18n, type Key } from "../i18n";
-import { LanguageMenu, ThemeSwitch } from "../features/settings/PreferenceMenus";
-import type { PlatformState, Run } from "../api/types";
-import { Button, IconButton } from "./ui/Button";
-import { Sheet } from "./ui/Dialog";
+import { api, ApiError } from "../../api/client";
+import { PLATFORM_LABEL } from "../../lib/categories";
+import { describeRunSource } from "../../lib/logic";
+import { serverMessage, useI18n, type Key } from "../../i18n";
+import { LanguageMenu, ThemeSwitch } from "../settings/PreferenceMenus";
+import type { PlatformState, Run } from "../../api/types";
+import { Button, IconButton } from "../../components/ui/Button";
+import { Sheet } from "../../components/ui/Dialog";
 
 const FALLBACK_PLATFORMS: PlatformState[] = [
   { key: "facebook", name: "Facebook", logged_in: false, has_profile: false, login_state: "idle" },

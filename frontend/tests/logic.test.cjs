@@ -452,7 +452,7 @@ test("workspace polling uses 5s active, 15s hidden, and 2s login checks", () => 
 
 test("saved sessions remain unchecked until verification and offer login only when needed", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const { PlatformRow } = require("../src/features/sidebar/Sidebar.tsx");
   for (const [has_profile, logged_in, login_state, buttons, login] of [
     [true, null, "idle", 3, "plat.relogin"],
     [true, false, "idle", 3, "plat.relogin"],
@@ -482,7 +482,7 @@ test("match type filtering preserves legacy jobs and isolates primary, adjacent 
 
 test("browser notices appear once above all account rows while platform errors stay local", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { SidebarBody } = require("../src/components/Sidebar.tsx");
+  const { SidebarBody } = require("../src/features/sidebar/Sidebar.tsx");
   const base = ["facebook", "linkedin", "x", "reddit"].map((key) => ({ key, name: key, logged_in: null, has_profile: false, login_state: "idle" }));
   const render = (change) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
     React.createElement(SidebarBody, { cloud: false, platforms: base.map((p) => ({ ...p, ...change })), runs: [], page: "home", onOpenSettings() {}, onPlatformChanged() {} })));
@@ -496,7 +496,7 @@ test("browser notices appear once above all account rows while platform errors s
 
 test("waiting platform exposes a manual finish action", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const { PlatformRow } = require("../src/features/sidebar/Sidebar.tsx");
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
     React.createElement(PlatformRow, { p: { key: "facebook", name: "Facebook", has_profile: true, logged_in: null, login_state: "waiting" }, onChanged() {}, onLogin() {} })));
   assert.ok(html.includes(i18n.translate("plat.finishLogin")));
@@ -513,7 +513,7 @@ test("manual sign-in finish uses the dedicated platform endpoint", async () => {
 
 test("browser login errors, download links and Edge/Chromium notes remain visible with recovery actions", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const { PlatformRow } = require("../src/features/sidebar/Sidebar.tsx");
   const base = { key: "facebook", name: "Facebook", has_profile: true, logged_in: null, login_state: "idle" };
   const render = (p) => renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
     React.createElement(PlatformRow, { p: { ...base, ...p }, onChanged() {}, onLogin() {} })));
@@ -531,7 +531,7 @@ test("browser login errors, download links and Edge/Chromium notes remain visibl
 
 test("background session checks show a spinner and suppress reconnect until complete", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { PlatformRow } = require("../src/components/Sidebar.tsx");
+  const { PlatformRow } = require("../src/features/sidebar/Sidebar.tsx");
   const html = renderToStaticMarkup(React.createElement(i18n.I18nProvider, null,
     React.createElement(PlatformRow, { p: { key: "facebook", name: "Facebook", has_profile: true, logged_in: false, login_state: "idle", checking: true }, onChanged() {}, onLogin() {} })));
   assert.ok(html.includes(i18n.translate("plat.checking")));

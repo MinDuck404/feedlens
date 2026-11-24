@@ -7,7 +7,7 @@ import RunView from "./features/run/RunView";
 import HistoryPage from "./components/HistoryPage";
 import AskPage from "./components/AskPage";
 import TrendsPage from "./components/TrendsPage";
-import Sidebar from "./components/Sidebar";
+import Sidebar from "./features/sidebar/Sidebar";
 import { ThemeSwitch } from "./features/settings/PreferenceMenus";
 import { Button } from "./components/ui/Button";
 import { Skeleton, SkeletonCard } from "./components/ui/Skeleton";
