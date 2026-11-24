@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, auth } from "./api/client";
-import Composer from "./components/Composer";
+import Composer from "./features/composer/Composer";
 import Login from "./components/Login";
 import Settings from "./components/Settings";
 import RunView from "./features/run/RunView";

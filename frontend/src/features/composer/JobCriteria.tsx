@@ -1,7 +1,7 @@
 import { Briefcase, X } from "lucide-react";
 import { useI18n, type Key } from "../../i18n";
 import type { JobProfile, Mode, RunRequest } from "../../api/types";
-import { TextField } from "../ui";
+import { TextField } from "../../components/ui";
 
 const KEYWORD_SUGGESTIONS = ["remote", "junior", "senior", "intern", "part-time", "Hà Nội", "HCM", "Đà Nẵng"];
 const KEYWORD_LABELS: Record<string, Key> = {

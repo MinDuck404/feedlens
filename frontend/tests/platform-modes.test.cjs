@@ -154,8 +154,8 @@ test("old requests reopen with their original semantics instead of new defaults"
 });
 
 // Drive the same hook/event interface used by Composer, without network or browser layout.
-const { SourceMode } = require("../src/components/composer/SourceMode.tsx");
-const { JobCriteria } = require("../src/components/composer/JobCriteria.tsx");
+const { SourceMode } = require("../src/features/composer/SourceMode.tsx");
+const { JobCriteria } = require("../src/features/composer/JobCriteria.tsx");
 function expandComposerSections(node) {
   if (!node || typeof node !== "object") return node;
   if (Array.isArray(node)) return node.map(expandComposerSections);
@@ -184,7 +184,7 @@ function find(node, predicate) {
 
 test("Composer switches platform drafts, serializes Jobs, and preserves old preferences on close", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const original = { ...api }, requests = [], saved = [];
   api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
   api.createRun = async (req) => { requests.push(req); return { id: 1 }; };
@@ -215,7 +215,7 @@ test("Composer switches platform drafts, serializes Jobs, and preserves old pref
 
 test("Composer can reopen a legacy request without deleting other saved sources", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const original = { ...api }, requests = [], saved = [];
   api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
   api.createRun = async (request) => { requests.push(request); return { id: 1 }; };
@@ -240,7 +240,7 @@ const sampleProfile = { primary_roles: ["Python Engineer", "Data Engineer"],
 
 test("Jobs hides the redundant toggle, autofills from CV and chip click replaces the query", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const original = { ...api }, settings = [];
   api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => sampleProfile; api.topics = async () => ({ topics: [] });
   const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
@@ -265,7 +265,7 @@ test("Jobs hides the redundant toggle, autofills from CV and chip click replaces
 
 test("profile arriving late preserves user input, and rerun skips all CV autofill", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const original = { ...api };
   api.providers = async () => [{ key: "offline", configured: true }]; api.topics = async () => ({ topics: [] });
   try {
@@ -288,7 +288,7 @@ test("profile arriving late preserves user input, and rerun skips all CV autofil
 
 test("Jobs without a CV links to profile settings and other modes retain the toggle", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const original = { ...api }, settings = [];
   api.providers = async () => [{ key: "offline", configured: true }]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
   const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
@@ -305,7 +305,7 @@ test("Jobs without a CV links to profile settings and other modes retain the tog
 
 test("countPlan and Composer use prefs.max_posts cap (13 groups x 100 with cap 2000 = 1300) and send max_posts", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
-  const { api } = require("../src/api/client.ts"), Composer = require("../src/components/Composer.tsx").default;
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
   const groups = Array.from({ length: 13 }, (_, i) => `https://www.facebook.com/groups/g${i + 1}`);
   const plan = modes.countPlan("facebook", "group", { sourceText: groups.join("\n"), count: 100, options: { latest: true, old_streak: 5 } }, 2000);
   assert.equal(plan.cap, 2000);

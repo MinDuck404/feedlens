@@ -3,7 +3,7 @@ import { groupName } from "../../lib/logic";
 import { useI18n } from "../../i18n";
 import { PLATFORM_MODES, jobProfileSuggestions, sourceLines, type ModeDraft, type PlatformMode } from "../../lib/platformModes";
 import type { JobProfile, Mode, Platform, SavedGroup } from "../../api/types";
-import { Button, IconButton, Select, SegmentedControl, TextField } from "../ui";
+import { Button, IconButton, Select, SegmentedControl, TextField } from "../../components/ui";
 import { Group, Toggle } from "./Controls";
 
 /** Link dán vào ô một dòng: tách theo dấu cách, xuống dòng hoặc dấu phẩy */

@@ -346,7 +346,7 @@ test("queued preferences never cross into the next logged-in account", async () 
 });
 
 test("late model responses cannot replace the current provider or latest refresh", async () => {
-  const { ModelPicker } = require("../src/components/Composer.tsx");
+  const { ModelPicker } = require("../src/features/composer/Controls.tsx");
   const original = api.models, requests = [];
   const originalContext = React.useContext;
   React.useContext = () => ({ t: i18n.translate });

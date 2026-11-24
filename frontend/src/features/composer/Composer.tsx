@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
-import { PLATFORM_LABEL } from "../lib/categories";
-import { formatNumber, useI18n } from "../i18n";
-import { Sheet, Button, Skeleton, Select, SegmentedControl } from "./ui";
-import { Group, ModelPicker, Toggle } from "./composer/Controls";
-import { JobCriteria } from "./composer/JobCriteria";
-import { links, SourceMode } from "./composer/SourceMode";
+import { api } from "../../api/client";
+import { PLATFORM_LABEL } from "../../lib/categories";
+import { formatNumber, useI18n } from "../../i18n";
+import { Sheet, Button, Skeleton, Select, SegmentedControl } from "../../components/ui";
+import { Group, ModelPicker, Toggle } from "./Controls";
+import { JobCriteria } from "./JobCriteria";
+import { links, SourceMode } from "./SourceMode";
 import { applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode,
-  migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../lib/platformModes";
+  migratePreferences, modeDefinition, serializeDraft, sourceLines, validateDraft, type ModeDraft, type ModePreferences } from "../../lib/platformModes";
 import type {
   AIProviderInfo, JobProfile, Me, Meta, Mode, ModeOptions, Platform, PlatformSession, PlatformState, Preferences, RunRequest, SavedGroup,
-} from "../api/types";
-
-export { ModelPicker };
+} from "../../api/types";
 
 const DEFAULTS: RunRequest = {
   platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false, keywords: [], profile: "",

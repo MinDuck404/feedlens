@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { useI18n, type Key } from "../../i18n";
 import type { AIProviderInfo, Run } from "../../api/types";
-import { ModelPicker } from "../../components/composer/Controls";
+import { ModelPicker } from "../composer/Controls";
 import { Button, Select } from "../../components/ui";
 
 export function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false }: { run: Run; onStarted: () => void; reanalyzeAll?: boolean; switching?: boolean }) {

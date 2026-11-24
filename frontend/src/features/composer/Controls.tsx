@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import { useI18n } from "../../i18n";
-import { IconButton, Select } from "../ui";
+import { IconButton, Select } from "../../components/ui";
 
 export function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
   const [models, setModels] = useState<string[]>([]);
