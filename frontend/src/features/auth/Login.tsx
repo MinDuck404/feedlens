@@ -1,10 +1,10 @@
 import { Search } from "lucide-react";
 import { useId, useState } from "react";
-import { api, auth, ApiError } from "../api/client";
-import { serverMessage, useI18n } from "../i18n";
-import { Button } from "./ui/Button";
-import { TextField } from "./ui/TextField";
-import { LanguageMenu, ThemeMenu } from "../features/settings/PreferenceMenus";
+import { api, auth, ApiError } from "../../api/client";
+import { serverMessage, useI18n } from "../../i18n";
+import { Button } from "../../components/ui/Button";
+import { TextField } from "../../components/ui/TextField";
+import { LanguageMenu, ThemeMenu } from "../settings/PreferenceMenus";
 
 interface Props {
   configError: string | null;
