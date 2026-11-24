@@ -8,7 +8,6 @@ for (const extension of [".ts", ".tsx"]) {
   require.extensions[extension] = (module, filename) => {
     let source = fs.readFileSync(filename, "utf8").replace("import.meta.env", "({})");
     if (filename.endsWith("Sidebar.tsx")) source += "\nexport { PlatformRow, SidebarBody };";
-    if (filename.endsWith("RunView.tsx")) source += "\nexport { PostSources, JobsBoard, ReadingPost, InProgress, Done, QuotaDiagnostics };";
     module._compile(ts.transpileModule(source, { fileName: filename, compilerOptions: {
       module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     } }).outputText, filename);
@@ -32,7 +31,7 @@ const React = require("react");
 
 test("quota diagnostics identify each key/model and distinguish zero quota from oversized requests", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { QuotaDiagnostics } = require("../src/components/RunView.tsx");
+  const { QuotaDiagnostics } = require("../src/features/run/RetryAnalysis.tsx");
   const run = { progress: { ai: { candidates: [
     { key_label: "Fresh project", model: "lite", reason: "zero_quota", metric: "RPM", status: 429 },
     { key_label: "Old project", model: "flash", reason: "too_large", estimated_tokens: 35000, limit_tpm: 30000, project_shared: true }
@@ -46,7 +45,8 @@ test("quota diagnostics identify each key/model and distinguish zero quota from 
 
 test("analyzing view exposes actual model, quota retry time and stop/change controls", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { InProgress, Done } = require("../src/components/RunView.tsx");
+  const { InProgress } = require("../src/features/run/InProgress.tsx");
+  const { Done } = require("../src/features/run/Done.tsx");
   const run = { id: 9, status: "analyzing", request: { platform: "facebook" }, digest: null,
     progress: { phase: "analyzing", done: 1, target: 2, ai_requests: 4, newly_read: 1, ai: { state: "quota_wait", provider: "Gemini", provider_id: "gemini", model: "actual", requested_model: "alias-model", key_label: "Work key", retry_at: Date.now() / 1000 + 30, switched_key: true, project_shared: true } },
     posts: [{ id: 1, fingerprint: "a", category: "news", summary: "Read", text: "Read text", analyzed: true, source: "Feed", platform: "facebook", topic_ids: [] },
@@ -104,7 +104,7 @@ const deferred = () => { let resolve, reject; const promise = new Promise((a, b)
 test("missing source requests and missing topic payloads do not crash a run", async () => {
   const { describeRunSource } = require("../src/lib/logic.ts");
   assert.equal(describeRunSource(undefined, i18n.translate), i18n.translate("run.unknownSource"));
-  const { Done } = require("../src/components/RunView.tsx");
+  const { Done } = require("../src/features/run/Done.tsx");
   const oldTopics = api.topics, oldContext = React.useContext, oldLocation = window.location;
   window.location = { hash: "#/runs/1/posts" };
   React.useContext = () => ({ t: i18n.translate, cat: (c) => c, lang: "en" });
@@ -125,7 +125,8 @@ test("a successful HTTP response containing HTML becomes a localized API error",
 
 test("grouped posts show every original source on job and reading cards without increasing job counts", () => {
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { JobsBoard, ReadingPost, PostSources } = require("../src/components/RunView.tsx");
+  const { JobsBoard } = require("../src/features/run/JobsBoard.tsx");
+  const { ReadingPost, PostSources } = require("../src/features/run/PostList.tsx");
   const p = { id: 8, text: "Job text", summary: "Python developer", category: "job", source: "Group A", author: "Recruiter", url: "https://example.test/1",
     job: { title: "Python developer", company: "Acme", match_score: 90, work_mode: "remote" },
     sources: [{ source: "Group A", url: "https://example.test/1" }, { source: "Group B", url: "https://example.test/2" }] };
@@ -368,7 +369,7 @@ test("late model responses cannot replace the current provider or latest refresh
 });
 
 test("run polling backs off after transient errors, recovers, and only 404 means missing", async () => {
-  const RunView = require("../src/components/RunView.tsx").default;
+  const RunView = require("../src/features/run/RunView.tsx").default;
   const original = api.run, timers = [], oldTimer = window.setTimeout, oldClear = global.clearTimeout;
   window.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
   global.clearTimeout = () => {};
@@ -402,7 +403,7 @@ test("API run detail supports metadata polling without changing default requests
 });
 
 test("active run polling keeps posts, throttles full refreshes, and loads final results", async () => {
-  const RunView = require("../src/components/RunView.tsx").default;
+  const RunView = require("../src/features/run/RunView.tsx").default;
   const original = api.run, originalContext = React.useContext, oldTimer = window.setTimeout, oldClear = global.clearTimeout, oldNow = Date.now;
   const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value; context.close();
   const timers = [], calls = []; let now = 0, version = 0, status = "scraping";
@@ -539,7 +540,7 @@ test("background session checks show a spinner and suppress reconnect until comp
 });
 
 test("analysis failures stop polling and keep saved posts available", async () => {
-  const RunView = require("../src/components/RunView.tsx").default;
+  const RunView = require("../src/features/run/RunView.tsx").default;
   const original = api.run, oldTimer = window.setTimeout;
   const timers = [];
   window.setTimeout = (...args) => timers.push(args);
@@ -559,7 +560,7 @@ test("analysis failures stop polling and keep saved posts available", async () =
 });
 
 test("interrupted AI upgrades show real coverage and offer only remaining posts", async () => {
-  const RunView = require("../src/components/RunView.tsx").default;
+  const RunView = require("../src/features/run/RunView.tsx").default;
   const originalRun = api.run, originalProviders = api.providers, originalContext = React.useContext;
   const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value;
   context.close(); React.useContext = () => value;
@@ -592,7 +593,7 @@ test("interrupted AI upgrades show real coverage and offer only remaining posts"
 });
 
 test("completed AI runs offer confirmed reanalysis with an estimated request count", async () => {
-  const RunView = require("../src/components/RunView.tsx").default;
+  const RunView = require("../src/features/run/RunView.tsx").default;
   const originalRun = api.run, originalProviders = api.providers, originalRetry = api.retryAnalysis;
   const originalContext = React.useContext, originalConfirm = window.confirm;
   const context = hooks(i18n.I18nProvider), value = context.render({ children: null }).props.value;
@@ -771,7 +772,7 @@ test("snippet and citation tokens keep markup inert and link only returned post 
 
 
 test("run category and topic filters round-trip through post URLs", () => {
-  const { runPostFiltersFromHash, runPostsHref } = require("../src/components/RunView.tsx");
+  const { runPostFiltersFromHash, runPostsHref } = require("../src/features/run/runPostFilters.ts");
   for (const category of ["job", "news", "tech", "marketplace", "question", "event", "promotion", "personal", "entertainment", "other", null]) {
     for (const topicId of [null, 12]) {
       const filters = { category, topicId };
@@ -786,7 +787,7 @@ test("run category and topic filters round-trip through post URLs", () => {
 });
 
 test("run post filters ignore invalid categories, topics and non-post routes", () => {
-  const { runPostFiltersFromHash, runPostsHref } = require("../src/components/RunView.tsx");
+  const { runPostFiltersFromHash, runPostsHref } = require("../src/features/run/runPostFilters.ts");
   for (const category of ["unknown", "__proto__", "constructor", "toString", "NEWS", "<script>"]) {
     assert.deepEqual(runPostFiltersFromHash(`#/runs/42/posts?category=${encodeURIComponent(category)}&topic=3`), { category: null, topicId: 3 });
     assert.equal(runPostsHref(42, { category, topicId: 3 }), "#/runs/42/posts?topic=3");

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useI18n } from "../../i18n";
 import { filterTopicPosts, topicColor } from "../../lib/topics";
 import type { Post, Topic } from "../../api/types";
-import { EmptyState } from "../ui";
+import { EmptyState } from "../../components/ui";
 import { categoryTone } from "./runPostFilters";
 
 export function PostSources({ p }: { p: Post }) {

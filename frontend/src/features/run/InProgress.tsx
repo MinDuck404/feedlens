@@ -3,7 +3,7 @@ import { api } from "../../api/client";
 import { serverMessage, useI18n } from "../../i18n";
 import { formatDuration } from "../../lib/logic";
 import type { Run } from "../../api/types";
-import { Button } from "../ui";
+import { Button } from "../../components/ui";
 import { QuotaDiagnostics, RetryAnalysis } from "./RetryAnalysis";
 
 export function InProgress({ run, onStarted }: { run: Run; onStarted: () => void }) {

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { formatNumber, useI18n, type Key } from "../../i18n";
 import { isRemoteText, jobPresentation, matchesJobType } from "../../lib/logic";
 import type { Post } from "../../api/types";
-import { EmptyState, Select } from "../ui";
+import { EmptyState, Select } from "../../components/ui";
 import { PostSources } from "./PostList";
 
 const tierOf = (v: number): { key: Key; color: string } =>

@@ -3,7 +3,7 @@ import { api, auth } from "./api/client";
 import Composer from "./components/Composer";
 import Login from "./components/Login";
 import Settings from "./components/Settings";
-import RunView from "./components/RunView";
+import RunView from "./features/run/RunView";
 import HistoryPage from "./components/HistoryPage";
 import AskPage from "./components/AskPage";
 import TrendsPage from "./components/TrendsPage";
