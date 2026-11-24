@@ -119,7 +119,7 @@ export function Done({ run, meta, tab: requested, setTab }: {
                 setTab(tabs[next][0]);
                 e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
               }}
-              className="interactive-tap -mb-px min-h-12 flex-1 border-b-2 border-transparent px-2 py-3 text-sm text-ink-soft transition-colors duration-[var(--duration-fast)] hover:text-ink focus:outline-none! focus-visible:outline-solid! focus-visible:outline-1! focus-visible:outline-ink/35! focus-visible:-outline-offset-4! focus-visible:rounded-lg! aria-selected:border-accent aria-selected:font-semibold aria-selected:text-ink sm:flex-none sm:px-5">
+              className="interactive-tap -mb-px min-h-12 flex-1 border-b border-transparent px-2 py-3 text-sm text-ink-soft transition-colors duration-[var(--duration-fast)] hover:text-ink focus:outline-none! focus-visible:outline-solid! focus-visible:outline-1! focus-visible:outline-ink/35! focus-visible:-outline-offset-4! focus-visible:rounded-lg! aria-selected:border-line aria-selected:font-semibold aria-selected:text-accent sm:flex-none sm:px-5">
               {l}
             </button>
           ))}
