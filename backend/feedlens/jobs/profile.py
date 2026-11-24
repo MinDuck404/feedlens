@@ -112,15 +112,22 @@ CV_SCHEMA = {
 }
 
 
-def analyze_cv(text: str, analyzer, language: str) -> dict:
+def offline_cv(text: str, language: str) -> dict:
     clean = redact_contacts(text[:30000])
     if len(clean) < 20:
         raise ProfileError("error.cv_no_text")
+    title = {"vi": "Hồ sơ", "en": "Profile", "zh": "个人档案"}.get(language, "Profile")
     hints = relevant_roles(clean)
+    return {"markdown": f"# {title}\n\n{clean}"[:8000], "suggested_roles": [r["title"] for r in hints][:3],
+            "adjacent_roles": [], "offline": True}
+
+
+def analyze_cv(text: str, analyzer, language: str) -> dict:
+    fallback = offline_cv(text, language)
     if not hasattr(analyzer, "_json_call"):
-        title = {"vi": "Hồ sơ", "en": "Profile", "zh": "个人档案"}.get(language, "Profile")
-        return {"markdown": f"# {title}\n\n{clean}"[:8000], "suggested_roles": [r["title"] for r in hints][:3],
-                "adjacent_roles": [], "offline": True}
+        return fallback
+    clean = redact_contacts(text[:30000])
+    hints = relevant_roles(clean)
     analyzer.language = language
     prompt = (
         "Convert the CV DATA below into a concise matching profile, at most about 1200 tokens. "
@@ -132,9 +139,12 @@ def analyze_cv(text: str, analyzer, language: str) -> dict:
         "Suggest up to 3 primary and 5 adjacent roles grounded in the CV. Relevant transition hints: "
         + json.dumps(hints, ensure_ascii=False) + "\n<cv>\n" + clean + "\n</cv>"
     )
-    result = analyzer._json_call(prompt, CV_SCHEMA, effort="medium")
-    roles = [AdjacentRole(**r).model_dump() for r in result["adjacent_roles"][:5]]
-    return {"markdown": redact_contacts(result["markdown"])[:8000], "suggested_roles": result["suggested_roles"][:3], "adjacent_roles": roles, "offline": False}
+    try:
+        result = analyzer._json_call(prompt, CV_SCHEMA, effort="medium")
+        roles = [AdjacentRole(**r).model_dump() for r in result["adjacent_roles"][:5]]
+        return {"markdown": redact_contacts(result["markdown"])[:8000], "suggested_roles": result["suggested_roles"][:3], "adjacent_roles": roles, "offline": False}
+    except Exception:
+        return {**fallback, "ai_status": "unavailable", "code": "error.cv_ai_unavailable"}
 
 
 def matching_context(profile: JobProfile) -> str:

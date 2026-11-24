@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -21,6 +23,9 @@ from feedlens.jobs.profile import analyze_cv
 from feedlens.jobs.profile import extract_cv_pdf
 from feedlens.jobs.profile import load_profile
 from feedlens.jobs.profile import store_profile
+from feedlens.jobs.profile import offline_cv
+
+CV_DEADLINE_SECONDS = 45
 
 
 def profile_router(db, is_cloud):
@@ -56,8 +61,40 @@ def profile_router(db, is_cloud):
                 text = await run_in_threadpool(extract_cv_pdf, data)
             elif len(text.encode("utf8")) > MAX_CV_BYTES:
                 raise ProfileError("error.cv_too_large")
-            analyzer = get_analyzer(preferred_provider(db(), user.id, ai_provider), None, user_keys(db(), user.id), user.id)
-            return await run_in_threadpool(analyze_cv, text, analyzer, language if language in ("vi", "en", "zh") else "vi")
+            language = language if language in ("vi", "en", "zh") else "vi"
+            fallback = await run_in_threadpool(offline_cv, text, language)
+            stop = threading.Event()
+
+            def convert():
+                analyzer = get_analyzer(preferred_provider(db(), user.id, ai_provider), None, user_keys(db(), user.id), user.id)
+                analyzer.stop_event = stop
+                if stop.is_set():
+                    return fallback
+                return analyze_cv(text, analyzer, language)
+
+            task = asyncio.create_task(run_in_threadpool(convert))
+            task.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+            try:
+                # Do not wait for a blocked SDK thread when the total conversion deadline expires.
+                done, _ = await asyncio.wait({task}, timeout=CV_DEADLINE_SECONDS)
+                try:
+                    result = task.result() if done else {**fallback, "ai_status": "unavailable", "reason": "timeout"}
+                except Exception:
+                    result = {**fallback, "ai_status": "unavailable"}
+            finally:
+                stop.set()  # Prevent another provider request after an in-flight call returns.
+            if result.get("ai_status") != "unavailable":
+                return result
+
+            def save_fallback():
+                previous = load_profile(db(), user.id)
+                profile = (previous or JobProfile(primary_roles=result["suggested_roles"])).model_copy(
+                    update={"markdown": result["markdown"]})
+                store_profile(db(), user.id, profile, is_cloud())
+                return {**result, "suggested_roles": profile.primary_roles,
+                        "adjacent_roles": [role.model_dump() for role in profile.adjacent_roles],
+                        "code": "error.cv_ai_unavailable", "saved": True}
+            return await run_in_threadpool(save_fallback)
         except ProfileError as exc:
             return JSONResponse({"code": exc.code, "detail": exc.code}, status_code=400)
         except Exception:
