@@ -53,5 +53,6 @@ export const errors = {
   "error.analysis_failed": "AI 未能完成分析。请检查配置后使用已保存的帖子重试。",
   "error.ai_auth": "AI 拒绝了 API 密钥或模型访问权限。请在设置中更新密钥，或选择其他 AI/模型。",
   "error.ai_quota": "AI 的配额或余额已用尽，或请求受到限流。请稍后重试或更换 AI。",
+  "error.ai_billing": "所尝试的所有密钥的 AI 账户余额不足或未开通付费。请在服务商处充值/开通付费，或改用其他密钥。",
   "error.ai_unavailable": "AI 无法连接或服务繁忙。帖子已保存，请稍后重新分析。",
 };

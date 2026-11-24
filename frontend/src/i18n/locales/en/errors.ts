@@ -53,5 +53,6 @@ export const errors = {
   "error.analysis_failed": "The AI could not finish. Check its configuration and retry using the saved posts.",
   "error.ai_auth": "The AI rejected the API key or model permissions. Update the key in Settings or choose another AI/model.",
   "error.ai_quota": "The AI has exhausted its quota or credits, or is rate limiting requests. Wait and retry, or choose another AI.",
+  "error.ai_billing": "The AI account has no credits or billing is not enabled for every key tried. Add credits or enable billing with the provider, or use another key.",
   "error.ai_unavailable": "The AI is unreachable or overloaded. Your posts are saved; retry analysis later.",
 };

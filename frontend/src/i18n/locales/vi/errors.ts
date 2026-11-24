@@ -53,5 +53,6 @@ export const errors = {
   "error.analysis_failed": "AI chưa đọc xong. Kiểm tra cấu hình AI rồi phân tích lại từ bài đã lưu.",
   "error.ai_auth": "AI từ chối API key hoặc quyền truy cập model. Sửa key trong Cài đặt hoặc chọn AI/model khác.",
   "error.ai_quota": "AI hết hạn mức, tín dụng hoặc đang giới hạn yêu cầu. Chờ rồi thử lại, hoặc chọn AI khác.",
+  "error.ai_billing": "Tài khoản AI hết credit hoặc chưa bật thanh toán ở mọi key đã thử. Nạp thêm credit/bật thanh toán ở nhà cung cấp, hoặc dùng key khác.",
   "error.ai_unavailable": "Không kết nối được AI hoặc dịch vụ đang quá tải. Bài đã lưu; hãy thử phân tích lại sau.",
 };
