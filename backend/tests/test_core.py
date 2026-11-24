@@ -274,7 +274,7 @@ def test_api_smoke(db, monkeypatch):
     c = TestClient(api.app)
     m = c.get("/api/meta").json()
     assert m["mode"] == "local" and not m["auth_required"]
-    assert {p["key"] for p in c.get("/api/ai/providers").json()} == {"anthropic", "openai", "gemini", "offline"}
+    assert {p["key"] for p in c.get("/api/ai/providers").json()} == {"anthropic", "openai", "gemini", "custom", "offline"}
     assert {p["key"] for p in c.get("/api/platforms").json()} == {"facebook", "linkedin", "x", "reddit"}
     assert c.post("/api/runs", json={"platform": "facebook", "source_type": "group"}).status_code == 422
     r = c.post("/api/runs", json={"platform": "facebook", "ai_provider": "gemini"})

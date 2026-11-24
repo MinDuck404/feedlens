@@ -43,7 +43,8 @@ class Database(UsersMixin, KeysMixin, RunsMixin, PostsMixin, TopicsMixin, Search
             "posts": {"topic_ids": json_type, "topic_reason": "TEXT DEFAULT ''",
                       "analyzed_by": "VARCHAR(120) NOT NULL DEFAULT ''"},
             "api_keys": {"label": "VARCHAR(80) NOT NULL DEFAULT ''", "priority": "INTEGER NOT NULL DEFAULT 0",
-                         "enabled": "BOOLEAN NOT NULL DEFAULT TRUE", "tier": "VARCHAR(8) NOT NULL DEFAULT 'free'"},
+                         "enabled": "BOOLEAN NOT NULL DEFAULT TRUE", "tier": "VARCHAR(8) NOT NULL DEFAULT 'free'",
+                         "base_url": "TEXT NOT NULL DEFAULT ''", "default_model": "VARCHAR(200) NOT NULL DEFAULT ''"},
             "ai_usage": {"exhausted": "BOOLEAN NOT NULL DEFAULT FALSE"},
         }
         insp = inspect(self.engine)
@@ -68,8 +69,8 @@ class Database(UsersMixin, KeysMixin, RunsMixin, PostsMixin, TopicsMixin, Search
                 try:
                     with conn.begin():
                         conn.exec_driver_sql("BEGIN IMMEDIATE")
-                        conn.exec_driver_sql("CREATE TABLE api_keys_new (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, provider VARCHAR(20) NOT NULL, ciphertext TEXT NOT NULL, hint VARCHAR(16), created_at DATETIME NOT NULL, label VARCHAR(80) NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, tier VARCHAR(8) NOT NULL DEFAULT 'free')")
-                        cols = "id,user_id,provider,ciphertext,hint,created_at,label,priority,enabled,tier"
+                        conn.exec_driver_sql("CREATE TABLE api_keys_new (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, provider VARCHAR(20) NOT NULL, ciphertext TEXT NOT NULL, hint VARCHAR(16), created_at DATETIME NOT NULL, label VARCHAR(80) NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, tier VARCHAR(8) NOT NULL DEFAULT 'free', base_url TEXT NOT NULL DEFAULT '', default_model VARCHAR(200) NOT NULL DEFAULT '')")
+                        cols = "id,user_id,provider,ciphertext,hint,created_at,label,priority,enabled,tier,base_url,default_model"
                         conn.exec_driver_sql(f"INSERT INTO api_keys_new ({cols}) SELECT {cols} FROM api_keys")
                         conn.exec_driver_sql("DROP TABLE api_keys")
                         conn.exec_driver_sql("ALTER TABLE api_keys_new RENAME TO api_keys")

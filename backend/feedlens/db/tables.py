@@ -42,6 +42,8 @@ class ApiKeyRow(Base):
     priority: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     tier: Mapped[str] = mapped_column(String(8), default="free", server_default="free")
+    base_url: Mapped[str] = mapped_column(Text, default="", server_default="")
+    default_model: Mapped[str] = mapped_column(String(200), default="", server_default="")
 
 
 class AIUsageRow(Base):

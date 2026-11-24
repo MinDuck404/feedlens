@@ -17,11 +17,13 @@ from feedlens.ai.providers.anthropic import AnthropicProvider
 from .base import AIProvider
 from feedlens.ai.providers.gemini import DEFAULT_MODELS, GeminiProvider
 from feedlens.ai.providers.openai import OpenAIProvider
+from feedlens.ai.providers.custom import CustomProvider
 
 PROVIDERS: dict[str, type[AIProvider]] = {
     "anthropic": AnthropicProvider,
     "openai": OpenAIProvider,
     "gemini": GeminiProvider,
+    "custom": CustomProvider,
 }
 _EXTRA_ENV = {"anthropic": ["ANTHROPIC_AUTH_TOKEN"], "gemini": ["GOOGLE_API_KEY"]}
 
@@ -40,6 +42,8 @@ class KeyCredential:
     tier: str = "free"
     source: str = "db"
     label: str = ""
+    base_url: str = ""
+    default_model: str = ""
 
 
 class KeyList(list):
@@ -81,8 +85,9 @@ def user_keys(db, user_id: int) -> UserKeys:
         if not row.enabled:
             continue
         val = decrypt(row.ciphertext)
-        if val:
-            credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier, label=row.label))
+        if val is not None and (val or row.provider == "custom"):
+            credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier, label=row.label,
+                                             base_url=row.base_url, default_model=row.default_model))
     if not settings.is_cloud:
         for k in PROVIDERS:
             if not any(c.provider == k for c in credentials) and (v := _env_key(k)):
@@ -121,7 +126,11 @@ def preferred_provider(db, user_id: int | None, requested: str | None) -> str:
     return resolve_provider_key("auto", user_keys(db, user_id) if user_id is not None else {}, preferred)
 
 
-def get_provider(key: str, model: str | None = None, api_key: str | None = None) -> AIProvider:
+def get_provider(key: str, model: str | None = None, api_key: str | None = None, *, credential: KeyCredential | None = None) -> AIProvider:
+    if key == "custom":
+        if credential is None:
+            raise ValueError("Custom endpoints require per-key configuration")
+        return PROVIDERS[key](model or credential.default_model, credential.api_key, base_url=credential.base_url)
     return PROVIDERS[key](model or None, api_key)
 
 
@@ -137,7 +146,8 @@ def provider_status(db, user_id: int) -> list[dict]:
         i = cls.info
         out.append({"key": k, "name": i.name, "configured": k in keys,
                     "source": keys[k][1] if k in keys else None, "hint": hints.get(k, ""),
-                    "default_model": os.getenv(i.model_env) or i.default_model, "key_url": i.key_url,
+                    "default_model": (next((c.default_model for c in keys.credentials if c.provider == k), "") if k == "custom"
+                                      else os.getenv(i.model_env) or i.default_model), "key_url": i.key_url,
                     "is_default": k == default})
     out.append({"key": "offline", "name": "Offline (từ khóa)", "configured": True, "source": None,
                 "hint": "", "default_model": "", "key_url": ""})
@@ -149,12 +159,15 @@ _MODEL_CACHE: dict[tuple[int, str, str], tuple[float, list[str]]] = {}
 _TTL = 600
 
 
-def list_models(user_id: int, key: str, api_key: str, refresh: bool = False) -> list[str]:
-    identity = (user_id, key, hashlib.sha256(api_key.encode()).hexdigest())
+def list_models(user_id: int, key: str, api_key: str, refresh: bool = False, *, credential: KeyCredential | None = None) -> list[str]:
+    identity = (user_id, key, hashlib.sha256((api_key + repr((credential.base_url, credential.default_model) if credential else ())).encode()).hexdigest())
     hit = _MODEL_CACHE.get(identity)
     if hit and not refresh and time.time() - hit[0] < _TTL:
         return hit[1]
-    models = get_provider(key, api_key=api_key).list_models()
+    provider = get_provider(key, api_key=api_key, credential=credential) if credential else get_provider(key, api_key=api_key)
+    if key == "custom" and refresh:
+        provider.check_connection()
+    models = provider.list_models()
     _MODEL_CACHE[identity] = (time.time(), models)
     return models
 
@@ -200,10 +213,12 @@ def pick_default(key: str, models: list[str]) -> str:
     return default_candidates(key, models)[0]
 
 
-def resolve_models(user_id: int, key: str, api_key: str, requested: str | None, limit: int | None = None) -> list[str]:
+def resolve_models(user_id: int, key: str, api_key: str, requested: str | None, limit: int | None = None, *, credential: KeyCredential | None = None) -> list[str]:
     """Model sẽ dùng + model dự phòng khi model chính quá tải. User đã chọn model thì không đổi."""
     if requested:
         return [requested]
+    if key == "custom":
+        return [credential.default_model] if credential else []
     try:
         candidates = default_candidates(key, list_models(user_id, key, api_key))
         return candidates[:limit if limit is not None or key == "gemini" else 3]

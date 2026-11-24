@@ -18,8 +18,9 @@ def get_analyzer(provider: str | None, model: str | None, keys, user_id: int = 0
     for credential in credentials:
         if credential.provider != key:
             continue
-        for candidate_model in registry.resolve_models(user_id, key, credential.api_key, model):
-            candidates.append(Candidate(credential.id, registry.get_provider(key, candidate_model, credential.api_key),
+        config = {"credential": credential} if key == "custom" else {}
+        for candidate_model in registry.resolve_models(user_id, key, credential.api_key, model, **config):
+            candidates.append(Candidate(credential.id, registry.get_provider(key, candidate_model, credential.api_key, **config),
                                         credential.priority, credential.tier, key_label=credential.label))
     database = getattr(keys, "db", None)
     scheduler = scheduler_for(database) if database is not None else QuotaScheduler()

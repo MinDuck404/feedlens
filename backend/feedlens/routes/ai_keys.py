@@ -27,14 +27,17 @@ from feedlens.core.auth import CurrentUser
 from feedlens.core.auth import current_user
 from feedlens.core.crypto import encrypt
 from feedlens.core.crypto import key_hint
+from feedlens.ai.providers.custom import CustomProvider, EndpointError
 
 
 class NewKey(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    provider: Literal["gemini", "openai", "anthropic"]
-    api_key: str = Field(min_length=8, max_length=500)
+    provider: Literal["gemini", "openai", "anthropic", "custom"]
+    api_key: str = Field("", max_length=500)
     label: str = Field("", max_length=80)
     tier: Literal["free", "paid"] = "free"
+    base_url: str = Field("", max_length=2000)
+    default_model: str = Field("", max_length=200)
 
 
 class KeyPatch(BaseModel):
@@ -46,7 +49,7 @@ class KeyPatch(BaseModel):
 
 class KeyOrder(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    provider: Literal["gemini", "openai", "anthropic"]
+    provider: Literal["gemini", "openai", "anthropic", "custom"]
     ids: list[int] = Field(max_length=100)
 
 
@@ -64,7 +67,8 @@ def ai_keys_router(db):
             value.pop("exhausted", None)
         return dict(id=row.id, provider=row.provider, label=row.label, hint=row.hint,
                     priority=row.priority, enabled=row.enabled, tier=row.tier,
-                    status=scheduler.status.get(row.id, "unchecked"), usage_today=usage)
+                    status=scheduler.status.get(row.id, "unchecked"), usage_today=usage,
+                    base_url=row.base_url, default_model=row.default_model)
 
     @router.get("")
     def keys(user: CurrentUser = Depends(current_user)):
@@ -73,6 +77,20 @@ def ai_keys_router(db):
     @router.post("")
     async def add(body: NewKey, user: CurrentUser = Depends(current_user)):
         secret = body.api_key.strip()
+        if body.provider == "custom":
+            if not body.default_model.strip():
+                raise HTTPException(422, "Custom default model is required")
+            try:
+                provider = await run_in_threadpool(CustomProvider, body.default_model, secret, base_url=body.base_url)
+                await run_in_threadpool(provider.check_connection)
+            except EndpointError:
+                raise HTTPException(422, "Invalid or unsafe custom endpoint URL") from None
+            except Exception:
+                raise HTTPException(400, "Custom endpoint connection failed") from None
+            row = db().add_key(user.id, "custom", encrypt(secret), key_hint(secret), body.label, body.tier,
+                               base_url=provider.base_url, default_model=provider.model)
+            scheduler_for(db()).status[row.id] = "ok"
+            return describe(row)
         if len(secret) < 8:
             raise HTTPException(422, "API key is too short")
         try:
@@ -155,6 +173,8 @@ def _provider_or_404(p: str):
 async def save_key(p: str, body: KeyBody, user: User = Depends(current_user)):
     """Kiểm tra key bằng cách lấy danh sách model, đúng thì mã hóa và lưu."""
     _provider_or_404(p)
+    if p == "custom":
+        raise HTTPException(422, "Custom default model is required")
     key = body.api_key.strip()
     try:
         models = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, key, True)
@@ -188,7 +208,13 @@ async def models(p: str, refresh: bool = False, ai_key_id: int | None = Query(No
         raise fastapi.HTTPException(400, f"Chưa có API key cho {ai_registry.PROVIDERS[p].info.name}.")
     try:
         secret = selected.api_key if selected else keys[p][0]
-        items = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, secret, refresh)
+        if p == "custom":
+            credential = selected or next(c for c in keys.credentials if c.provider == p)
+            items = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, secret, refresh, credential=credential)
+        else:
+            items = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, secret, refresh)
     except Exception as e:  # noqa: BLE001
+        if p == "custom":
+            raise HTTPException(502, "Custom endpoint connection failed") from None
         raise fastapi.HTTPException(502, f"Không lấy được danh sách model: {str(e)[:200]}")
-    return {"models": items, "default": ai_registry.pick_default(p, items)}
+    return {"models": items, "default": credential.default_model if p == "custom" else ai_registry.pick_default(p, items)}

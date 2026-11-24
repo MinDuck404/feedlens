@@ -3,6 +3,12 @@ import re
 
 
 def error_code(message: str, status: int = 500, *, run_error: bool = False, analysis_error: bool = False) -> str:
+    if "Invalid or unsafe custom endpoint URL" in message:
+        return "error.custom_endpoint"
+    if "Custom default model is required" in message:
+        return "error.custom_model"
+    if "Custom endpoint connection failed" in message:
+        return "error.custom_connection"
     if "Selected AI key provider mismatch" in message:
         return "error.ai_key_provider"
     if "Selected AI key is unavailable" in message:
