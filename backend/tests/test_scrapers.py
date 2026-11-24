@@ -1,9 +1,17 @@
+
+import random
+import time
+import feedlens.models as models
+import feedlens.scrapers.base as scraper_base
+import feedlens.scrapers.facebook.dom as facebook_dom
+import feedlens.scrapers.facebook.links as facebook_links
+import feedlens.scrapers.facebook.stories as facebook_stories
 from types import SimpleNamespace
 
 import pytest
 
-from feedlens import scrapers
-from feedlens.scrapers import FacebookScraper, select_facebook_link
+from feedlens.scrapers.facebook.scraper import FacebookScraper
+from feedlens.scrapers.facebook.links import select_facebook_link
 
 
 @pytest.mark.parametrize("links,expected", [
@@ -26,8 +34,8 @@ def test_facebook_link_priority_and_tracking(links, expected):
 
 
 def test_collector_applies_facebook_link_selection_before_creating_post(monkeypatch):
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(
@@ -76,7 +84,7 @@ def facebook_page():
 def test_facebook_html_permalink_variants(facebook_page, body, expected):
     facebook_page.set_content('<div role="feed"><div role="article"><h3>Author</h3>'
         '<div data-ad-preview="message">A long enough post for the feed extractor.</div>' + body + '</div></div>')
-    item = facebook_page.evaluate(scrapers.FB_JS)[0]
+    item = facebook_page.evaluate(facebook_dom.FB_JS)[0]
     assert select_facebook_link(item['links']) == expected
 
 
@@ -86,8 +94,8 @@ def test_facebook_html_hover_resolves_timestamp_without_navigation(facebook_page
       <a role="link" aria-label="November 15, 2026" onmouseover="this.href='/author/posts/pfbidHOVER/?__tn__=R'">1 h</a>
       <a href="/photo/456/">Photo</a>
     </div></div>''')
-    monkeypatch.setattr(scrapers, '_human_pause', lambda *args: None)
-    monkeypatch.setattr(scrapers.random, 'random', lambda: 1)
+    monkeypatch.setattr(scraper_base, '_human_pause', lambda *args: None)
+    monkeypatch.setattr(random, 'random', lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, 'ensure_access', lambda *args: False)
     monkeypatch.setattr(facebook_page, 'goto', lambda *args, **kwargs: None)
@@ -106,7 +114,7 @@ def test_facebook_html_multiple_articles_and_nested_share(facebook_page):
       <div role="article"><h3>Second author</h3><a href="/second/posts/3/">3 h</a>
         <div data-ad-preview="message">Second independent post content is long enough.</div></div>
     </div></div>''')
-    items = scrapers._facebook_items(facebook_page)
+    items = facebook_dom._facebook_items(facebook_page)
     assert len(items) == 2
     assert [p['url'] for p in items] == ['https://www.facebook.com/outer/posts/1/',
                                        'https://www.facebook.com/second/posts/3/']
@@ -118,11 +126,11 @@ def test_facebook_placeholder_is_not_a_permalink(href):
 
 
 def test_facebook_collect_backfills_missing_url_on_later_scroll(monkeypatch):
-    monkeypatch.setattr(scrapers, '_human_pause', lambda *args: None)
-    monkeypatch.setattr(scrapers.random, 'random', lambda: 1)
+    monkeypatch.setattr(scraper_base, '_human_pause', lambda *args: None)
+    monkeypatch.setattr(random, 'random', lambda: 1)
     original = dict(text='A long enough post with a late permalink.', author='Author', posted_at='')
     rounds = iter([[dict(original, url='')], [dict(original, url='https://www.facebook.com/author/posts/late/')]])
-    monkeypatch.setattr(scrapers, '_facebook_items', lambda page, stories: next(rounds, []))
+    monkeypatch.setattr(facebook_dom, '_facebook_items', lambda page, stories: next(rounds, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, 'ensure_access', lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
@@ -137,7 +145,7 @@ def test_facebook_hover_recycled_dom_does_not_attach_another_posts_link(facebook
       <div data-ad-preview="message">Original post content that is long enough.</div>
       <a role="link" onmouseover="this.parentElement.querySelector('div').innerText='A different post replaced the original.'; this.href='/other/posts/1/'">1 h</a>
     </div></div>''')
-    item = scrapers._facebook_items(facebook_page)[0]
+    item = facebook_dom._facebook_items(facebook_page)[0]
     assert item['url'] == ''
 
 
@@ -147,22 +155,22 @@ def test_facebook_hover_hidden_timestamp_preserves_media_fallback(facebook_page)
       <a role="link" style="display:none" data-testid="timestamp">1 h</a>
       <a href="/photo/1/">Photo</a>
     </div></div>''')
-    assert scrapers._facebook_items(facebook_page)[0]['url'] == 'https://www.facebook.com/photo/1/'
+    assert facebook_dom._facebook_items(facebook_page)[0]['url'] == 'https://www.facebook.com/photo/1/'
 
 
 def test_facebook_standalone_article_without_posinset(facebook_page):
     facebook_page.set_content('''<article role="article"><h3>Author</h3>
       <div data-ad-preview="message">Post outside the old feed wrapper selector.</div>
       <a href="/author/posts/pfbidSTANDALONE/">1 h</a></article>''')
-    assert scrapers._facebook_items(facebook_page)[0]['url'] == 'https://www.facebook.com/author/posts/pfbidSTANDALONE/'
+    assert facebook_dom._facebook_items(facebook_page)[0]['url'] == 'https://www.facebook.com/author/posts/pfbidSTANDALONE/'
 
 
 
 def fake_collect(monkeypatch, rounds, seen=(), target=2, url="https://www.facebook.com/"):
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     batches = iter(rounds)
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda page, stories: next(batches, []))
+    monkeypatch.setattr(facebook_dom, "_facebook_items", lambda page, stories: next(batches, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,
@@ -177,7 +185,7 @@ def item(text):
 
 
 def fingerprint(text):
-    return scrapers.RawPost(platform="facebook", source="feed", text=text).fingerprint
+    return models.RawPost(platform="facebook", source="feed", text=text).fingerprint
 
 
 def test_old_posts_are_not_a_stuck_feed(monkeypatch):
@@ -210,7 +218,7 @@ def test_facebook_sponsored_post_is_flagged_without_wasting_snapshot_quota(faceb
       <a href="#"><span>Được tài trợ</span></a>
       <div data-ad-preview="message">Now available in Claude, ChatGPT, Cursor and more tools today.</div>
       <a href="/elevenlabs?__cft__[0]=SECRETTOKEN&amp;__tn__=R"><img src="x.png"></a></div></div>''')
-    item = scrapers._facebook_items(facebook_page)[0]
+    item = facebook_dom._facebook_items(facebook_page)[0]
     assert item["sponsored"] is True
     assert "_missing_header" not in item  # Ads do not consume the diagnostic sample quota.
 
@@ -219,7 +227,7 @@ def test_facebook_regular_post_with_permalink_has_no_snapshot(facebook_page):
     facebook_page.set_content('''<div role="feed"><div role="article"><h3>Author</h3>
       <div data-ad-preview="message">A normal post that has a real permalink.</div>
       <a href="/author/posts/pfbidOK/">2 h</a></div></div>''')
-    item = scrapers._facebook_items(facebook_page)[0]
+    item = facebook_dom._facebook_items(facebook_page)[0]
     assert item["sponsored"] is False and "_missing_header" not in item
 
 
@@ -234,7 +242,7 @@ def test_collect_all_records_report_per_source(monkeypatch):
         def collect(self, page, url, label, quota, seen, progress, speed, interactive, **kwargs):
             self.last_report = dict(target=quota, collected=1, skipped_old=3, examined=4, stop_reason="no_more_posts")
             self.missing_headers = ["<div>x</div>"]
-            return [scrapers.RawPost(platform="facebook", source=label, text="Some new post body text")]
+            return [models.RawPost(platform="facebook", source=label, text="Some new post body text")]
 
     monkeypatch.setitem(pipeline.SCRAPERS, "facebook", Fake)
     report: dict = {}
@@ -250,7 +258,7 @@ def test_facebook_query_only_timestamp_is_hovered_and_scroll_is_restored(faceboo
       <div data-ad-preview="message">A page post whose timestamp only resolves on hover.</div>
       <a href="/photo/?fbid=1&amp;set=a.2" role="link"><img src="x.png"></a></div></div>''')
     facebook_page.evaluate("() => window.scrollTo(0, 0)")
-    item = scrapers._facebook_items(facebook_page)[0]
+    item = facebook_dom._facebook_items(facebook_page)[0]
     assert item["url"] == "https://www.facebook.com/page/posts/pfbidREAL/"
     assert "_missing_header" not in item
     assert facebook_page.evaluate("() => window.scrollY") == 0
@@ -282,7 +290,7 @@ def test_ads_do_not_count_towards_quota_or_known_posts(monkeypatch):
 def test_facebook_real_header_shapes_recover_post_not_photo(facebook_page,body,expected):
     facebook_page.set_content('<div role="feed"><div role="article">'+body+
         '<div data-ad-preview="message">An organic article body with enough text.</div></div></div>')
-    assert scrapers._facebook_items(facebook_page)[0]['url']==expected
+    assert facebook_dom._facebook_items(facebook_page)[0]['url']==expected
 
 
 def test_facebook_graphql_story_recovers_post_url_from_feedback():
@@ -290,7 +298,7 @@ def test_facebook_graphql_story_recovers_post_url_from_feedback():
     story={'__typename':'Story','message':{'text':'A story body from a network response.'},
            'actors':[{'id':'1234','name':'Author'}],
            'feedback':{'id':base64.b64encode(b'feedback:9876543210').decode()}}
-    records=scrapers.facebook_stories({'data':{'node':story}})
+    records=facebook_stories.facebook_stories({'data':{'node':story}})
     assert len(records)==1
     assert records[0]['url']=='https://www.facebook.com/1234/posts/9876543210/'
     assert records[0]['text']==story['message']['text']
@@ -301,14 +309,14 @@ def test_facebook_graphql_story_recovers_post_url_from_feedback():
 def test_ads_are_detected_anywhere_in_the_article(facebook_page,marker):
     facebook_page.set_content('<div role="article"><h3>Advertiser</h3>'+('<span>x</span>'*65)+marker+
         '<div data-ad-preview="message">An advertisement body with enough text.</div></div>')
-    assert scrapers._facebook_items(facebook_page)[0]['sponsored'] is True
+    assert facebook_dom._facebook_items(facebook_page)[0]['sponsored'] is True
 
 
 def test_media_album_and_photo_ids_are_not_guessed_as_post_ids():
     link='https://www.facebook.com/photo/?fbid=999&set=a.12345'
-    assert scrapers.facebook_dom_permalink([(link,False)],'/author')==link
+    assert facebook_links.facebook_dom_permalink([(link,False)],'/author')==link
     link='https://www.facebook.com/photo/?fbid=999&set=gm.12345'
-    assert scrapers.facebook_dom_permalink([(link,False)])==link  # No group identity available.
+    assert facebook_links.facebook_dom_permalink([(link,False)])==link  # No group identity available.
 
 
 def test_ads_are_counted_once_even_when_repeated_and_never_become_known(monkeypatch):
@@ -325,14 +333,14 @@ def test_graphql_cache_accepts_ndjson_but_ignores_media_and_comment_ids():
     invalid={'__typename':'Story','message':{'text':'No post identity can be inferred safely.'},
              'feedback':{'id':base64.b64encode(b'comment:9876543210').decode()},
              'attachments':[{'media':{'__typename':'Photo','id':'444','url':'https://www.facebook.com/photo/?fbid=444'}}]}
-    cache={};scrapers.cache_facebook_stories('for (;;);'+json.dumps({'data':story})+'\ninvalid JSON\n'+json.dumps(invalid),cache)
+    cache={};facebook_stories.cache_facebook_stories('for (;;);'+json.dumps({'data':story})+'\ninvalid JSON\n'+json.dumps(invalid),cache)
     assert len(cache)==2
     record=cache[fingerprint(story['message']['text'])]
     assert record['url']=='https://www.facebook.com/groups/555/posts/pfbidABC123/'
     assert record['posted_at'].endswith('+00:00')
     assert cache[fingerprint(invalid['message']['text'])]['url']==''
     for payload in [{'__typename':'Story','comet_sections':{'content':['invalid']}}, {'__typename':'Story','message':5}, []]:
-        scrapers.cache_facebook_stories(json.dumps(payload),cache)
+        facebook_stories.cache_facebook_stories(json.dumps(payload),cache)
 
 
 @pytest.mark.parametrize('url,status', [('https://facebook.com.evil.test/api/graphql/',200),
@@ -340,7 +348,7 @@ def test_graphql_cache_accepts_ndjson_but_ignores_media_and_comment_ids():
                                       ('https://www.facebook.com/api/graphql/',500)])
 def test_graphql_listener_ignores_non_feed_responses(url,status):
     cache={}
-    scrapers.capture_facebook_response(SimpleNamespace(url=url,status=status,text=lambda: (_ for _ in ()).throw(AssertionError('must not read body'))),cache)
+    facebook_stories.capture_facebook_response(SimpleNamespace(url=url,status=status,text=lambda: (_ for _ in ()).throw(AssertionError('must not read body'))),cache)
     assert cache=={}
 
 
@@ -355,8 +363,8 @@ def test_graphql_listener_enriches_dom_and_is_removed_after_collection(monkeypat
         remove_listener=lambda event,fn:callbacks.pop(event),
         goto=lambda *a,**k:callbacks['response'](SimpleNamespace(url='https://www.facebook.com/api/graphql/',status=200,text=lambda:json.dumps(payload))),
         evaluate=lambda *a:[],mouse=SimpleNamespace(wheel=lambda *a:None))
-    monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
-    monkeypatch.setattr(scrapers,'_facebook_items',lambda page,*args:[ad.copy(),organic.copy()])
+    monkeypatch.setattr(scraper_base,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(facebook_dom,'_facebook_items',lambda page,*args:[ad.copy(),organic.copy()])
     scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
     posts=scraper.collect(page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
     assert len(posts)==1 and posts[0].url=='https://www.facebook.com/123/posts/101/'
@@ -379,20 +387,20 @@ def test_network_match_accepts_a_unique_long_excerpt_but_rejects_ambiguity():
     cache={}
     def story(suffix,id):
         return {'__typename':'Story','message':{'text':prefix+suffix},'url':f'https://www.facebook.com/page/posts/{id}/'}
-    scrapers.cache_facebook_stories(json.dumps(story('The rest of the full article.',123)),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',text=prefix+'… Xem thêm')
-    assert scrapers.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
-    scrapers.cache_facebook_stories(json.dumps(story('Another article with the same introduction.',456)),cache)
-    assert scrapers.match_facebook_story(post,cache) is None
-    short=scrapers.RawPost(platform='facebook',source='feed',text='This is a short excerpt')
-    assert scrapers.match_facebook_story(short,cache) is None
+    facebook_stories.cache_facebook_stories(json.dumps(story('The rest of the full article.',123)),cache)
+    post=models.RawPost(platform='facebook',source='feed',text=prefix+'… Xem thêm')
+    assert facebook_stories.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
+    facebook_stories.cache_facebook_stories(json.dumps(story('Another article with the same introduction.',456)),cache)
+    assert facebook_stories.match_facebook_story(post,cache) is None
+    short=models.RawPost(platform='facebook',source='feed',text='This is a short excerpt')
+    assert facebook_stories.match_facebook_story(short,cache) is None
 
 
 def test_group_pcb_photo_uses_the_group_header_not_a_photo_id(facebook_page):
     facebook_page.set_content('<div role="feed"><div><h3><a href="/groups/demo/">Group</a></h3>'
         '<div data-ad-preview="message">Group photo post with a pcb parent story identifier.</div>'
         '<a href="/photo/?fbid=999&amp;set=pcb.12345">Photo</a></div></div>')
-    assert scrapers._facebook_items(facebook_page)[0]['url']=='https://www.facebook.com/groups/demo/posts/12345/'
+    assert facebook_dom._facebook_items(facebook_page)[0]['url']=='https://www.facebook.com/groups/demo/posts/12345/'
 
 
 def test_initial_json_enriches_a_visible_post_without_extra_requests(facebook_page,monkeypatch):
@@ -402,7 +410,7 @@ def test_initial_json_enriches_a_visible_post_without_extra_requests(facebook_pa
         'comet_sections':{'content':{'story':{'message':{'text':text}}}}}}}
     facebook_page.set_content('<script type="application/json" data-sjs>'+json.dumps(payload)+'</script>'
         '<div role="feed"><div><h3>Author</h3><div data-ad-preview="message">'+text+'</div></div></div>')
-    monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(scraper_base,'_human_pause',lambda *a:None)
     monkeypatch.setattr(facebook_page,'goto',lambda *a,**k:None)
     scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
     posts=scraper.collect(facebook_page,'https://www.facebook.com/','feed',1,set(),lambda *a:None)
@@ -412,7 +420,7 @@ def test_initial_json_enriches_a_visible_post_without_extra_requests(facebook_pa
 
 def test_malformed_author_url_does_not_break_photo_fallback():
     url='https://www.facebook.com/photo/?fbid=999&set=pcb.12345'
-    assert scrapers.facebook_dom_permalink([(url,False)],'https://[invalid')==url
+    assert facebook_links.facebook_dom_permalink([(url,False)],'https://[invalid')==url
 
 
 @pytest.mark.parametrize('raw,expected', [
@@ -424,7 +432,7 @@ def test_malformed_author_url_does_not_break_photo_fallback():
  ('A\n và B\xa0 · Theo dõi','A và B'),
 ])
 def test_facebook_author_removes_ui_badges_but_preserves_collaborators(raw,expected):
-    assert scrapers.clean_facebook_author(raw)==expected
+    assert facebook_links.clean_facebook_author(raw)==expected
 
 
 def test_snapshot_keeps_late_permalink_and_referenced_ids_without_tokens(facebook_page):
@@ -433,7 +441,7 @@ def test_snapshot_keeps_late_permalink_and_referenced_ids_without_tokens(faceboo
       '<div data-ad-preview="message">A sufficiently long article body for snapshot testing.</div>'
       + ('<div><span>Facebook</span></div>'*500)
       + '<a id="late-link" href="/page/posts/pfbidLATE/?access_token=SECRET&amp;cookie=PRIVATE&amp;story_fbid=pfbidLATE">Open post</a></div>')
-    snapshot=facebook_page.locator('[role=article]').evaluate(scrapers.FB_HEADER_SNAPSHOT_JS)
+    snapshot=facebook_page.locator('[role=article]').evaluate(facebook_dom.FB_HEADER_SNAPSHOT_JS)
     assert 'pfbidLATE' in snapshot and 'late-link' in snapshot and 'time-ref' in snapshot
     assert 'SECRET' not in snapshot and 'PRIVATE' not in snapshot
     assert snapshot.endswith('</section>')
@@ -444,7 +452,7 @@ def test_suggested_page_header_keeps_coauthor_name_and_unknown_link_empty(facebo
       '<span>Tài khoản đã xác minh</span> · Theo dõi</h4>'
       '<a role="link" aria-labelledby="time">x</a><span id="time">1 ngày trước</span>'
       '<div data-ad-preview="message">A visible post without a trustworthy story identifier.</div></div>')
-    item=scrapers._facebook_items(facebook_page)[0]
+    item=facebook_dom._facebook_items(facebook_page)[0]
     assert item['author']=='A và B' and item['url']==''
     assert 'time' in item['_missing_header']
 
@@ -454,7 +462,7 @@ def test_run8_long_obfuscated_timestamp_uses_referenced_date_and_hover(facebook_
       '<a role="link" aria-labelledby="date-ref" href="?__cft__[0]=TRACK" onmouseover="this.href=\'/page/posts/pfbidREAL/\'">'
       +('<span>x</span>'*120)+'</a><span id="date-ref">1 ngày trước</span>'
       '<div data-ad-preview="message">A page video post with a long obfuscated timestamp.</div></div></div>')
-    item=scrapers._facebook_items(facebook_page)[0]
+    item=facebook_dom._facebook_items(facebook_page)[0]
     assert item['author']=='Suggested page'
     assert item['url']=='https://www.facebook.com/page/posts/pfbidREAL/'
 
@@ -469,14 +477,14 @@ def test_ad_headers_do_not_consume_the_runs_missing_link_samples(monkeypatch):
 @pytest.mark.parametrize('url', ['https://www.facebook.com/watch/?v=12345','https://www.facebook.com/page/videos/12345/','https://www.facebook.com/reel/12345/'])
 def test_graphql_keeps_explicit_video_links(url):
     story={'__typename':'Story','message':{'text':'A sufficiently long page video caption.'},'url':url}
-    assert scrapers.facebook_stories(story)[0]['url']==url
+    assert facebook_stories.facebook_stories(story)[0]['url']==url
 
 
 def test_page_graphql_metadata_supplies_permalink_for_content_story():
     story={'__typename':'Story','comet_sections':{
         'content':{'story':{'message':{'text':'A page news caption with a preview description.'}}},
         'metadata':[{'story':{'url':'https://www.facebook.com/page/posts/pfbidPAGE/','actors':[{'id':'123','name':'Page'}]}}]}}
-    record=scrapers.facebook_stories(story)[0]
+    record=facebook_stories.facebook_stories(story)[0]
     assert record['url']=='https://www.facebook.com/page/posts/pfbidPAGE/'
     assert record['author']=='Page'
 
@@ -485,11 +493,11 @@ def test_short_page_caption_matches_expanded_preview_only_with_unique_author():
     import json
     cache={}
     def story(author,id):return {'__typename':'Story','message':{'text':'Tạm biệt acc clone'},'actors':[{'name':author}], 'url':f'https://www.facebook.com/page/posts/{id}/'}
-    scrapers.cache_facebook_stories(json.dumps(story('Schannel',123)),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nFacebook thông báo xóa trang cá nhân phụ trong tháng tới.')
-    assert scrapers.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
+    facebook_stories.cache_facebook_stories(json.dumps(story('Schannel',123)),cache)
+    post=models.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nFacebook thông báo xóa trang cá nhân phụ trong tháng tới.')
+    assert facebook_stories.match_facebook_story(post,cache)['url'].endswith('/posts/123/')
     post.author='Different page'
-    assert scrapers.match_facebook_story(post,cache) is None
+    assert facebook_stories.match_facebook_story(post,cache) is None
 
 
 def test_page_video_attachment_uses_explicit_link_never_media_id():
@@ -497,9 +505,9 @@ def test_page_video_attachment_uses_explicit_link_never_media_id():
         'message':{'text':'Page video with an embedded player and full caption.'},
         'attachments':[{'styles':{'attachment':{'media':{'__typename':'Video','id':'999',
             'url':'https://www.facebook.com/watch/?v=12345'}}}}]}}}}
-    assert scrapers.facebook_stories(story)[0]['url']=='https://www.facebook.com/watch/?v=12345'
+    assert facebook_stories.facebook_stories(story)[0]['url']=='https://www.facebook.com/watch/?v=12345'
     story['comet_sections']['content']['story']['attachments'][0]['styles']['attachment']['media'].pop('url')
-    assert scrapers.facebook_stories(story)[0]['url']==''
+    assert facebook_stories.facebook_stories(story)[0]['url']==''
 
 
 def test_stable_feed_marker_survives_removed_sibling(facebook_page):
@@ -512,7 +520,7 @@ def test_stable_feed_marker_survives_removed_sibling(facebook_page):
         onmouseover="this.href='/second/posts/pfbidSECOND/'">x</a>
         <span id="time2">2 giờ trước</span><div data-ad-preview="message">Second page post with enough unique text.</div></div>
     </div>''')
-    items=scrapers._facebook_items(facebook_page)
+    items=facebook_dom._facebook_items(facebook_page)
     assert [x['url'] for x in items]==['https://www.facebook.com/first/posts/pfbidFIRST/','https://www.facebook.com/second/posts/pfbidSECOND/']
     assert facebook_page.locator('[data-feedlens-node]').count()==0
 
@@ -525,7 +533,7 @@ def test_snapshot_captured_before_hover_virtualizes_next_post(facebook_page):
       <div id="second"><h4>Second page</h4><a aria-labelledby="t2" href="?__cft__=x">x</a>
         <span id="t2">2 giờ trước</span><div data-ad-preview="message">Second page post with enough unique text.</div></div>
     </div>''')
-    items=scrapers._facebook_items(facebook_page)
+    items=facebook_dom._facebook_items(facebook_page)
     assert items[1]['url']==''
     assert 'Second page' in items[1]['_missing_header']
     assert 'Second page post with enough' in items[1]['_missing_header']
@@ -536,9 +544,9 @@ def test_known_network_permalink_spares_hover_budget(facebook_page):
     import json
     text='Page post whose network permalink is already known.'
     facebook_page.set_content('<div role="article"><h4>Page</h4><a aria-labelledby="date" href="?__cft__=x" onmouseover="window.hovered=true">x</a><span id="date">2 giờ trước</span><div data-ad-preview="message">'+text+'</div></div>')
-    cache={};scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':text},'url':'https://www.facebook.com/page/posts/pfbidKNOWN/'}),cache)
+    cache={};facebook_stories.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':text},'url':'https://www.facebook.com/page/posts/pfbidKNOWN/'}),cache)
     facebook_page.mouse.move(1,1);facebook_page.evaluate('window.hovered=false')
-    items=scrapers._facebook_items(facebook_page,cache)
+    items=facebook_dom._facebook_items(facebook_page,cache)
     assert items[0]['url']=='https://www.facebook.com/page/posts/pfbidKNOWN/'
     assert facebook_page.evaluate('window.hovered===true') is False
 
@@ -547,10 +555,10 @@ def test_short_caption_with_multiple_story_urls_remains_unresolved():
     import json
     cache={}
     for id in [1,2]:
-        scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':'Tạm biệt acc clone'},
+        facebook_stories.cache_facebook_stories(json.dumps({'__typename':'Story','message':{'text':'Tạm biệt acc clone'},
             'actors':[{'name':'Schannel'}],'url':f'https://www.facebook.com/page/posts/{id}/'}),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger link preview that is visible only in the DOM.')
-    assert scrapers.match_facebook_story(post,cache) is None
+    post=models.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger link preview that is visible only in the DOM.')
+    assert facebook_stories.match_facebook_story(post,cache) is None
 
 
 def test_virtualized_page_is_restored_before_timestamp_hover(facebook_page):
@@ -567,7 +575,7 @@ def test_virtualized_page_is_restored_before_timestamp_hover(facebook_page):
       window.addEventListener('scroll',()=>{const n=document.getElementById('second');const r=n.getBoundingClientRect();
         if(window.unmounted && r.top<innerHeight && r.bottom>0){window.unmounted=false;setTimeout(()=>{n.innerHTML=window.markup;window.restored=true;},180);}});
     </script>''')
-    items=scrapers._facebook_items(facebook_page)
+    items=facebook_dom._facebook_items(facebook_page)
     assert facebook_page.evaluate('window.restored===true')
     assert items[1]['url']=='https://www.facebook.com/second/posts/pfbidSECOND/'
     assert facebook_page.evaluate('scrollY')==0
@@ -577,9 +585,9 @@ def test_duplicate_short_captions_in_one_payload_are_not_a_unique_match():
     import json
     stories=[{'__typename':'Story','message':{'text':'Tạm biệt acc clone'},'actors':[{'name':'Schannel'}],
               'url':f'https://www.facebook.com/page/posts/{id}/'} for id in [1,2]]
-    cache={};scrapers.cache_facebook_stories(json.dumps({'data':stories}),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger preview description.')
-    assert scrapers.match_facebook_story(post,cache) is None
+    cache={};facebook_stories.cache_facebook_stories(json.dumps({'data':stories}),cache)
+    post=models.RawPost(platform='facebook',source='feed',author='Schannel',text='Tạm biệt acc clone\nLonger preview description.')
+    assert facebook_stories.match_facebook_story(post,cache) is None
 
 
 @pytest.mark.parametrize('actor,post_id,expected', [
@@ -592,13 +600,13 @@ def test_duplicate_short_captions_in_one_payload_are_not_a_unique_match():
 ])
 def test_page_story_builds_link_only_with_explicit_owner(actor,post_id,expected):
     story={'__typename':'Story','post_id':post_id,'actors':[actor],'message':{'text':'An actual Page caption with sufficient text.'}}
-    assert scrapers.facebook_stories(story)[0]['url']==expected
+    assert facebook_stories.facebook_stories(story)[0]['url']==expected
 
 
 def test_story_does_not_borrow_actor_from_another_metadata_story():
     story={'__typename':'Story','post_id':'456','message':{'text':'A story with an identity but no actor on this node.'},
         'comet_sections':{'metadata':[{'story':{'actors':[{'id':'999','url':'https://www.facebook.com/other/'}]}}]}}
-    assert scrapers.facebook_stories(story)[0]['url']==''
+    assert facebook_stories.facebook_stories(story)[0]['url']==''
 
 
 @pytest.mark.parametrize('decoded,expected', [
@@ -609,39 +617,39 @@ def test_feedback_id_search_stays_story_scoped(decoded,expected):
     import base64
     story={'__typename':'Story','message':{'text':'A page story whose feedback identifies the post.'},
         'actors':[{'id':'777'}],'feedback':{'id':base64.b64encode(decoded.encode()).decode()}}
-    result=scrapers.facebook_stories(story)[0]['url']
+    result=facebook_stories.facebook_stories(story)[0]['url']
     assert result==(f'https://www.facebook.com/777/posts/{expected}/' if expected else '')
 
 
 def test_hover_env_off_never_moves_to_unresolved_timestamps(facebook_page,monkeypatch):
     monkeypatch.setenv('FEEDLENS_FB_HOVER','0');facebook_page.mouse.move(1,1)
     facebook_page.set_content('<div role="article"><h4>Page</h4><a aria-labelledby="date" href="?__cft__=x" onmouseover="this.href=\'/page/posts/pfbidHOVER/\'">x</a><span id="date">1 giờ trước</span><div data-ad-preview="message">Page post that would require timestamp hovering.</div></div>')
-    item=scrapers._facebook_items(facebook_page)[0]
+    item=facebook_dom._facebook_items(facebook_page)[0]
     assert item['url']=='' and 'hover_disabled' in item['_missing_header']
 
 
 def test_graphql_debug_keeps_matched_node_or_same_author_keys():
     import json
-    cache=scrapers.FacebookStoryCache()
+    cache=facebook_stories.FacebookStoryCache()
     story={'__typename':'Story','message':{'text':'A sufficiently long Page caption without a post identifier.'},
            'actors':[{'name':'Page'}],'new_field':{'unknown_text':'x'*200},'cookie':'SECRET'}
-    scrapers.cache_facebook_stories(json.dumps({'data':story}),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',author='Page',text=story['message']['text'])
-    matched=scrapers.facebook_graphql_debug(post,cache)
+    facebook_stories.cache_facebook_stories(json.dumps({'data':story}),cache)
+    post=models.RawPost(platform='facebook',source='feed',author='Page',text=story['message']['text'])
+    matched=facebook_stories.facebook_graphql_debug(post,cache)
     assert matched['match']=='matched' and matched['story']['__typename']=='Story'
     assert 'cookie' not in matched['story'] and len(matched['story']['new_field']['unknown_text'])==60
     post.text='A different caption that does not match the network Story.'
-    missing=scrapers.facebook_graphql_debug(post,cache)
+    missing=facebook_stories.facebook_graphql_debug(post,cache)
     assert missing['same_author_keys'][0]['keys']==['__typename','actors','message','new_field']
 
 
 def test_unparsed_page_story_still_exposes_sanitized_shape_for_diagnostics():
     import json
-    cache=scrapers.FacebookStoryCache()
-    scrapers.cache_facebook_stories(json.dumps({'__typename':'Story','actors':[{'name':'Page'}],
+    cache=facebook_stories.FacebookStoryCache()
+    facebook_stories.cache_facebook_stories(json.dumps({'__typename':'Story','actors':[{'name':'Page'}],
         'unknown_caption_shape':{'value':'No supported message node'},'fb_dtsg':'SECRET','__user':'USER'}),cache)
-    post=scrapers.RawPost(platform='facebook',source='feed',author='Page',text='A DOM post that cannot be joined to any parsed Story.')
-    result=scrapers.facebook_graphql_debug(post,cache)
+    post=models.RawPost(platform='facebook',source='feed',author='Page',text='A DOM post that cannot be joined to any parsed Story.')
+    result=facebook_stories.facebook_graphql_debug(post,cache)
     assert result['match']=='none_or_ambiguous'
     assert result['same_author_keys'][0]['keys']==['__typename','actors','unknown_caption_shape']
 
@@ -658,7 +666,7 @@ def test_hover_budget_is_at_most_three_for_a_snapshot(facebook_page):
     facebook_page.set_content(''.join('<div role="article"><h4>Page '+str(i)+'</h4>'
         '<a aria-labelledby="t'+str(i)+'" href="?__cft__=x" onmouseover="window.hovers=(window.hovers||0)+1">x</a>'
         '<span id="t'+str(i)+'">1 giờ trước</span><div data-ad-preview="message">Page caption number '+str(i)+' with enough text.</div></div>' for i in range(5)))
-    facebook_page.evaluate('window.hovers=0');items=scrapers._facebook_items(facebook_page)
+    facebook_page.evaluate('window.hovers=0');items=facebook_dom._facebook_items(facebook_page)
     assert len(items)==5 and facebook_page.evaluate('window.hovers')<=3
 
 
@@ -666,7 +674,7 @@ def test_available_native_url_takes_precedence_over_post_id_and_owner():
     story={'__typename':'Story','post_id':'123','actors':[{'id':'777','slug':'Page.Name'}],
         'message':{'text':'Page story with an explicit canonical permalink.'},
         'permalink_url':'https://www.facebook.com/Page.Name/posts/pfbidCANONICAL/'}
-    assert scrapers.facebook_stories(story)[0]['url']==story['permalink_url']
+    assert facebook_stories.facebook_stories(story)[0]['url']==story['permalink_url']
 
 
 def test_missing_graphql_debug_samples_are_capped_per_source(monkeypatch):
@@ -677,7 +685,7 @@ def test_missing_graphql_debug_samples_are_capped_per_source(monkeypatch):
 def test_graphql_debug_preserves_identifier_and_removes_nested_url_credentials():
     raw={'post_id':'pfbid'+'A'*90,'actors':[{'url':'https://user:password@www.facebook.com/Page/?id=777&access_token=SECRET'}],
         'message':{'text':'x'*100},'nested':{'cookies':{'xs':'PRIVATE'},'__user':'USER','fb_dtsg':'DTSG'}}
-    clean=scrapers.sanitize_facebook_debug(raw)
+    clean=facebook_stories.sanitize_facebook_debug(raw)
     assert clean['post_id']==raw['post_id']
     assert clean['actors'][0]['url']=='https://www.facebook.com/Page/?id=777'
     assert len(clean['message']['text'])==60 and clean['nested']=={}
@@ -695,8 +703,8 @@ def test_debug_json_uses_graphql_responses_that_arrive_after_first_dom_capture(m
         if len(calls)==1:return [first.copy()]
         callbacks['response'](SimpleNamespace(url='https://www.facebook.com/api/graphql/',status=200,text=lambda:json.dumps(payload)))
         return [second.copy()]
-    monkeypatch.setattr(scrapers,'_facebook_items',extract);monkeypatch.setattr(scrapers,'_human_pause',lambda *a:None)
-    monkeypatch.setattr(scrapers.random,'random',lambda:1)
+    monkeypatch.setattr(facebook_dom,'_facebook_items',extract);monkeypatch.setattr(scraper_base,'_human_pause',lambda *a:None)
+    monkeypatch.setattr(random,'random',lambda:1)
     scraper=FacebookScraper();monkeypatch.setattr(scraper,'ensure_access',lambda *a:False)
     scraper.collect(page,'https://www.facebook.com/','feed',2,set(),lambda *a:None)
     assert scraper.missing_graphql_samples[0]['match']=='matched'
@@ -710,7 +718,7 @@ def test_facebook_word_joiner_header_link_marks_sponsored(facebook_page):
       <div><a href="?__cft__[0]=x" role="link">⁠<span><span></span></span></a><span aria-hidden="true"> · </span></div>
       <div data-ad-preview="message">Ranked #1 by Artificial Analysis. Expressive, lifelike voices.</div>
       <a href="https://l.facebook.com/l.php?u=https%3A%2F%2Fjoin.elevenlabs.io" role="link">JOIN.ELEVENLABS.IO</a></div></div>''')
-    assert scrapers._facebook_items(facebook_page)[0]["sponsored"] is True
+    assert facebook_dom._facebook_items(facebook_page)[0]["sponsored"] is True
 
 
 def test_facebook_organic_labelled_timestamp_is_not_sponsored(facebook_page):
@@ -718,7 +726,7 @@ def test_facebook_organic_labelled_timestamp_is_not_sponsored(facebook_page):
       <h4><a href="/page">Tú Uyên</a></h4>
       <div><a aria-labelledby="_r_1_" href="?__cft__[0]=x" role="link"><span id="_r_1_">1 giờ</span></a></div>
       <div data-ad-preview="message">An ordinary page post with a normal timestamp link.</div></div></div>''')
-    assert scrapers._facebook_items(facebook_page)[0]["sponsored"] is False
+    assert facebook_dom._facebook_items(facebook_page)[0]["sponsored"] is False
 
 
 def test_story_graphql_replaces_truncated_dom_with_full_text(facebook_page, monkeypatch):
@@ -739,8 +747,8 @@ def test_story_graphql_replaces_truncated_dom_with_full_text(facebook_page, monk
       <script type="application/json">{json.dumps({"data": story})}</script>
     </div></div>''')
     facebook_page.evaluate("window.expandClicks = 0")
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
@@ -767,8 +775,8 @@ def test_two_authors_same_short_caption_do_not_merge_wrong_story(facebook_page, 
       <a href="/groups/demo/posts/1/">1 h</a>
       <script type="application/json">{json.dumps({"data": stories})}</script>
     </div></div>''')
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
@@ -822,8 +830,8 @@ def test_shared_or_other_group_story_is_not_used_for_full_text(facebook_page, mo
       </div>
       <script type="application/json">{json.dumps(payload)}</script>
     </div>''')
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
@@ -851,8 +859,8 @@ def test_shorter_story_never_replaces_longer_dom_text(facebook_page, monkeypatch
       <a href="/PageAuthor/posts/30/">1 h</a>
       <script type="application/json">{json.dumps({"data": story})}</script>
     </div></div>''')
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
@@ -872,9 +880,9 @@ def test_round_without_expand_button_skips_expand_wait_using_fake_clock(facebook
     def fake_pause(lo, hi):
         pauses.append((lo, hi))
         now[0] += lo
-    monkeypatch.setattr(scrapers.time, "monotonic", fake_monotonic)
-    monkeypatch.setattr(scrapers, "_human_pause", fake_pause)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(scraper_base, "_human_pause", fake_pause)
+    monkeypatch.setattr(random, "random", lambda: 1)
 
     # Case 1: no "Xem thêm" / "See more" button -> no expand pause
     facebook_page.set_content('''<div role="feed"><div role="article">
@@ -887,7 +895,7 @@ def test_round_without_expand_button_skips_expand_wait_using_fake_clock(facebook
     monkeypatch.setattr(facebook_page, "goto", lambda *args, **kwargs: None)
     report = {}
     scraper.collect(facebook_page, "https://www.facebook.com/groups/demo/", "demo", 1, set(), lambda *args: None, report=report)
-    expand_range = scrapers.PACE["fast"]["expand"]
+    expand_range = scraper_base.PACE["fast"]["expand"]
     assert expand_range not in pauses
 
     # Case 2: has "Xem thêm" button and NO Story -> clicks and waits expand pause
@@ -912,9 +920,9 @@ def test_report_contains_all_five_timing_keys_and_accumulates_without_secrets(fa
         return now[0]
     def fake_pause(lo, hi):
         now[0] += lo
-    monkeypatch.setattr(scrapers.time, "monotonic", fake_monotonic)
-    monkeypatch.setattr(scrapers, "_human_pause", fake_pause)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(scraper_base, "_human_pause", fake_pause)
+    monkeypatch.setattr(random, "random", lambda: 1)
 
     prefix = "Bài viết thứ nhất có nội dung đủ dài để khớp duy nhất với Story trong bộ nhớ đệm GraphQL"
     full_text = prefix + " và phần nội dung mở rộng đầy đủ phía sau không cần bấm nút xem thêm."
@@ -970,7 +978,7 @@ def test_facebook_dom_prefers_post_anchor_over_earlier_comment_anchor(facebook_p
       <a href="/groups/x/posts/999/?comment_id=111&__tn__=R">5 m</a>
       <a href="/groups/x/posts/4616939438573919/">2 h</a>
     </div></div>''')
-    item = scrapers._facebook_items(facebook_page)[0]
+    item = facebook_dom._facebook_items(facebook_page)[0]
     assert item["url"] == "https://www.facebook.com/groups/x/posts/4616939438573919/"
 
 
@@ -988,9 +996,9 @@ def _ndjson_page(monkeypatch, payloads, *, dom_items=None):
         evaluate=lambda *args: [],
         mouse=SimpleNamespace(wheel=lambda *args: None),
     )
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: list(dom_items or []))
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(facebook_dom, "_facebook_items", lambda *args: list(dom_items or []))
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     return page
 
 
@@ -1143,10 +1151,10 @@ def test_group_graphql_first_sorts_by_creation_time_for_caught_up_and_dedups_dom
 
 def test_collect_respects_custom_old_streak_limit(monkeypatch):
     old = [item(f"Old group post number {i}") for i in range(5)]
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
     batches = iter([[p] for p in old])
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda page, stories: next(batches, []))
+    monkeypatch.setattr(facebook_dom, "_facebook_items", lambda page, stories: next(batches, []))
     scraper = FacebookScraper()
     monkeypatch.setattr(scraper, "ensure_access", lambda *args: False)
     page = SimpleNamespace(goto=lambda *args, **kwargs: None, evaluate=lambda *args: None,

@@ -13,7 +13,8 @@ from feedlens.analyzer import HeuristicAnalyzer, LLMAnalyzer, heuristic_category
 from feedlens.db import Database
 from feedlens.export import to_csv, to_markdown
 from feedlens.models import RawPost, RunRequest
-from feedlens.scrapers import FacebookScraper, RedditScraper
+from feedlens.scrapers.facebook.scraper import FacebookScraper
+from feedlens.scrapers.reddit.scraper import RedditScraper
 
 SAMPLE = [
     RawPost(platform="facebook", source="g1", author="HR A",
@@ -310,7 +311,8 @@ class FakePage:
 
 
 def test_waits_for_user_verification_instead_of_returning_nothing():
-    from feedlens.scrapers import FacebookScraper, NeedsVerification
+    from feedlens.scrapers.facebook.scraper import FacebookScraper
+    from feedlens.scrapers.base import NeedsVerification
     s = FacebookScraper()
     msgs = []
     page = FakePage(["https://www.facebook.com/two_step_verification/authentication/?x=1",

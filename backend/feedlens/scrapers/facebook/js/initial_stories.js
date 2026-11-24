@@ -1,0 +1,1 @@
+() => [...document.querySelectorAll('__SELECTOR_3__')].slice(0, 40).map(s => s.textContent).filter(t => t && t.length <= 8000000)

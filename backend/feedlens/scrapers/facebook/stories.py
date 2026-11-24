@@ -4,16 +4,19 @@ from __future__ import annotations
 import base64
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
+from datetime import timezone
 from difflib import SequenceMatcher
-from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
-from ..models import RawPost
-from .facebook_links import (
-    clean_facebook_author,
-    facebook_ad_link,
-    is_facebook_content_url,
-    select_facebook_link,
-)
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
+from urllib.parse import urljoin
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
+from feedlens.models import RawPost
+from feedlens.scrapers.facebook.links import clean_facebook_author
+from feedlens.scrapers.facebook.links import facebook_ad_link
+from feedlens.scrapers.facebook.links import is_facebook_content_url
+from feedlens.scrapers.facebook.links import select_facebook_link
 
 
 def facebook_story_id(story: dict) -> str:

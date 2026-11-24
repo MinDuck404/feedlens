@@ -1,6 +1,14 @@
 """Shared collection loop, pacing and verification."""
 from __future__ import annotations
 
+from feedlens.scrapers.selectors import PASSWORD_INPUT
+from feedlens.scrapers.scripts import load_script
+from feedlens.scrapers.facebook.selectors import SELECTORS
+
+FB_INITIAL_STORIES_JS = load_script("feedlens.scrapers.facebook", 'initial_stories.js', SELECTORS)
+
+import feedlens.scrapers.facebook.dom as facebook_dom
+
 import random
 import re
 import time
@@ -8,32 +16,25 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import parse_qsl, urlsplit
 from playwright.sync_api import Page
-import feedlens.scrapers as scrapers
 
 from ..models import RawPost
-from .facebook_links import (
-    POST_LINK_RE,
-    clean_facebook_author,
-    facebook_ad_link,
-    is_facebook_content_url,
-    select_facebook_link,
-)
-from .facebook_stories import (
-    FacebookStoryCache,
-    _extract_facebook_post_id,
-    _facebook_story_belongs_to_group,
-    _should_use_story_text,
-    cache_facebook_stories,
-    capture_facebook_response,
-    facebook_graphql_debug,
-    match_facebook_story,
-)
-from .facebook_dom import (
-    FB_EXPAND_CANDIDATES_JS,
-    FB_EXPAND_CLICK_JS,
-    FB_SCROLL_MESSAGES_JS,
-    _wait_for_facebook_scroll,
-)
+from feedlens.scrapers.facebook.links import POST_LINK_RE
+from feedlens.scrapers.facebook.links import clean_facebook_author
+from feedlens.scrapers.facebook.links import facebook_ad_link
+from feedlens.scrapers.facebook.links import is_facebook_content_url
+from feedlens.scrapers.facebook.links import select_facebook_link
+from feedlens.scrapers.facebook.stories import FacebookStoryCache
+from feedlens.scrapers.facebook.stories import _extract_facebook_post_id
+from feedlens.scrapers.facebook.stories import _facebook_story_belongs_to_group
+from feedlens.scrapers.facebook.stories import _should_use_story_text
+from feedlens.scrapers.facebook.stories import cache_facebook_stories
+from feedlens.scrapers.facebook.stories import capture_facebook_response
+from feedlens.scrapers.facebook.stories import facebook_graphql_debug
+from feedlens.scrapers.facebook.stories import match_facebook_story
+from feedlens.scrapers.facebook.dom import FB_EXPAND_CANDIDATES_JS
+from feedlens.scrapers.facebook.dom import FB_EXPAND_CLICK_JS
+from feedlens.scrapers.facebook.dom import FB_SCROLL_MESSAGES_JS
+from feedlens.scrapers.facebook.dom import _wait_for_facebook_scroll
 
 
 ProgressFn = Callable[[int, str], None]
@@ -78,7 +79,7 @@ class Scraper:
 
     def extract_items(self, page: Page, stories: dict) -> list[dict]:
         if self.platform == "facebook":
-            return scrapers._facebook_items(page, stories)
+            return facebook_dom._facebook_items(page, stories)
         return page.evaluate(self.extract_js)
 
     def scroll(self, page: Page, distance: int) -> None:
@@ -212,12 +213,12 @@ class Scraper:
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=60_000)
                 self.ensure_access(page, url, progress, interactive)
-                scrapers._human_pause(*pace["settle"])
+                _human_pause(*pace["settle"])
             finally:
                 if timings is not None:
                     timings["navigation"] += max(0.0, time.monotonic() - t_nav0)
             if listening:
-                for body in page.evaluate("() => [...document.querySelectorAll('script[type=\"application/json\"], script[data-sjs]')].slice(0, 40).map(s => s.textContent).filter(t => t && t.length <= 8000000)"):
+                for body in page.evaluate(FB_INITIAL_STORIES_JS):
                     cache_facebook_stories(body, stories, url)
             while reason is None:
                 if time.monotonic() >= deadline:
@@ -248,7 +249,7 @@ class Scraper:
                     break
                 t_exp0 = time.monotonic() if timings is not None else 0.0
                 if self._expand(page, stories, url, label) > 0:
-                    scrapers._human_pause(*pace["expand"])
+                    _human_pause(*pace["expand"])
                 if timings is not None:
                     timings["expand"] += max(0.0, time.monotonic() - t_exp0)
                 prev_lr = stories.link_resolve_s
@@ -298,7 +299,7 @@ class Scraper:
                         try:
                             page.goto(url, wait_until="domcontentloaded", timeout=60_000)
                             self.ensure_access(page, url, progress, interactive)
-                            scrapers._human_pause(*pace["settle"])
+                            _human_pause(*pace["settle"])
                         finally:
                             if timings is not None:
                                 timings["navigation"] += max(0.0, time.monotonic() - t_nav1)
@@ -328,9 +329,9 @@ class Scraper:
                         bucket = "scroll_ready_wait" if ready else "scroll_timeout_wait"
                         timings[bucket] = timings.get(bucket, 0.0) + max(0.0, time.monotonic() - wait_start)
                 else:
-                    scrapers._human_pause(*pace["pause"])
+                    _human_pause(*pace["pause"])
                 if random.random() < pace["long_chance"]:
-                    scrapers._human_pause(*pace["long"])
+                    _human_pause(*pace["long"])
                 if timings is not None:
                     timings["scroll_wait"] += max(0.0, time.monotonic() - t_scr0)
         finally:
@@ -403,7 +404,7 @@ def is_blocked_url(platform: str, url: str) -> bool:
 def has_login_form(page) -> bool:
     """Trang đang hiện ô nhập mật khẩu = chưa đăng nhập (dù URL trông bình thường)."""
     try:
-        return page.locator("input[type=password]:visible").count() > 0
+        return page.locator(PASSWORD_INPUT).count() > 0
     except Exception:  # noqa: BLE001 — trang đang chuyển hoặc đối tượng giả trong test
         return False
 

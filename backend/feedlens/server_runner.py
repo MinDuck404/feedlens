@@ -51,7 +51,7 @@ def cookie_page(cookies: list[dict]) -> Iterator:
 def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
                         on_progress: Callable[[int, str], None], report: dict | None = None) -> list[RawPost]:
     from .pipeline import collect_all
-    from .scrapers import NeedsVerification
+    from feedlens.scrapers.base import NeedsVerification
     from .source_modes import normalize
 
     normalize(req)  # Validate before launching a cookie browser too.
@@ -68,7 +68,8 @@ def scrape_with_cookies(req: RunRequest, cookies: list[dict], seen: set[str],
 def check_cookies(platform: str, cookies: list[dict]) -> tuple[bool, str]:
     """Mở trang chủ bằng cookie; ok nếu không bị chuyển sang trang đăng nhập/xác minh."""
     from .cookies import SESSION_COOKIE
-    from .scrapers import has_login_form, is_blocked_url
+    from feedlens.scrapers.base import has_login_form
+    from feedlens.scrapers.base import is_blocked_url
 
     with SERVER_SLOT, cookie_page(cookies) as page:
         page.goto(_HOME[platform], wait_until="domcontentloaded")

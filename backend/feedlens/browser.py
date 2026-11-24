@@ -21,7 +21,7 @@ from typing import Callable, Iterator
 from playwright.sync_api import BrowserContext, sync_playwright
 
 from .config import settings
-from .scrapers import is_blocked_url
+from feedlens.scrapers.base import is_blocked_url
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,1 @@
+(n, args) => n.innerText.includes(args.text) ? [...n.querySelectorAll('__SELECTOR_20__')].flatMap((a, i) => ['href', 'data-href', 'data-url', 'ajaxify'].map(k => a.getAttribute(k)).filter(Boolean).map(h => [h, i === args.index])) : []

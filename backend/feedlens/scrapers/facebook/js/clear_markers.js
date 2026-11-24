@@ -1,0 +1,1 @@
+() => document.querySelectorAll('__SELECTOR_5__').forEach(n => n.removeAttribute('data-feedlens-node'))

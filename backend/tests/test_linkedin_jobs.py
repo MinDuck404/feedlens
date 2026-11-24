@@ -3,7 +3,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from feedlens.scrapers_linkedin_jobs import extract_job_cards, jobs_search_url, next_jobs_page_url
+from feedlens.scrapers.linkedin.jobs import extract_job_cards
+from feedlens.scrapers.linkedin.jobs import jobs_search_url
+from feedlens.scrapers.linkedin.jobs import next_jobs_page_url
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "linkedin_jobs"

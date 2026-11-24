@@ -1,0 +1,43 @@
+"""CSS selectors substituted into Linkedin JavaScript templates."""
+
+SELECTORS = {'__SELECTOR_1__': '[data-job-id], [data-occludable-job-id], .job-card-container, .job-card-list, '
+                   '.base-search-card',
+ '__SELECTOR_2__': '.jobs-search-results-list, .jobs-search__results-list, .scaffold-layout__list, '
+                   '.jobs-search-results__list',
+ '__SELECTOR_3__': 'a[href*="/jobs/view/"]',
+ '__SELECTOR_4__': '[hidden], [aria-hidden="true"], .scaffold-layout__detail, .jobs-details, '
+                   '.jobs-search__job-details--container',
+ '__SELECTOR_5__': '.job-card-list__title--link [aria-hidden="true"]',
+ '__SELECTOR_6__': '.job-card-list__title [aria-hidden="true"]',
+ '__SELECTOR_7__': '.job-card-list__title--link',
+ '__SELECTOR_8__': '.job-card-list__title',
+ '__SELECTOR_9__': '.job-card-container__link',
+ '__SELECTOR_10__': '.base-search-card__title',
+ '__SELECTOR_11__': 'h3',
+ '__SELECTOR_12__': '.job-card-container__primary-description',
+ '__SELECTOR_13__': '.artdeco-entity-lockup__subtitle',
+ '__SELECTOR_14__': '.base-search-card__subtitle',
+ '__SELECTOR_15__': '[data-company-name]',
+ '__SELECTOR_16__': 'a[href*="/company/"]',
+ '__SELECTOR_17__': '.job-card-container__metadata-item',
+ '__SELECTOR_18__': '.artdeco-entity-lockup__caption',
+ '__SELECTOR_19__': '.job-search-card__location',
+ '__SELECTOR_20__': '[data-job-location]',
+ '__SELECTOR_21__': 'time',
+ '__SELECTOR_22__': '.job-card-container__listed-time',
+ '__SELECTOR_23__': '.job-search-card__listdate',
+ '__SELECTOR_24__': '.job-search-card__listdate--new',
+ '__SELECTOR_25__': '.job-card-container__salary-info',
+ '__SELECTOR_26__': '.job-search-card__salary-info',
+ '__SELECTOR_27__': '[data-salary]',
+ '__SELECTOR_28__': '[data-work-mode]',
+ '__SELECTOR_29__': '.job-card-container__description',
+ '__SELECTOR_30__': '.job-search-card__snippet',
+ '__SELECTOR_31__': '[data-job-description]',
+ '__SELECTOR_32__': 'div.feed-shared-update-v2, div[data-urn^="urn:li:activity"]',
+ '__SELECTOR_33__': '.update-components-text, .feed-shared-update-v2__description',
+ '__SELECTOR_34__': '.update-components-actor__title span[aria-hidden="true"], '
+                    '.update-components-actor__name',
+ '__SELECTOR_35__': '[data-urn]',
+ '__SELECTOR_36__': 'button.feed-shared-inline-show-more-text__see-more-less-toggle, .see-more',
+ '__SELECTOR_37__': '.jobs-search-results-list, .scaffold-layout__list, .jobs-search-results'}

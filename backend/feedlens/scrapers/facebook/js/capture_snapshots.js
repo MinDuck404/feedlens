@@ -1,0 +1,1 @@
+(items) => { const snapshot = (__SNAPSHOT__); return items.map(item => { const n = item.selector ? document.querySelector(item.selector) : document.querySelectorAll('__NODES__')[item.index]; if (!n || !n.innerText.includes(item.text)) return null; return snapshot(n); }); }

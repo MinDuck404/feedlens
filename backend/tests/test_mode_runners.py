@@ -1,10 +1,17 @@
+
+import random
+import time
+import feedlens.scrapers.base as scraper_base
+import feedlens.scrapers.facebook.dom as facebook_dom
+import feedlens.scrapers.facebook.scraper as facebook_scraper
+import feedlens.scrapers.linkedin.scraper as _ref_scrapers_linkedin_scraper
 from contextlib import contextmanager
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from feedlens import api, pipeline, scrapers, server_runner
+from feedlens import api, pipeline, server_runner
 from feedlens.models import JobSeed, RawPost, RunRequest
 from feedlens.source_modes import normalize
 from tests.test_cloud import cloud, _agent, _signup
@@ -12,9 +19,9 @@ from tests.test_cloud import cloud, _agent, _signup
 
 @pytest.fixture
 def fast_scrape(monkeypatch):
-    monkeypatch.setattr(scrapers, "_human_pause", lambda *args: None)
-    monkeypatch.setattr(scrapers.random, "random", lambda: 1)
-    monkeypatch.setattr(scrapers.Scraper, "ensure_access", lambda *args: False)
+    monkeypatch.setattr(scraper_base, "_human_pause", lambda *args: None)
+    monkeypatch.setattr(random, "random", lambda: 1)
+    monkeypatch.setattr(scraper_base.Scraper, "ensure_access", lambda *args: False)
 
 
 def test_plan_is_shared_by_local_and_cookie_runners(monkeypatch):
@@ -58,10 +65,10 @@ def test_plan_quota_after_platform_cap_is_passed_to_collector(monkeypatch):
 def test_target_chronology_overrides_url_guess(monkeypatch, fast_scrape, chronological, expected):
     old = [RawPost(platform="facebook", source="s", text=f"Old post number {i}") for i in range(8)]
     fresh = RawPost(platform="facebook", source="s", text="A new post after the old streak")
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
+    monkeypatch.setattr(facebook_dom, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
     page = SimpleNamespace(goto=lambda *a, **k: None, evaluate=lambda *a: None,
                            mouse=SimpleNamespace(wheel=lambda *a: None))
-    collector = scrapers.FacebookScraper()
+    collector = facebook_scraper.FacebookScraper()
     result = collector.collect(page, "https://www.facebook.com/", "s", 1,
                                {p.fingerprint for p in old}, lambda *a: None, chronological=chronological)
     assert collector.last_report["stop_reason"] == expected
@@ -71,10 +78,10 @@ def test_target_chronology_overrides_url_guess(monkeypatch, fast_scrape, chronol
 def test_facebook_page_pinned_old_posts_have_a_small_grace(monkeypatch, fast_scrape):
     old = [RawPost(platform="facebook", source="s", text=f"Old post number {i}") for i in range(8)]
     fresh = RawPost(platform="facebook", source="s", text="New Page update below pinned posts")
-    monkeypatch.setattr(scrapers, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
+    monkeypatch.setattr(facebook_dom, "_facebook_items", lambda *args: [p.model_dump(exclude={"platform", "source"}) for p in old + [fresh]])
     page = SimpleNamespace(goto=lambda *a, **k: None, evaluate=lambda *a: None,
                            mouse=SimpleNamespace(wheel=lambda *a: None))
-    collector = scrapers.FacebookScraper()
+    collector = facebook_scraper.FacebookScraper()
     result = collector.collect(page, "https://www.facebook.com/example/", "s", 1,
                                {p.fingerprint for p in old}, lambda *a: None,
                                chronological=True, leading_old_grace=3)
@@ -82,12 +89,12 @@ def test_facebook_page_pinned_old_posts_have_a_small_grace(monkeypatch, fast_scr
 
 
 def test_reddit_new_url_fallback_is_chronological():
-    assert scrapers.is_chronological_url("https://www.reddit.com/r/forhire/new/")
-    assert not scrapers.is_chronological_url("https://www.reddit.com/r/forhire/top/?t=week")
+    assert scraper_base.is_chronological_url("https://www.reddit.com/r/forhire/new/")
+    assert not scraper_base.is_chronological_url("https://www.reddit.com/r/forhire/top/?t=week")
 
 
 def test_linkedin_jobs_paginate_with_seed_and_common_report(monkeypatch, fast_scrape):
-    from feedlens import scrapers_linkedin_jobs as jobs
+    from feedlens.scrapers.linkedin import jobs
     class Page:
         def __init__(self):
             self.url = ""
@@ -115,7 +122,7 @@ def test_linkedin_jobs_paginate_with_seed_and_common_report(monkeypatch, fast_sc
 
 
 def test_linkedin_jobs_empty_pages_stop_without_infinite_paging(monkeypatch, fast_scrape):
-    from feedlens import scrapers_linkedin_jobs as jobs
+    from feedlens.scrapers.linkedin import jobs
     urls = []
     page = SimpleNamespace(goto=lambda url, **k: urls.append(url), evaluate=lambda *a: True)
     monkeypatch.setattr(jobs, "extract_job_cards", lambda p: [])
@@ -126,18 +133,18 @@ def test_linkedin_jobs_empty_pages_stop_without_infinite_paging(monkeypatch, fas
 
 
 def test_linkedin_jobs_only_new_and_time_budget_use_common_loop(monkeypatch, fast_scrape):
-    from feedlens import scrapers_linkedin_jobs as jobs
+    from feedlens.scrapers.linkedin import jobs
     old = RawPost(platform="linkedin", source="s", text="Old job", job_seed=JobSeed(job_id="123"))
     fresh = RawPost(platform="linkedin", source="s", text="New job", job_seed=JobSeed(job_id="456"))
     monkeypatch.setattr(jobs, "extract_job_cards", lambda p: [p.model_dump(exclude={"platform", "source"}) for p in [old, fresh]])
     page = SimpleNamespace(goto=lambda *a, **k: None, evaluate=lambda *a: True)
-    collector = scrapers.LinkedInJobsScraper()
+    collector = _ref_scrapers_linkedin_scraper.LinkedInJobsScraper()
     found = collector.collect(page, jobs.jobs_search_url("Python"), "s", 1,
                               {old.fingerprint}, lambda *a: None, chronological=True)
     assert [p.job_seed.job_id for p in found] == ["456"]
     assert collector.last_report["skipped_old"] == 1
     clock = iter([0, 0, 1000])
-    monkeypatch.setattr(scrapers.time, "monotonic", lambda: next(clock, 1000))
+    monkeypatch.setattr(time, "monotonic", lambda: next(clock, 1000))
     monkeypatch.setattr(jobs, "extract_job_cards", lambda p: [fresh.model_dump(exclude={"platform", "source"})])
     collector.collect(page, jobs.jobs_search_url("Python"), "s", 2, set(), lambda *a: None, chronological=True)
     assert collector.last_report["collected"] == 1

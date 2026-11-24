@@ -14,7 +14,8 @@ from .db import Database
 from .models import AnalyzedPost, PostGroup, PostSource, RawPost, RunRequest
 from .post_duplicates import group_posts, preserve_post_identities
 from .job_profile import load_profile
-from .scrapers import SCRAPERS, LinkedInJobsScraper
+from feedlens.scrapers.registry import SCRAPERS
+from feedlens.scrapers.linkedin.scraper import LinkedInJobsScraper
 from .source_modes import allocate_targets, normalize, total_target as planned_total_target
 
 # Tiến độ trực tiếp cho UI: run_id -> {"phase", "message", "done", "target"}
@@ -51,7 +52,7 @@ def collect_all(page, req: RunRequest, seen: set[str], on_progress: Callable[[in
                 interactive: bool, report: dict | None = None,
                 on_report: Callable[[dict], None] | None = None) -> list[RawPost]:
     """Lướt lần lượt mọi nguồn (bảng tin / từng nhóm / từng từ khóa) trên một tab đã mở."""
-    from .scrapers import NeedsVerification
+    from feedlens.scrapers.base import NeedsVerification
 
     targets = normalize(req, run_cap(req))
     scraper = LinkedInJobsScraper() if req.platform == "linkedin" and req.mode == "jobs" else SCRAPERS[req.platform]()
@@ -186,7 +187,7 @@ def save_scrape_report(db: Database, run_id: int, req: RunRequest, report: dict)
     graphql_samples = report.get("missing_graphql_samples") or []
     if graphql_samples:
         import json
-        from .scrapers import sanitize_facebook_debug
+        from feedlens.scrapers.facebook.stories import sanitize_facebook_debug
         try:
             folder = settings.data_dir / "debug" / "missing-links"
             folder.mkdir(parents=True, exist_ok=True)

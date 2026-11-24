@@ -1,0 +1,1 @@
+args => document.querySelector(args.selector)?.innerText.includes(args.text)

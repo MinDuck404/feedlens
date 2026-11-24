@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qsl
+from urllib.parse import urlencode
+from urllib.parse import urljoin
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 
 AD_QUERY_KEYS = {"ad_id", "adgroup_id", "adset_id", "campaign_id", "fb_ad_id", "adgroupid"}
