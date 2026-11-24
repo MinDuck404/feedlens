@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from feedlens.ai.registry import user_keys
 from feedlens.ai.registry import preferred_provider
+from feedlens.ai.registry import KeySelectionError
 from feedlens.analysis.analyzer import get_analyzer
 from feedlens.core.auth import CurrentUser
 from feedlens.core.auth import current_user
@@ -51,6 +52,7 @@ def profile_router(db, is_cloud):
     @router.post("/cv")
     async def convert_cv(file: UploadFile | None = File(None), text: str = Form(""),
                          ai_provider: str = Form("auto"), language: str = Form("vi"),
+                         ai_model: str = Form("", max_length=200), ai_key_id: int | None = Form(None, gt=0),
                          user: CurrentUser = Depends(current_user)):
         try:
             if file:
@@ -66,7 +68,9 @@ def profile_router(db, is_cloud):
             stop = threading.Event()
 
             def convert():
-                analyzer = get_analyzer(preferred_provider(db(), user.id, ai_provider), None, user_keys(db(), user.id), user.id)
+                provider = ai_provider if ai_key_id is not None else preferred_provider(db(), user.id, ai_provider)
+                selected = {"ai_key_id": ai_key_id} if ai_key_id is not None else {}
+                analyzer = get_analyzer(provider, ai_model or None, user_keys(db(), user.id), user.id, **selected)
                 analyzer.stop_event = stop
                 if stop.is_set():
                     return fallback
@@ -79,6 +83,8 @@ def profile_router(db, is_cloud):
                 done, _ = await asyncio.wait({task}, timeout=CV_DEADLINE_SECONDS)
                 try:
                     result = task.result() if done else {**fallback, "ai_status": "unavailable", "reason": "timeout"}
+                except KeySelectionError:
+                    raise
                 except Exception:
                     result = {**fallback, "ai_status": "unavailable"}
             finally:
@@ -95,6 +101,8 @@ def profile_router(db, is_cloud):
                         "adjacent_roles": [role.model_dump() for role in profile.adjacent_roles],
                         "code": "error.cv_ai_unavailable", "saved": True}
             return await run_in_threadpool(save_fallback)
+        except KeySelectionError as exc:
+            return JSONResponse({"code": exc.code, "detail": str(exc)}, status_code=exc.status_code)
         except ProfileError as exc:
             return JSONResponse({"code": exc.code, "detail": exc.code}, status_code=400)
         except Exception:

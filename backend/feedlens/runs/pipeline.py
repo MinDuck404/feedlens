@@ -220,6 +220,12 @@ def _keys(db: Database, user_id: int | None):
     return user_key_list(db, user_id) if user_id is not None else []
 
 
+def _run_analyzer(db: Database, req: RunRequest, user_id: int | None):
+    provider = req.ai_provider if req.ai_key_id is not None else preferred_provider(db, user_id, req.ai_provider)
+    selected = {"ai_key_id": req.ai_key_id} if req.ai_key_id is not None else {}
+    return get_analyzer(provider, req.ai_model or None, _keys(db, user_id), user_id or 0, **selected)
+
+
 def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None = None) -> None:
     """Chế độ local: lướt bằng trình duyệt trên chính máy này rồi phân tích."""
     prog = PROGRESS.setdefault(run_id, {})
@@ -233,7 +239,7 @@ def execute_run(db: Database, run_id: int, req: RunRequest, user_id: int | None 
     lock = _platform_locks[req.platform]  # 1 trình duyệt / profile tại một thời điểm
     try:
         # Kiểm tra AI trước khi lướt, để không lướt xong mới báo thiếu API key
-        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
+        analyzer = _run_analyzer(db, req, user_id)
         db.update_run(run_id, ai_label=analyzer.label)
         with lock:
             db.update_run(run_id, status="scraping")
@@ -378,7 +384,7 @@ def execute_analysis(db: Database, run_id: int, req: RunRequest, raw: list[RawPo
                 known = db.known_fingerprints(req.platform, user_id)
                 raw = [p for p in raw if p.fingerprint not in known]
             db.save_raw_posts(run_id, raw)
-        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id or 0)
+        analyzer = _run_analyzer(db, req, user_id)
         _analyze(db, run_id, req, raw, analyzer, reanalyze_all=reanalyze_all)
     except Exception as e:  # noqa: BLE001
         _fail(db, run_id, e)
@@ -433,7 +439,7 @@ def execute_server_run(db: Database, run_id: int, req: RunRequest, user_id: int)
         return _fn
 
     try:
-        analyzer = get_analyzer(preferred_provider(db, user_id, req.ai_provider), req.ai_model or None, _keys(db, user_id), user_id)
+        analyzer = _run_analyzer(db, req, user_id)
         db.update_run(run_id, ai_label=analyzer.label)
         row = db.get_session(user_id, req.platform)
         cookies = json.loads(decrypt(row.ciphertext) or "null") if row else None

@@ -5,12 +5,13 @@ from .heuristic import HeuristicAnalyzer
 from .llm import LLMAnalyzer
 
 
-def get_analyzer(provider: str | None, model: str | None, keys, user_id: int = 0):
+def get_analyzer(provider: str | None, model: str | None, keys, user_id: int = 0, *, ai_key_id: int | None = None):
     mapping = keys if isinstance(keys, dict) else {k.provider: (k.api_key, k.source) for k in keys}
-    key = registry.resolve_provider_key(provider, mapping)
+    selected = registry.selected_key(keys, ai_key_id, provider) if ai_key_id is not None else None
+    key = selected.provider if selected else registry.resolve_provider_key(provider, mapping)
     if key == "offline":
         return HeuristicAnalyzer()
-    credentials = getattr(keys, "credentials", keys if isinstance(keys, list) else None)
+    credentials = [selected] if selected else getattr(keys, "credentials", keys if isinstance(keys, list) else None)
     if credentials is None:
         credentials = [registry.KeyCredential(f"legacy:{user_id}:{key}", key, mapping[key][0])]
     candidates = []

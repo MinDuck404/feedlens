@@ -12,6 +12,7 @@ from typing import Literal
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -175,13 +176,19 @@ def delete_key(p: str, user: User = Depends(current_user)):
 
 
 @private.get("/ai/models/{p}")
-async def models(p: str, refresh: bool = False, user: User = Depends(current_user)):
+async def models(p: str, refresh: bool = False, ai_key_id: int | None = Query(None, gt=0),
+                 user: User = Depends(current_user)):
     _provider_or_404(p)
-    keys = ai_registry.user_keys(dependencies.db(), user.id)
+    keys = await fastapi_concurrency.run_in_threadpool(ai_registry.user_keys, dependencies.db(), user.id)
+    try:
+        selected = ai_registry.selected_key(keys, ai_key_id, p) if ai_key_id is not None else None
+    except ai_registry.KeySelectionError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from None
     if p not in keys:
         raise fastapi.HTTPException(400, f"Chưa có API key cho {ai_registry.PROVIDERS[p].info.name}.")
     try:
-        items = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, keys[p][0], refresh)
+        secret = selected.api_key if selected else keys[p][0]
+        items = await fastapi_concurrency.run_in_threadpool(ai_registry.list_models, user.id, p, secret, refresh)
     except Exception as e:  # noqa: BLE001
         raise fastapi.HTTPException(502, f"Không lấy được danh sách model: {str(e)[:200]}")
     return {"models": items, "default": ai_registry.pick_default(p, items)}

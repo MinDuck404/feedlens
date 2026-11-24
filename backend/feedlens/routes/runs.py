@@ -28,7 +28,12 @@ private = APIRouter()
 
 def _check_ai(req: RunRequest, user_id: int):
     try:
+        if req.ai_key_id is not None:
+            return ai_registry.selected_key(ai_registry.user_keys(dependencies.db(), user_id), req.ai_key_id,
+                                            req.ai_provider).provider
         return ai_registry.resolve_provider_key(ai_registry.preferred_provider(dependencies.db(), user_id, req.ai_provider), ai_registry.user_keys(dependencies.db(), user_id))
+    except ai_registry.KeySelectionError as exc:
+        raise fastapi.HTTPException(exc.status_code, str(exc)) from None
     except ValueError as e:
         raise fastapi.HTTPException(400, str(e))
 
@@ -104,6 +109,7 @@ def run_detail(run_id: int, user: User = Depends(current_user), posts: bool = Tr
 class AnalysisBody(BaseModel):
     ai_provider: str = Field("auto", max_length=40)
     ai_model: str = Field("", max_length=200)
+    ai_key_id: int | None = Field(None, gt=0, strict=True)
     mode: Literal["continue", "reanalyze_all"] = "continue"
 
 
@@ -116,7 +122,8 @@ def stop_analysis(run_id: int, body: AnalysisBody | None = None, user: User = De
     if body is not None:
         if body.mode != "continue":
             raise fastapi.HTTPException(422, "Model changes must continue saved analysis.")
-        replacement = models.RunRequest(**{**run["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model})
+        replacement = models.RunRequest(**{**run["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model,
+            **body.model_dump(include={"ai_key_id"}, exclude_unset=True)})
         _check_ai(replacement, user.id)
     if not run_pipeline.request_stop(run_id, replacement):
         raise fastapi.HTTPException(409, "AI analysis is not running or is already stopping.")
@@ -132,7 +139,8 @@ def retry_analysis(run_id: int, body: AnalysisBody, user: User = Depends(current
         raise fastapi.HTTPException(409, "Lượt này chưa có bài đã lưu để phân tích lại bằng AI.")
     if not dependencies.db().can_continue_analysis(run_id, reanalyze_all=reanalyze_all):
         raise fastapi.HTTPException(409, "Lượt này không có bài chờ phân tích lại.")
-    req = models.RunRequest(**{**r["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model})
+    req = models.RunRequest(**{**r["request"], "ai_provider": body.ai_provider, "ai_model": body.ai_model,
+        **body.model_dump(include={"ai_key_id"}, exclude_unset=True)})
     resolved_provider = _check_ai(req, user.id)
     if reanalyze_all and resolved_provider == "offline":
         raise fastapi.HTTPException(400, "Chưa có API key AI. Thêm key trong phần Cài đặt để phân tích bằng AI.")

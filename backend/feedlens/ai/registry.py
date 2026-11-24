@@ -57,6 +57,24 @@ class UserKeys(dict):
             self.setdefault(key.provider, (key.api_key, key.source))
 
 
+class KeySelectionError(ValueError):
+    def __init__(self, provider_mismatch=False):
+        self.status_code = 422 if provider_mismatch else 404
+        self.code = "error.ai_key_provider" if provider_mismatch else "error.ai_key_unavailable"
+        super().__init__("Selected AI key provider mismatch" if provider_mismatch else "Selected AI key is unavailable")
+
+
+def selected_key(keys, key_id: int, provider: str | None = None) -> KeyCredential:
+    """Resolve only within the caller's enabled, decrypted, user-owned credentials."""
+    credentials = getattr(keys, "credentials", keys if isinstance(keys, list) else [])
+    credential = next((key for key in credentials if key.id == key_id), None)
+    if credential is None:
+        raise KeySelectionError()
+    if provider and provider != "auto" and provider != credential.provider:
+        raise KeySelectionError(provider_mismatch=True)
+    return credential
+
+
 def user_keys(db, user_id: int) -> UserKeys:
     credentials = []
     for row in db.list_keys(user_id):

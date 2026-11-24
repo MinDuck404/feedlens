@@ -187,6 +187,7 @@ class RunRequest(BaseModel):
     profile: str = Field("", description="Mô tả ngắn về bạn/CV để chấm điểm mức phù hợp việc làm")
     ai_provider: str = Field("auto", description="auto | anthropic | openai | gemini | offline")
     ai_model: str = Field("", description="Bỏ trống => model mặc định của nhà cung cấp")
+    ai_key_id: int | None = Field(None, gt=0, strict=True, description="None = automatic credential priority")
     only_new: bool = Field(False, description="Bỏ qua bài đã thấy ở các lượt trước")
     headless: bool = False  # mặc định hiện cửa sổ để bạn thấy bot đang làm gì
     max_posts: Literal[500, 1000, 2000] | None = Field(None, description="Trần bài mỗi lượt chọn trong Cài đặt; None = mặc định của server")
