@@ -5,4 +5,4 @@
 - API: trends data for the selected window, bucket, and topic.
 - i18n prefixes: `trends`, `act`, `hist`, `cat`, `nav`.
 - If a filter reloads stale data, inspect `TrendsPage.tsx`.
-- If chart geometry or colors look wrong, inspect `TrendsChart.tsx` and `lib/trends.ts`.
+- If chart geometry or colors look wrong, inspect `TrendsChart.tsx` and `../../lib/trends.ts`.

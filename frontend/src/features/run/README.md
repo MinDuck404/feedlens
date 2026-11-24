@@ -6,4 +6,4 @@
 - `DigestView.tsx`, `JobsBoard.tsx`, and `PostList.tsx` render the result tabs.
 - API: run detail/delete/download, topics, providers/models, retry analysis, and stop analysis.
 - i18n prefixes: `run`, `tab`, `tier`, `job`, `posts`, `topics`, `profile`, `act`, `error`, `cmp`, `plat`.
-- If counts or source timing look wrong, inspect `ScrapeReportLine.tsx` and `lib/logic.ts`.
+- If counts or source timing look wrong, inspect `ScrapeReportLine.tsx` and `../../lib/logic.ts`.

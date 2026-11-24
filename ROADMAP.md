@@ -30,9 +30,9 @@ Draft for discussion. These are priorities, not release promises or dates. Diffi
 
 ## What was checked
 
-- `backend/feedlens/ai/openai_provider.py` uses the OpenAI SDK and Responses API. The SDK can read `OPENAI_BASE_URL`, so a compatible endpoint is **not entirely absent**. Discovery filters OpenAI-style model names; this is not verified Ollama support or a dedicated local-model setup flow.
+- `backend/feedlens/ai/providers/openai.py` uses the OpenAI SDK and Responses API. The SDK can read `OPENAI_BASE_URL`, so a compatible endpoint is **not entirely absent**. Discovery filters OpenAI-style model names; this is not verified Ollama support or a dedicated local-model setup flow.
 - `.github/workflows/release.yml` already builds and tests the frontend on releases; no PR workflow running backend and frontend tests exists at this draft's creation.
-- `agent.py` uploads posts and progress but not `scrape_report`; local and server-cookie pipelines already produce it.
+- `backend/feedlens/runs/agent.py` uploads posts and progress but not `scrape_report`; local and server-cookie pipelines already produce it.
 - No built-in scheduler or Telegram/email delivery module was found in `backend/feedlens/`.
 - `start.sh` and release ZIPs already offer a source-based macOS path. A native signed app is a separate goal.
 - How much live testing each non-Facebook platform has received cannot be established from source alone.

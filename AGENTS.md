@@ -5,25 +5,25 @@ Agent team workflow (who owns which task, commits, screenshots) comes from the l
 
 ## Frontend
 - Keep React components as function components and call hooks unconditionally at the top level; App uses local hook state and effects (`frontend/src/App.tsx`).
-- Keep component state local unless multiple routes genuinely share it; Composer owns form state while App owns workspace state (`frontend/src/components/Composer.tsx`, `frontend/src/App.tsx`).
-- Type component props, API payloads, and platform unions; `RunRequest` and `ModeOptions` define literal contracts (`frontend/src/types.ts`).
-- Narrow untrusted input at runtime before use; platform-mode sources validate schemes, hosts, credentials, ports, paths, and identifiers (`frontend/src/platformModes.ts`).
-- Use existing UI primitives and theme tokens; Composer uses `SegmentedControl`, `Select`, `Button`, while CSS defines shared surface and accent tokens (`frontend/src/components/Composer.tsx`, `frontend/src/index.css`).
-- Use semantic labels and controls; Composer associates visible labels with text inputs and uses fieldsets, buttons, and toggles (`frontend/src/components/Composer.tsx`).
-- Keep user-visible copy in the shared locale dictionaries; all supported locales use matching keys and `useI18n` (`frontend/src/i18n.tsx`).
+- Keep component state local unless multiple routes genuinely share it; Composer owns form state while App owns workspace state (`frontend/src/features/composer/Composer.tsx`, `frontend/src/App.tsx`).
+- Type component props, API payloads, and platform unions; `RunRequest` and `ModeOptions` define literal contracts (`frontend/src/api/types.ts`).
+- Narrow untrusted input at runtime before use; platform-mode sources validate schemes, hosts, credentials, ports, paths, and identifiers (`frontend/src/lib/platformModes.ts`).
+- Use existing UI primitives and theme tokens; Composer uses `SegmentedControl`, `Select`, `Button`, while CSS defines shared surface and accent tokens (`frontend/src/features/composer/Composer.tsx`, `frontend/src/index.css`).
+- Use semantic labels and controls; Composer source and job fields associate visible labels with inputs and use fieldsets, buttons, and toggles (`frontend/src/features/composer/SourceMode.tsx`, `frontend/src/features/composer/JobCriteria.tsx`).
+- Keep user-visible copy in the locale namespaces; all supported locales use matching keys and `useI18n` (`frontend/src/i18n/locales/vi/index.ts`, `frontend/src/i18n/index.tsx`).
 - Keep Vite configuration focused on the existing React/Tailwind plugins and relative deployment base (`frontend/vite.config.ts`).
 - Prefer existing Tailwind utilities and tokens; extend the project theme only when a reusable design token is needed (`frontend/src/index.css`).
 
 ## Backend
-- Use Pydantic models for request and stored-record contracts; `RunRequest` validates modes and typed options (`backend/feedlens/models.py`).
-- Keep synchronous work in `def` routes or offload it from async routes; session checks and model lookups use `run_in_threadpool` (`backend/feedlens/api.py`).
+- Use Pydantic models for request and stored-record contracts; `RunRequest` validates modes and typed options (`backend/feedlens/core/models.py`).
+- Keep synchronous work in `def` routes or offload it from async routes; session checks and model lookups use `run_in_threadpool` (`backend/feedlens/routes/platforms.py`, `backend/feedlens/routes/ai_keys.py`).
 - Return API errors with explicit HTTP status and structured error codes; the shared handlers map Starlette and Pydantic validation errors (`backend/feedlens/api.py`).
-- Validate platform hosts, paths, and mode options before browser navigation or queue side effects (`backend/feedlens/source_modes.py`; `backend/feedlens/api.py`).
-- Keep browser profiles isolated by platform and close contexts in `finally`; cache cleanup must not remove session data (`backend/feedlens/browser.py`).
-- Keep database operations behind `Database`; scope user-owned queries and group writes in session transactions (`backend/feedlens/db/repository.py`).
-- Bind user-provided values in SQL expressions; repository FTS binds both query and owner (`backend/feedlens/db/repository.py`).
+- Validate platform hosts, paths, and mode options before browser navigation or queue side effects (`backend/feedlens/runs/source_modes.py`; `backend/feedlens/routes/runs.py`).
+- Keep browser profiles isolated by platform and close contexts in `finally`; cache cleanup must not remove session data (`backend/feedlens/browser/profiles.py`).
+- Keep database operations behind `Database`; scope user-owned queries and group writes in session transactions (`backend/feedlens/db/repos/runs.py`).
+- Bind user-provided values in SQL expressions; repository FTS binds both query and owner (`backend/feedlens/db/repos/search.py`).
 - Enable SQLite foreign-key checks for each SQLite connection (`backend/feedlens/db/repository.py`).
-- Preserve backward-compatible defaults and add migrations rather than rewriting saved requests; legacy inference and additive column migration are explicit (`backend/feedlens/source_modes.py`; `backend/feedlens/db/repository.py`).
+- Preserve backward-compatible defaults and add migrations rather than rewriting saved requests; legacy inference and additive column migration are explicit (`backend/feedlens/runs/source_modes.py`; `backend/feedlens/db/repository.py`).
 
 ## Test
 - Run frontend checks from `frontend/`: `npm run build` and `node --test tests/*.test.cjs` (`frontend/package.json`; `frontend/tests/logic.test.cjs`).
@@ -33,9 +33,9 @@ Agent team workflow (who owns which task, commits, screenshots) comes from the l
 - Preserve existing legacy behavior with focused regression tests when changing request formats or analysis (`backend/tests/test_source_modes.py`; `backend/tests/test_analysis_recovery.py`).
 
 ## i18n
-- Supported UI locales are Vietnamese, English, and Chinese; add the same key and interpolation variables to all dictionaries (`frontend/src/i18n.tsx`).
-- Resolve strings through `useI18n().t` or `translate`, not inline UI literals (`frontend/src/i18n.tsx`).
-- Keep locale changes reactive and set the document language (`frontend/src/i18n.tsx`).
+- Supported UI locales are Vietnamese, English, and Chinese; add the same key and interpolation variables to matching namespaces in all locales (`frontend/src/i18n/locales/vi/`, `frontend/src/i18n/locales/en/`, `frontend/src/i18n/locales/zh/`).
+- Resolve strings through `useI18n().t` or `translate`, not inline UI literals (`frontend/src/i18n/index.tsx`).
+- Keep locale changes reactive and set the document language (`frontend/src/i18n/index.tsx`).
 - Verify dictionaries have identical keys and interpolation placeholders (`frontend/tests/logic.test.cjs`).
 
 ## Sources

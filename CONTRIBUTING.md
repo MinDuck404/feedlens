@@ -1,6 +1,6 @@
 # Contributing to FeedLens
 
-[Roadmap](ROADMAP.md) · [Manual testing / Hướng dẫn test](docs/TESTING.md)
+[Architecture](ARCHITECTURE.md) · [Roadmap](ROADMAP.md) · [Manual testing / Hướng dẫn test](docs/TESTING.md)
 
 Bug reports and sanitized test results are welcome; you do not need to write code. For a new integration or a large change, open a feature request first to agree on scope.
 
@@ -46,7 +46,7 @@ $env:FEEDLENS_DATA_DIR = Join-Path $env:TEMP "feedlens-tests"
 $env:DATABASE_URL = "sqlite:///:memory:"
 backend/.venv/Scripts/python -m pytest -q backend/tests
 cd frontend
-node --test tests/logic.test.cjs
+node --test tests/*.test.cjs
 npm run build
 ```
 

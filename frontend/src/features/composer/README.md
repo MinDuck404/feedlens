@@ -6,4 +6,4 @@
 - `Controls.tsx` owns the model picker and composer field controls.
 - API: providers, models, sessions, topics, profile, and create run.
 - i18n prefixes: `cmp`, `kw`, `profile`, `topics`, `act`, `error`.
-- If switching modes loses values or serialization fails, inspect `Composer.tsx` and `lib/platformModes.ts`.
+- If switching modes loses values or serialization fails, inspect `Composer.tsx` and `../../lib/platformModes.ts`.

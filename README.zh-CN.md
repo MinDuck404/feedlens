@@ -116,7 +116,7 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 - "新建浏览"中的模型列表直接用你的 key 从服务商 API 获取（缓存 10 分钟，可手动刷新）。
 - 选"默认"时，若你的 key 可用，则使用 `gemini-3.5-flash-lite` / `gpt-5-mini` / `claude-opus-5-5`，否则使用最新的快速模型。遇到 429/5xx 会重试 3 次（3 秒、6 秒、12 秒），再切换到下一个模型。
 - 兼容 OpenAI 的服务（OpenRouter、LM Studio……）：设置 `OPENAI_BASE_URL`（仅本地）。
-- 新增服务商：继承 `AIProvider`，实现 `complete_json()` 和 `list_models()`，并在 `ai/registry.py` 中注册。
+- 新增服务商：继承 `AIProvider`，实现 `complete_json()` 和 `list_models()`，并在 `backend/feedlens/ai/registry.py` 中注册。
 
 ## 注意事项
 
@@ -128,7 +128,7 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 - 已保存的会话继续使用创建它的浏览器。若卸载了该浏览器，请重新安装，或删除已保存的会话后重新登录。
 - 合并重复帖子采取保守规则：短帖或有实质修改的帖子可能保持独立。仅在同一次浏览内合并；重新分析历史浏览即可应用此功能。
 - 帖子内容会发送给你选择的 AI 服务商。`backend/data/` 中有会话 cookie：**切勿分享或提交**。
-- 社交网站经常改版。若某平台返回 0 条帖子，请修改 `backend/feedlens/scrapers.py` 中对应的 JS。
+- 社交网站经常改版。若某平台返回 0 条帖子，请检查 `backend/feedlens/scrapers/<platform>/selectors.py` 和 `backend/feedlens/scrapers/<platform>/js/*.js`。参见[采集器维护位置](backend/feedlens/scrapers/README.md)。
 
 ## 常见问题
 
@@ -139,7 +139,7 @@ FeedLens 用你自己的登录会话浏览社交网络的动态、群组和搜�
 取决于帖子数量和速度设置。*快速*模式每次滚动约停 1 秒，另加 AI 处理各批帖子的时间。
 
 **某个平台返回 0 条帖子？**
-通常是网站改版了。检查 `backend/feedlens/scrapers.py` 中该平台的 JS，或提交 issue。
+通常是网站改版了。检查该平台的选择器和 JS：`backend/feedlens/scrapers/<platform>/selectors.py` 和 `backend/feedlens/scrapers/<platform>/js/*.js`。参见[采集器维护位置](backend/feedlens/scrapers/README.md)。
 
 **我的数据存在哪里？**
 在 `backend/data/`：浏览器会话在 `profiles/`；帖子、结果、简历档案和加密后的 API key 在 `feedlens.db`；加密密钥在 `secret.key`。该目录已被 git 忽略，不要发给任何人。删除它即可清空所有数据。
@@ -196,33 +196,33 @@ cd frontend && node --test tests/logic.test.cjs
 <details>
 <summary><b>目录结构</b></summary>
 
+```text
+backend/feedlens/      按业务领域组织的 Python 后端。
+  api.py              创建 FastAPI 应用并提供构建后的界面。
+  cli.py              提供 feedlens 命令行入口。
+  demo.py             用模拟数据创建演示浏览记录。
+  core/               管理配置、认证、加密、消息及请求模型。
+  db/                 包含数据表、Database 组合及 repos/ 中的领域查询。
+  routes/             处理认证、偏好、平台、密钥、浏览记录、代理、档案、搜索、主题及趋势。
+  ai/                 管理密钥、模型发现、配额及 providers/ 中的适配器。
+  analysis/           分类和总结帖子、匹配主题并合并重复内容。
+  jobs/               管理简历档案、相近岗位数据及工作匹配评分。
+  runs/               验证来源、执行采集和分析、处理代理并导出结果。
+  browser/            管理独立浏览器配置、交互式登录及 cookie 解析。
+  scrapers/           包含 facebook/、linkedin/、x/、reddit/ 及各自的 selectors.py 和 js/ 资源。
+backend/tests/        使用模拟提供商和合成样例验证后端行为。
+frontend/src/         使用 React、TypeScript、Vite 和 Tailwind 构建界面。
+  App.tsx             协调工作区和路由。
+  api/                管理 HTTP 客户端及共享数据类型。
+  lib/                提供来源、搜索、趋势、主题及分类的纯函数。
+  components/ui/      提供共享的无障碍控件和对话框。
+  features/           按 home、auth、composer、run、sidebar、settings、history、trends 和 ask 组织界面。
+  i18n/               管理响应式语言设置及 locales/{vi,en,zh}/ 中的词典。
+frontend/tests/       检查工具函数、界面流程及翻译键和占位符的一致性。
+docker-compose.yml    配置可选的 Postgres。
 ```
-backend/            Python、FastAPI：API、浏览器自动化（Playwright）、AI 层、数据库
-  feedlens/
-    api.py          REST API (/api/...)，构建后同时提供 frontend/dist
-    messages.py     稳定的错误/进度代码，供界面翻译为 vi/en/zh
-    auth.py         账号、会话 token、agent token（云端模式）
-    crypto.py       密码哈希（scrypt）、API key 加密（Fernet）
-    agent.py        `feedlens agent`：从云端接收任务，在用户电脑上浏览
-    ai/             anthropic_provider · openai_provider · gemini_provider · registry
-    db/             SQLAlchemy：tables.py（结构）+ repository.py（查询）
-    browser.py      每个平台独立的浏览器配置，交互式登录
-    scrapers.py     各平台的 URL 与 JS 提取器，仿人滚动
-    analyzer.py     分类、提取工作、摘要（所有 AI 共用）
-    pipeline.py     浏览 → 分类 → 摘要，后台运行并报告进度
-    job_profile.py  简历 → Markdown 档案、求职条件、相近岗位（adjacent_roles.json）
-    profile_api.py  /api/profile：保存、读取、删除档案；简历分析
-    topics_api.py   /api/topics：自定义主题 CRUD、重打历史标签
-    trends_api.py   /api/trends：按分类/主题汇总帖子数量趋势
-    search_api.py   /api/search：FTS5 全文搜索与带引文核验的 AI 问答
-  tests/
-frontend/           React + Vite + TypeScript + Tailwind
-  src/components/     AskPage.tsx · TrendsPage.tsx · RunView · Settings · TopicSettings
-  src/components/ui/  共享的 Dialog/Sheet、Button、Skeleton、EmptyState
-  src/i18n.tsx        vi/en/zh 词典
-  tests/              逻辑测试（node --test）
-docker-compose.yml  Postgres（可选）
-```
+
+屏幕/API 对照表及故障定位指南见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 </details>
 

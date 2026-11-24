@@ -116,7 +116,7 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 - Danh sách model trong "Lướt mới" lấy trực tiếp từ API bằng key của bạn (cache 10 phút, có nút tải lại).
 - Để "Mặc định" thì app dùng `gemini-3.5-flash-lite` / `gpt-5-mini` / `claude-opus-5-5` nếu key có model đó, không thì model mới nhất thuộc dòng nhanh. Model quá tải (429/5xx) thì app thử lại 3 lần (3s, 6s, 12s) rồi chuyển sang model kế tiếp.
 - Server tương thích OpenAI (OpenRouter, LM Studio…): đặt `OPENAI_BASE_URL` (chỉ local).
-- Thêm nhà cung cấp: viết lớp kế thừa `AIProvider` với `complete_json()` và `list_models()`, đăng ký trong `ai/registry.py`.
+- Thêm nhà cung cấp: viết lớp kế thừa `AIProvider` với `complete_json()` và `list_models()`, đăng ký trong `backend/feedlens/ai/registry.py`.
 
 ## Lưu ý
 
@@ -128,7 +128,7 @@ Tắt app bằng cách đóng cửa sổ terminal (hoặc Ctrl+C).
 - Phiên đã lưu tiếp tục dùng trình duyệt đã tạo ra nó. Nếu gỡ trình duyệt đó, hãy cài lại hoặc xoá phiên rồi đăng nhập lại.
 - Gộp tin trùng theo hướng thận trọng: bài ngắn hoặc có sửa đổi đáng kể có thể vẫn tách riêng. Chỉ gộp trong cùng một lượt; phân tích lại lượt cũ để áp dụng gộp.
 - Nội dung bài được gửi tới nhà cung cấp AI bạn chọn. `backend/data/` chứa cookie phiên: **không chia sẻ, không commit**.
-- Selector của mạng xã hội thay đổi thường xuyên. Nếu một nền tảng trả về 0 bài, sửa đoạn JS tương ứng trong `backend/feedlens/scrapers.py`.
+- Selector của mạng xã hội thay đổi thường xuyên. Nếu một nền tảng trả về 0 bài, kiểm tra `backend/feedlens/scrapers/<platform>/selectors.py` và `backend/feedlens/scrapers/<platform>/js/*.js`. Xem [vị trí sửa scraper](backend/feedlens/scrapers/README.md).
 
 ## Dành cho nhà phát triển
 
@@ -173,33 +173,33 @@ cd frontend && node --test tests/logic.test.cjs
 <details>
 <summary><b>Cấu trúc thư mục</b></summary>
 
+```text
+backend/feedlens/      Các miền chức năng của backend Python.
+  api.py              Khởi tạo ứng dụng FastAPI và phục vụ giao diện đã build.
+  cli.py              Cung cấp lệnh feedlens.
+  demo.py             Tạo lượt mẫu từ dữ liệu giả.
+  core/               Quản lý cấu hình, xác thực, mã hóa, thông báo và model request.
+  db/                 Chứa bảng dữ liệu, lớp Database và truy vấn theo miền trong repos/.
+  routes/             Xử lý tài khoản, tùy chọn, nền tảng, key, lượt, agent, hồ sơ, tìm kiếm, chủ đề và xu hướng.
+  ai/                 Quản lý key, danh sách model, hạn mức và adapter trong providers/.
+  analysis/           Phân loại, tóm tắt, gắn chủ đề và gom bài trùng.
+  jobs/               Quản lý hồ sơ CV, dữ liệu vai trò lân cận và chấm điểm việc làm.
+  runs/               Kiểm tra nguồn, chạy thu thập/phân tích, xử lý agent và xuất kết quả.
+  browser/            Quản lý profile trình duyệt riêng, đăng nhập và đọc cookie.
+  scrapers/           Chứa facebook/, linkedin/, x/, reddit/ cùng selectors.py và tài nguyên js/.
+backend/tests/        Kiểm tra backend bằng provider giả và fixture tổng hợp.
+frontend/src/         Giao diện React, TypeScript, Vite và Tailwind.
+  App.tsx             Điều phối workspace và các route.
+  api/                Chứa HTTP client và kiểu dữ liệu dùng chung.
+  lib/                Chứa helper thuần cho nguồn, tìm kiếm, xu hướng, chủ đề và danh mục.
+  components/ui/      Cung cấp điều khiển và hộp thoại dùng chung có hỗ trợ tiếp cận.
+  features/           Gom màn hình home, auth, composer, run, sidebar, settings, history, trends và ask.
+  i18n/               Quản lý locale phản ứng và từ điển trong locales/{vi,en,zh}/.
+frontend/tests/       Kiểm tra helper, luồng giao diện và tính đồng nhất key/placeholder.
+docker-compose.yml    Cấu hình Postgres tùy chọn.
 ```
-backend/            Python, FastAPI: API, bot lướt (Playwright), lớp AI, DB
-  feedlens/
-    api.py          REST API (/api/...), phục vụ luôn frontend/dist nếu đã build
-    messages.py     mã lỗi/tiến độ ổn định để giao diện dịch sang vi/en/zh
-    auth.py         tài khoản, token phiên, token agent (chế độ cloud)
-    crypto.py       băm mật khẩu (scrypt), mã hóa API key (Fernet)
-    agent.py        `feedlens agent`: nhận việc từ cloud, lướt trên máy người dùng
-    ai/             anthropic_provider · openai_provider · gemini_provider · registry
-    db/             SQLAlchemy: tables.py (schema) + repository.py (truy vấn)
-    browser.py      profile trình duyệt riêng cho từng nền tảng, đăng nhập tương tác
-    scrapers.py     URL + JS trích bài cho từng nền tảng, vòng cuộn giống người
-    analyzer.py     phân loại, trích job, tóm tắt (dùng chung cho mọi AI)
-    pipeline.py     lướt → phân loại → tóm tắt, chạy nền, báo tiến độ
-    job_profile.py  CV → hồ sơ Markdown, tiêu chí, vai trò lân cận (adjacent_roles.json)
-    profile_api.py  /api/profile: lưu, đọc, xóa hồ sơ; phân tích CV
-    topics_api.py   /api/topics: CRUD chủ đề riêng, gắn lại chủ đề cho lượt cũ
-    trends_api.py   /api/trends: gom số liệu bài viết theo danh mục/chủ đề
-    search_api.py   /api/search: tìm FTS5 & Hỏi AI có trích dẫn xác thực
-  tests/
-frontend/           React + Vite + TypeScript + Tailwind
-  src/components/     AskPage.tsx · TrendsPage.tsx · RunView · Settings · TopicSettings
-  src/components/ui/  Dialog/Sheet, Button, Skeleton, EmptyState dùng chung
-  src/i18n.tsx        từ điển vi/en/zh
-  tests/              test logic (node --test)
-docker-compose.yml  Postgres (tùy chọn)
-```
+
+Xem [ARCHITECTURE.md](ARCHITECTURE.md) để tìm màn hình/API và nơi cần kiểm tra khi có lỗi.
 
 </details>
 
@@ -302,7 +302,7 @@ Có. App dùng bộ lọc từ khóa offline để chia loại bài. Khi đó kh
 Tùy số bài và tốc độ chọn. Chế độ *Nhanh* nghỉ khoảng 1 giây mỗi lần cuộn; thêm thời gian AI xử lý từng lô.
 
 **Một nền tảng trả về 0 bài?**
-Thường do mạng xã hội đổi giao diện. Xem đoạn JS của nền tảng đó trong `backend/feedlens/scrapers.py`, hoặc mở issue.
+Thường do mạng xã hội đổi giao diện. Kiểm tra `backend/feedlens/scrapers/<platform>/selectors.py` và `backend/feedlens/scrapers/<platform>/js/*.js`. Xem [vị trí sửa scraper](backend/feedlens/scrapers/README.md).
 
 **Dữ liệu của tôi nằm ở đâu?**
 Trong `backend/data/`: phiên trình duyệt ở `profiles/`, bài viết, kết quả, hồ sơ CV và API key (đã mã hóa) ở `feedlens.db`, khóa mã hóa ở `secret.key`. Thư mục này không bao giờ được commit. Đừng gửi nó cho người khác. Xóa thư mục này là xóa sạch.

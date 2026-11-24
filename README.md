@@ -116,7 +116,7 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 - The model list in "New run" comes straight from the provider's API with your key (cached 10 minutes, with a refresh button).
 - "Default" picks `gemini-3.5-flash-lite` / `gpt-5-mini` / `claude-opus-5-5` when your key has it, otherwise the newest fast model. On 429/5xx the app retries 3 times (3s, 6s, 12s), then moves to the next model.
 - OpenAI-compatible servers (OpenRouter, LM Studio…): set `OPENAI_BASE_URL` (local only).
-- Adding a provider: subclass `AIProvider` with `complete_json()` and `list_models()`, then register it in `ai/registry.py`.
+- Adding a provider: subclass `AIProvider` with `complete_json()` and `list_models()`, then register it in `backend/feedlens/ai/registry.py`.
 
 ## Caveats
 
@@ -128,7 +128,7 @@ Close the terminal window (or press Ctrl+C) to stop the app.
 - Saved sessions stay with the browser that created them. If you uninstall that browser, reinstall it or remove the saved session and sign in again.
 - Duplicate grouping is conservative: short posts or substantive edits may stay separate. It only groups within a run; re-analyze older saved runs to apply grouping.
 - Post text is sent to the AI provider you choose. `backend/data/` holds session cookies: **never share or commit it**.
-- Social sites change their markup often. If a platform returns 0 posts, fix its JS extractor in `backend/feedlens/scrapers.py`.
+- Social sites change their markup often. If a platform returns 0 posts, check `backend/feedlens/scrapers/<platform>/selectors.py` and `backend/feedlens/scrapers/<platform>/js/*.js`. See [scraper repair locations](backend/feedlens/scrapers/README.md).
 
 ## FAQ
 
@@ -139,7 +139,7 @@ Yes. Posts are sorted by an offline keyword classifier. You get no AI summaries,
 It depends on the number of posts and the speed setting. *Fast* mode pauses about 1 second per scroll, plus AI processing time for each batch.
 
 **A platform returns 0 posts?**
-Usually the site changed its markup. Check that platform's JS in `backend/feedlens/scrapers.py`, or open an issue.
+Usually the site changed its markup. Check that platform's selectors in `backend/feedlens/scrapers/<platform>/selectors.py` and JS in `backend/feedlens/scrapers/<platform>/js/*.js`, or open an issue. See [scraper repair locations](backend/feedlens/scrapers/README.md).
 
 **Where is my data?**
 In `backend/data/`: browser sessions in `profiles/`; posts, results, your CV profile, and encrypted API keys in `feedlens.db`; the encryption key in `secret.key`. This folder is git-ignored. Do not send it to anyone. Delete it to wipe everything.
@@ -196,33 +196,33 @@ cd frontend && node --test tests/logic.test.cjs
 <details>
 <summary><b>Project layout</b></summary>
 
+```text
+backend/feedlens/      Python backend domains.
+  api.py              Creates the FastAPI app and serves the built UI.
+  cli.py              Provides the feedlens command-line entry point.
+  demo.py             Creates synthetic demo runs.
+  core/               Owns settings, authentication, encryption, messages, and request models.
+  db/                 Owns tables, Database composition, and domain queries in repos/.
+  routes/             Handles auth, preferences, platforms, keys, runs, agents, profiles, search, topics, and trends.
+  ai/                 Owns credentials, model discovery, quotas, and adapters in providers/.
+  analysis/           Classifies and summarizes posts, matches topics, and groups duplicates.
+  jobs/               Owns CV profiles, adjacent-role data, and job scoring.
+  runs/               Validates sources, runs collection and analysis, handles agents, and exports results.
+  browser/            Owns isolated browser profiles, interactive sign-in, and cookie parsing.
+  scrapers/           Owns facebook/, linkedin/, x/, and reddit/ with selectors.py and js/ resources.
+backend/tests/        Verifies backend behavior with fake providers and synthetic fixtures.
+frontend/src/         React, TypeScript, Vite, and Tailwind UI.
+  App.tsx             Coordinates the workspace and routes.
+  api/                Owns the HTTP client and shared payload types.
+  lib/                Contains pure helpers for sources, search, trends, topics, and categories.
+  components/ui/      Provides shared accessible controls and overlays.
+  features/           Groups home, auth, composer, run, sidebar, settings, history, trends, and ask screens.
+  i18n/               Owns the reactive locale provider and dictionaries in locales/{vi,en,zh}/.
+frontend/tests/       Checks helpers, UI flows, and locale key/placeholder parity.
+docker-compose.yml    Configures optional Postgres.
 ```
-backend/            Python, FastAPI: API, scraper (Playwright), AI layer, DB
-  feedlens/
-    api.py          REST API (/api/...), also serves frontend/dist when built
-    messages.py     stable error/progress codes the UI translates to vi/en/zh
-    auth.py         accounts, session tokens, agent tokens (cloud mode)
-    crypto.py       password hashing (scrypt), API key encryption (Fernet)
-    agent.py        `feedlens agent`: takes jobs from the cloud, scrapes on the user's machine
-    ai/             anthropic_provider · openai_provider · gemini_provider · registry
-    db/             SQLAlchemy: tables.py (schema) + repository.py (queries)
-    browser.py      per-platform browser profiles, interactive sign-in
-    scrapers.py     URLs + JS extractors per platform, human-like scrolling
-    analyzer.py     classify, extract jobs, summarize (shared by every AI)
-    pipeline.py     scrape → classify → summarize, in the background, with progress
-    job_profile.py  CV → Markdown profile, criteria, related roles (adjacent_roles.json)
-    profile_api.py  /api/profile: save, read, delete the profile; CV analysis
-    topics_api.py   /api/topics: CRUD custom topics, re-tag past runs
-    trends_api.py   /api/trends: aggregate post volume by category/topic
-    search_api.py   /api/search: FTS5 search & Ask AI with verified citations
-  tests/
-frontend/           React + Vite + TypeScript + Tailwind
-  src/components/     AskPage.tsx · TrendsPage.tsx · RunView · Settings · TopicSettings
-  src/components/ui/  shared Dialog/Sheet, Button, Skeleton, EmptyState
-  src/i18n.tsx        vi/en/zh dictionaries
-  tests/              logic tests (node --test)
-docker-compose.yml  Postgres (optional)
-```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the screen/API map and where to look when something breaks.
 
 </details>
 
