@@ -1,6 +1,6 @@
 [project]
 name = "feedlens"
-version = "0.3.6"
+version = "0.3.7"
 description = "Lướt feed/group mạng xã hội bằng phiên đăng nhập của chính bạn, phân loại và tóm tắt bài viết bằng Claude."
 requires-python = ">=3.10"
 dependencies = [
