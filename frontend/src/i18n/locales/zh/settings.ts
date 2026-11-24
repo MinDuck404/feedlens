@@ -1,5 +1,6 @@
 // Màn hình Cài đặt chung, agent và cookie: Settings, AgentSection, CookieSessions.
 export const settings = {
+  "set.keyPriorityHint": "密钥按优先顺序尝试。开始或重试任务时，可以指定密钥和模型。",
   "set.tab.scrape": "抓取方式",
   "set.tab.general": "常规",
   "set.maxPosts": "每次浏览最多帖子数",

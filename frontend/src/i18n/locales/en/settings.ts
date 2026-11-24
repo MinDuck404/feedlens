@@ -1,5 +1,6 @@
 // Màn hình Cài đặt chung, agent và cookie: Settings, AgentSection, CookieSessions.
 export const settings = {
+  "set.keyPriorityHint": "Keys are tried in priority order. You can choose a specific key and model when starting or retrying a run.",
   "set.tab.scrape": "Scraping",
   "set.tab.general": "General",
   "set.maxPosts": "Max posts per run",

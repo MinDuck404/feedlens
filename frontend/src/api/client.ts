@@ -106,8 +106,12 @@ export const api = {
     call<AIKey>(`/api/ai/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   reorderKeys: (provider: AIKey["provider"], ids: number[]) =>
     call<{ ok: boolean }>("/api/ai/keys/order", { method: "PUT", body: JSON.stringify({ provider, ids }) }),
-  models: (p: string, refresh = false) =>
-    call<{ models: string[]; default: string }>(`/api/ai/models/${p}${refresh ? "?refresh=true" : ""}`),
+  models: (p: string, refresh = false, ai_key_id?: number | null) => {
+    const query = new URLSearchParams();
+    if (refresh) query.set("refresh", "true");
+    if (ai_key_id != null) query.set("ai_key_id", String(ai_key_id));
+    return call<{ models: string[]; default: string }>(`/api/ai/models/${p}${query.size ? `?${query}` : ""}`);
+  },
   platforms: () => call<PlatformState[]>("/api/platforms"),
   platformAction: (p: string, act: "login" | "check" | "logout" | "login/finish") =>
     call(`/api/platforms/${p}/${act}`, { method: "POST" }),
@@ -116,9 +120,9 @@ export const api = {
   createRun: (req: RunRequest) =>
     call<{ id: number; agent?: AgentInfo }>("/api/runs", { method: "POST", body: JSON.stringify(req) }),
   deleteRun: (id: number) => call(`/api/runs/${id}`, { method: "DELETE" }),
-  retryAnalysis: (id: number, ai_provider: string, ai_model: string, mode: "continue" | "reanalyze_all" = "continue") =>
-    call(`/api/runs/${id}/analysis`, { method: "POST", body: JSON.stringify({ ai_provider, ai_model, mode }) }),
-  stopAnalysis: (id: number, replacement?: { ai_provider: string; ai_model: string }) =>
+  retryAnalysis: (id: number, ai_provider: string, ai_model: string, mode: "continue" | "reanalyze_all" = "continue", ai_key_id: number | null = null) =>
+    call(`/api/runs/${id}/analysis`, { method: "POST", body: JSON.stringify({ ai_provider, ai_model, mode, ai_key_id }) }),
+  stopAnalysis: (id: number, replacement?: { ai_provider: string; ai_model: string; ai_key_id: number | null }) =>
     call(`/api/runs/${id}/analysis/stop`, { method: "POST", ...(replacement ? { body: JSON.stringify(replacement) } : {}) }),
   /** Tải file xuất kèm token (thẻ <a href> thường không gửi được header Authorization). */
   download: async (id: number, fmt: "md" | "csv" | "json") => {

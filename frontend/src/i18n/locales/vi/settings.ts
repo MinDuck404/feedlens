@@ -1,5 +1,6 @@
 // Màn hình Cài đặt chung, agent và cookie: Settings, AgentSection, CookieSessions.
 export const settings = {
+  "set.keyPriorityHint": "Các key được thử theo thứ tự ưu tiên. Bạn có thể chọn riêng một key và model khi bắt đầu hoặc phân tích lại lượt chạy.",
   "set.tab.scrape": "Cách lướt",
   "set.tab.general": "Chung",
   "set.maxPosts": "Số bài tối đa mỗi lượt",

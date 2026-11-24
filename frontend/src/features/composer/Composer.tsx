@@ -3,7 +3,8 @@ import { api } from "../../api/client";
 import { PLATFORM_LABEL } from "../../lib/categories";
 import { formatNumber, useI18n } from "../../i18n";
 import { Sheet, Button, Skeleton, Select, SegmentedControl } from "../../components/ui";
-import { Group, ModelPicker, Toggle } from "./Controls";
+import { Group, Toggle } from "./Controls";
+import { AIKeyPicker } from "./AIKeyPicker";
 import { JobCriteria } from "./JobCriteria";
 import { links, SourceMode } from "./SourceMode";
 import { applyJobProfileDefaults, countPlan, defaultDraft, defaultMode, draftFromRequest, draftKey, inferMode,
@@ -14,7 +15,7 @@ import type {
 
 const DEFAULTS: RunRequest = {
   platform: "facebook", source_type: "feed", sources: [], count: 40, job_mode: false, keywords: [], profile: "",
-  ai_provider: "offline", ai_model: "", only_new: false, headless: false, speed: "fast", runner: "agent",
+  ai_provider: "offline", ai_model: "", ai_key_id: null, only_new: false, headless: false, speed: "fast", runner: "agent",
 };
 
 interface Props {
@@ -122,9 +123,10 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
       const ok = (k?: string) => !!k && list.some((p) => p.key === k && p.configured);
       const first = list.find((p) => p.configured && p.key !== "offline")?.key ?? "offline";
       const preferred = list.find((p) => p.configured && p.is_default)?.key;
-      const selected = preferred ?? (ok(saved.ai_provider) ? saved.ai_provider! : first);
+      const selected = (ok(saved.ai_provider) ? saved.ai_provider! : preferred) ?? first;
       setF((s) => ({ ...s, ai_provider: selected,
-                     ai_model: selected === saved.ai_provider ? saved.ai_model ?? "" : "" }));
+                     ai_model: selected === saved.ai_provider ? saved.ai_model ?? "" : "",
+                     ai_key_id: selected === saved.ai_provider && selected !== "offline" ? saved.ai_key_id ?? null : null }));
     }).catch((e) => { setProviders([]); setLoadError(e.message); });
   };
   useEffect(() => { api.topics().then((data) => setTopicCount(data.topics.filter((topic) => topic.enabled).length)).catch((e) => setLoadError(e.message)); loadProviders();
@@ -312,11 +314,12 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
             ) : (
               <>
                 <Select aria-label={t("cmp.ai")} value={f.ai_provider}
-                  onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); }}>
+                  onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); set("ai_key_id", null); }}>
                   {usable.map((p) => <option key={p.key} value={p.key}>{p.key === "offline" ? t("cmp.offline") : p.name}</option>)}
                 </Select>
                 {f.ai_provider !== "offline" && (
-                  <ModelPicker key={f.ai_provider} provider={f.ai_provider} value={f.ai_model} onChange={(m) => set("ai_model", m)} />
+                  <AIKeyPicker key={f.ai_provider} provider={f.ai_provider} providerInfo={providers.find((p) => p.key === f.ai_provider)} keyId={f.ai_key_id ?? null} model={f.ai_model}
+                    onChange={(ai_key_id, ai_model) => setF((old) => ({ ...old, ai_key_id, ai_model }))} />
                 )}
                 {usable.length === 1 && (
                   <p className="mt-2 text-sm text-ink-soft">

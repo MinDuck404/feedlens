@@ -4,7 +4,7 @@ import { api } from "../../api/client";
 import { useI18n } from "../../i18n";
 import { IconButton, Select } from "../../components/ui";
 
-export function ModelPicker({ provider, value, onChange }: { provider: string; value: string; onChange: (m: string) => void }) {
+export function ModelPicker({ provider, keyId, value, onChange }: { provider: string; keyId?: number | null; value: string; onChange: (m: string) => void }) {
   const [models, setModels] = useState<string[]>([]);
   const [def, setDef] = useState("");
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -15,11 +15,11 @@ export function ModelPicker({ provider, value, onChange }: { provider: string; v
   const load = (refresh = false) => {
     const id = ++requestId.current;
     setState("loading");
-    api.models(provider, refresh)
+    api.models(provider, refresh, keyId)
       .then((r) => { if (id !== requestId.current) return; setModels(r.models); setDef(r.default); setState("ok"); })
       .catch((e) => { if (id !== requestId.current) return; setError((e as Error).message); setState("error"); });
   };
-  useEffect(() => { load(); return () => { ++requestId.current; }; }, [provider]);
+  useEffect(() => { load(); return () => { ++requestId.current; }; }, [provider, keyId]);
 
   return (
     <div className="mt-2 flex gap-2">

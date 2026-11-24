@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { useI18n, type Key } from "../../i18n";
 import type { AIProviderInfo, Run } from "../../api/types";
-import { ModelPicker } from "../composer/Controls";
+import { AIKeyPicker } from "../composer/AIKeyPicker";
 import { Button, Select } from "../../components/ui";
 
 export function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching = false }: { run: Run; onStarted: () => void; reanalyzeAll?: boolean; switching?: boolean }) {
@@ -10,16 +10,19 @@ export function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching 
   const [providers, setProviders] = useState<AIProviderInfo[]>([]);
   const [provider, setProvider] = useState(reanalyzeAll ? "auto" : run.request.ai_provider || "auto");
   const [model, setModel] = useState(run.request.ai_model || "");
+  const [keyId, setKeyId] = useState<number | null>(reanalyzeAll ? null : run.request.ai_key_id ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const resumeAI = !reanalyzeAll && run.request.ai_provider !== "offline";
+  const effectiveProvider = provider === "auto" ? providers.find((p) => p.configured && p.is_default && p.key !== "offline")
+    ?? providers.find((p) => p.configured && p.key !== "offline") : providers.find((p) => p.key === provider);
   useEffect(() => { let alive = true; api.providers().then((p) => { if (alive) setProviders(p); }).catch((e) => { if (alive) setError(e.message); }); return () => { alive = false; }; }, []);
   const submit = async () => {
     if (reanalyzeAll && !window.confirm(t("run.confirmReanalyzeAI", { n: run.analysis_counts?.total ?? run.collected, requests: run.reanalyze_requests_estimate ?? 1 }))) return;
     setBusy(true); setError("");
     try {
-      if (switching) await api.stopAnalysis(run.id, { ai_provider: provider, ai_model: model });
-      else await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue");
+      if (switching) await api.stopAnalysis(run.id, { ai_provider: provider, ai_model: model, ai_key_id: keyId });
+      else await api.retryAnalysis(run.id, provider, model, reanalyzeAll ? "reanalyze_all" : "continue", keyId);
       onStarted();
     }
     catch (e) { setError((e as Error).message); }
@@ -28,13 +31,14 @@ export function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching 
   return <div className="mt-4 border-t border-line pt-4">
     <p className="text-sm text-ink-soft">{resumeAI && run.analysis_counts ? t("run.retryAIHint", { n: run.analysis_counts.total - run.analysis_counts.ai }) : t("run.retryAnalysisHint")}</p>
     <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
-      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); }}>
+      <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); setKeyId(null); }}>
         <option value="auto">{t("profile.auto")}</option>
         {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
         {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider}</option>}
         <option value="offline">{t("profile.offlineOption")}</option>
       </Select></label>
-      {provider !== "auto" && provider !== "offline" && <ModelPicker provider={provider} value={model} onChange={setModel} />}
+      {provider !== "offline" && effectiveProvider && <AIKeyPicker key={effectiveProvider.key} provider={effectiveProvider.key} providerInfo={effectiveProvider} keyId={keyId} model={model}
+        onChange={(id, next) => { setKeyId(id); setModel(next); }} />}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <Button disabled={switching && run.progress?.stop_requested} busy={busy} onClick={submit}>{t(switching ? "run.switchAndContinue" : reanalyzeAll ? "run.sendToAI" : resumeAI ? "run.sendRemainingAI" : "run.continueAnalysis")}</Button>
     </fieldset>

@@ -60,6 +60,7 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
       </div>
       {!editing && <Button size="sm" variant="outline" disabled={busy || !available} onClick={() => { setEditing(true); setError(""); }}>{t("set.addKey")}</Button>}
     </div>
+    <p className="mt-2 text-xs text-ink-soft">{t("set.keyPriorityHint")}</p>
     {!available && <p className="mt-2 text-sm text-ink-soft">{t("set.keyUnknown")}</p>}
     {p.source === "env" && <p className="mt-2 text-xs text-ink-soft">{t("set.envKey")}. {t("set.envHint")}</p>}
     {available && !ordered.length && p.source !== "env" && <p className="mt-3 text-sm text-ink-soft">{t("set.noKey")}</p>}

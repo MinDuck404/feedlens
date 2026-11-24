@@ -1,5 +1,13 @@
 // Hộp thoại Lướt mới: Composer, SourceMode, JobCriteria, Controls và lib/platformModes.
 export const composer = {
+  "cmp.keyMode": "Cách chọn API key",
+  "cmp.keyAuto": "Tự động (theo thứ tự ưu tiên)",
+  "cmp.keyChoose": "Chọn key",
+  "cmp.keyLabel": "API key",
+  "cmp.keyAutoHint": "Key thử đầu tiên: {name}. Tự chuyển key/model khi quá tải; model đã chọn cụ thể được giữ nguyên.",
+  "cmp.noSelectableKey": "Chưa có key đã lưu khả dụng",
+  "cmp.keyDisabled": "Đã tắt",
+  "cmp.keyQuota": "Hết hạn mức hôm nay",
   "cmp.modelAria": "Model AI",
   "cmp.searchFacebook": "tuyển python; từ xa react",
   "cmp.searchLinkedin": "tuyển python Việt Nam",

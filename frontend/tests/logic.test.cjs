@@ -364,6 +364,125 @@ test("queued preferences never cross into the next logged-in account", async () 
   } finally { global.fetch = original; memory.delete("feedlens.token"); }
 });
 
+test("key selection API sends a pin or explicit Auto reset and scopes model discovery", async () => {
+  const original = global.fetch, requests = [];
+  global.fetch = async (url, init) => { requests.push({ url, body: init?.body && JSON.parse(init.body) }); return new Response("{}"); };
+  try {
+    await api.models("gemini", true, 7);
+    assert.equal(requests.at(-1).url, "/api/ai/models/gemini?refresh=true&ai_key_id=7");
+    await api.models("gemini");
+    assert.equal(requests.at(-1).url, "/api/ai/models/gemini");
+    await api.retryAnalysis(1, "gemini", "lite", "continue", 7);
+    assert.equal(requests.at(-1).body.ai_key_id, 7);
+    await api.retryAnalysis(1, "gemini", "", "continue", null);
+    assert.equal(requests.at(-1).body.ai_key_id, null);
+    await api.stopAnalysis(1, { ai_provider: "gemini", ai_model: "lite", ai_key_id: 7 });
+    assert.equal(requests.at(-1).body.ai_key_id, 7);
+    await api.stopAnalysis(1, { ai_provider: "gemini", ai_model: "", ai_key_id: null });
+    assert.equal(requests.at(-1).body.ai_key_id, null);
+  } finally { global.fetch = original; }
+});
+
+test("key picker orders provider keys, labels unusable keys, resets missing pins and clears models when switching", async () => {
+  const { AIKeyPicker } = require("../src/features/composer/AIKeyPicker.tsx");
+  const { ModelPicker } = require("../src/features/composer/Controls.tsx");
+  const { SegmentedControl, Select } = require("../src/components/ui");
+  const find = (node, predicate) => {
+    if (!node || typeof node !== "object") return null;
+    if (predicate(node)) return node;
+    for (const child of [node.props?.children].flat(Infinity)) { const found = find(child, predicate); if (found) return found; }
+    return null;
+  };
+  const original = api.listKeys, context = React.useContext, changes = [];
+  React.useContext = () => ({ t: i18n.translate });
+  const base = { provider: "gemini", enabled: true, status: "ok", hint: "1234", usage_today: {} };
+  api.listKeys = async () => [
+    { ...base, id: 2, label: "Backup", priority: 2 },
+    { ...base, id: 1, label: "Primary", priority: 1 },
+    { ...base, id: 3, label: "Wrong provider", priority: 0, provider: "openai" },
+    { ...base, id: 4, label: "Invalid", priority: 0, status: "invalid" },
+    { ...base, id: 5, label: "Disabled", priority: 0, enabled: false },
+    { ...base, id: 6, label: "Quota", priority: 3, usage_today: { lite: { requests: 20, limit_rpd: 20 } } },
+  ];
+  const props = { provider: "gemini", keyId: null, model: "lite", onChange: (...value) => changes.push(value) };
+  const harness = hooks(AIKeyPicker);
+  try {
+    harness.render(props); await tick();
+    let tree = harness.render(props);
+    assert.ok(JSON.stringify(tree).includes("Invalid · …1234"));
+    find(tree, (n) => n.type === SegmentedControl).props.onChange("auto");
+    assert.equal(changes.length, 0);
+    find(tree, (n) => n.type === SegmentedControl).props.onChange("key");
+    assert.deepEqual(changes.pop(), [1, ""]);
+    tree = harness.render({ ...props, keyId: 1 });
+    find(tree, (n) => n.type === SegmentedControl).props.onChange("key");
+    assert.equal(changes.length, 0);
+    const select = find(tree, (n) => n.type === Select);
+    const options = select.props.children.flat(Infinity).filter(Boolean);
+    assert.deepEqual(options.map((n) => n.props.value), [4, 5, 1, 2, 6]);
+    for (const id of [4, 5, 6]) assert.equal(options.find((n) => n.props.value === id).props.disabled, true);
+    assert.ok(JSON.stringify(options).includes(i18n.translate("cmp.keyQuota")));
+    select.props.onChange({ target: { value: "2" } });
+    assert.deepEqual(changes.pop(), [2, ""]);
+    const picker = find(tree, (n) => n.type === ModelPicker);
+    assert.equal(picker.props.keyId, 1);
+    picker.props.onChange("flash"); assert.deepEqual(changes.pop(), [1, "flash"]);
+    find(tree, (n) => n.type === SegmentedControl).props.onChange("auto");
+    assert.deepEqual(changes.pop(), [null, ""]);
+    harness.render({ ...props, keyId: 99 }); assert.deepEqual(changes.pop(), [null, ""]);
+    harness.render({ ...props, keyId: 5 }); assert.deepEqual(changes.pop(), [null, ""]);
+  } finally { harness.close(); api.listKeys = original; React.useContext = context; }
+});
+
+test("model picker scopes discovery to the selected key and ignores the previous key's late response", async () => {
+  const { ModelPicker } = require("../src/features/composer/Controls.tsx");
+  const original = api.models, context = React.useContext, requests = [];
+  React.useContext = () => ({ t: i18n.translate });
+  api.models = (provider, refresh, keyId) => { const request = deferred(); requests.push({ ...request, provider, refresh, keyId }); return request.promise; };
+  const harness = hooks(ModelPicker), props = { provider: "gemini", value: "", onChange() {} };
+  try {
+    harness.render({ ...props, keyId: 1 }); harness.render({ ...props, keyId: 2 });
+    assert.deepEqual(requests.map((r) => r.keyId), [1, 2]);
+    requests[1].resolve({ models: ["key-2-model"], default: "key-2-model" }); await tick();
+    requests[0].resolve({ models: ["old-key-model"], default: "old-key-model" }); await tick();
+    let tree = harness.render({ ...props, keyId: 2 });
+    assert.ok(JSON.stringify(tree).includes("key-2-model"));
+    assert.ok(!JSON.stringify(tree).includes("old-key-model"));
+    tree.props.children[1].props.onClick();
+    assert.equal(requests[2].keyId, 2); assert.equal(requests[2].refresh, true);
+  } finally { harness.close(); api.models = original; React.useContext = context; }
+});
+
+test("retry and stop/continue pass the selected key and explicitly clear a saved pin in Auto", async () => {
+  const { RetryAnalysis } = require("../src/features/run/RetryAnalysis.tsx");
+  const { AIKeyPicker } = require("../src/features/composer/AIKeyPicker.tsx");
+  const { Button } = require("../src/components/ui");
+  const original = { ...api }, context = React.useContext;
+  React.useContext = () => ({ t: i18n.translate });
+  api.providers = async () => [{ key: "gemini", configured: true, is_default: true }];
+  const calls = [];
+  api.retryAnalysis = async (...args) => calls.push(args);
+  api.stopAnalysis = async (...args) => calls.push(args);
+  try {
+    for (const switching of [false, true]) {
+      const props = { run: { id: 8, request: { ai_provider: "auto", ai_model: "lite", ai_key_id: 7 } }, switching, onStarted() {} };
+      const harness = hooks(RetryAnalysis);
+      try {
+        harness.render(props); await tick();
+        let tree = harness.render(props), children = tree.props.children[1].props.children;
+        let picker = children.find((n) => n?.type === AIKeyPicker);
+        assert.equal(picker.props.keyId, 7);
+        await children.find((n) => n?.type === Button).props.onClick();
+        assert.equal(switching ? calls.at(-1)[1].ai_key_id : calls.at(-1)[4], 7);
+        picker.props.onChange(null, "");
+        tree = harness.render(props); children = tree.props.children[1].props.children;
+        await children.find((n) => n?.type === Button).props.onClick();
+        assert.equal(switching ? calls.at(-1)[1].ai_key_id : calls.at(-1)[4], null);
+      } finally { harness.close(); }
+    }
+  } finally { Object.assign(api, original); React.useContext = context; }
+});
+
 test("late model responses cannot replace the current provider or latest refresh", async () => {
   const { ModelPicker } = require("../src/features/composer/Controls.tsx");
   const original = api.models, requests = [];
@@ -654,7 +773,7 @@ test("completed AI runs offer confirmed reanalysis with an estimated request cou
       assert.ok(prompts[0].includes("1,200") && prompts[0].includes("28"));
       allowed = true;
       await button.props.onClick();
-      assert.deepEqual(requests, [[14, "auto", "gemini-3.5-flash-lite", "reanalyze_all"]]);
+      assert.deepEqual(requests, [[14, "auto", "gemini-3.5-flash-lite", "reanalyze_all", null]]);
     } finally { retryHarness.close(); }
   } finally {
     harness.close(); React.useContext = originalContext; window.confirm = originalConfirm;

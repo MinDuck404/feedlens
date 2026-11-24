@@ -182,6 +182,31 @@ function find(node, predicate) {
   return null;
 }
 
+test("Composer restores and persists the exact key/model, and sends null after returning to Auto", async () => {
+  global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
+  const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;
+  const { AIKeyPicker } = require("../src/features/composer/AIKeyPicker.tsx");
+  const original = { ...api }, requests = [], saved = [];
+  api.providers = async () => [{ key: "openai", configured: true, is_default: true }, { key: "gemini", configured: true }];
+  api.profile = async () => null; api.topics = async () => ({ topics: [] });
+  api.createRun = async (req) => { requests.push(req); return { id: 1 }; };
+  const harness = hooks(Composer), props = { meta: { mode: "cloud", max_posts: 500 }, me: null, platforms: [],
+    prefs: { composer: { platform: "facebook", source_type: "feed", ai_provider: "gemini", ai_key_id: 7, ai_model: "lite" } },
+    onPrefsChange: (p) => saved.push(p), onClose() {}, onCreated() {}, onOpenSettings() {} };
+  try {
+    harness.render(props); await new Promise(setImmediate);
+    let tree = harness.render(props), picker = find(tree, (n) => n.type === AIKeyPicker);
+    assert.equal(picker.props.provider, "gemini"); assert.equal(picker.props.keyId, 7); assert.equal(picker.props.model, "lite");
+    picker.props.onChange(8, "flash"); tree = harness.render(props);
+    await tree.props.onSubmit({ preventDefault() {} });
+    assert.equal(requests.at(-1).ai_key_id, 8); assert.equal(requests.at(-1).ai_model, "flash");
+    assert.equal(saved.at(-1).composer.ai_key_id, 8); assert.equal(saved.at(-1).composer.ai_model, "flash");
+    picker = find(tree, (n) => n.type === AIKeyPicker); picker.props.onChange(null, "");
+    tree = harness.render(props); await tree.props.onSubmit({ preventDefault() {} });
+    assert.equal(requests.at(-1).ai_key_id, null); assert.equal(saved.at(-1).composer.ai_key_id, null);
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
 test("Composer switches platform drafts, serializes Jobs, and preserves old preferences on close", async () => {
   global.window ??= new EventTarget(); global.document ??= { documentElement: {} };
   const { api } = require("../src/api/client.ts"), Composer = require("../src/features/composer/Composer.tsx").default;

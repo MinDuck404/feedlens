@@ -1,5 +1,7 @@
 // Thông báo lỗi dùng chung: serverMessage, api/client và các biểu mẫu/màn hình gọi API.
 export const errors = {
+  "error.ai_key_unavailable": "Key này không khả dụng. Chọn key khác hoặc dùng Tự động.",
+  "error.ai_key_provider": "Key này thuộc nhà cung cấp khác. Hãy chọn key phù hợp.",
   "error.ask_needs_key": "Cần thêm API key để hỏi AI.",
   "error.ask_failed": "AI chưa trả lời được. Hãy thử lại.",
   "error.ask_filters_invalid": "AI trả về bộ lọc không hợp lệ. Hãy sửa tiêu chí hoặc hỏi lại.",

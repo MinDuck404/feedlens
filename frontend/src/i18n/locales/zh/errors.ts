@@ -1,5 +1,7 @@
 // Thông báo lỗi dùng chung: serverMessage, api/client và các biểu mẫu/màn hình gọi API.
 export const errors = {
+  "error.ai_key_unavailable": "此密钥不可用。请选择其他密钥或使用自动模式。",
+  "error.ai_key_provider": "此密钥属于其他提供商。请选择匹配的密钥。",
   "error.ask_needs_key": "请添加 API 密钥后使用 AI。",
   "error.ask_failed": "AI 暂时无法回答，请重试。",
   "error.ask_filters_invalid": "AI 返回了无效的筛选条件，请修改条件或重新提问。",

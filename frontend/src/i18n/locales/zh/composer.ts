@@ -1,5 +1,13 @@
 // Hộp thoại Lướt mới: Composer, SourceMode, JobCriteria, Controls và lib/platformModes.
 export const composer = {
+  "cmp.keyMode": "API 密钥选择",
+  "cmp.keyAuto": "自动（按优先顺序）",
+  "cmp.keyChoose": "选择密钥",
+  "cmp.keyLabel": "API 密钥",
+  "cmp.keyAutoHint": "首先尝试：{name}。过载时自动切换密钥/模型；明确选择的模型保持不变。",
+  "cmp.noSelectableKey": "没有可用的已保存密钥",
+  "cmp.keyDisabled": "已停用",
+  "cmp.keyQuota": "今日配额已用尽",
   "cmp.modelAria": "AI 模型",
   "cmp.searchFacebook": "招聘 python; 远程 react",
   "cmp.searchLinkedin": "招聘 python 越南",
