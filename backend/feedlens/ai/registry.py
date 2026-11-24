@@ -15,7 +15,7 @@ from feedlens.core.config import settings
 from feedlens.core.crypto import decrypt
 from feedlens.ai.providers.anthropic import AnthropicProvider
 from .base import AIProvider
-from feedlens.ai.providers.gemini import GeminiProvider
+from feedlens.ai.providers.gemini import DEFAULT_MODELS, GeminiProvider
 from feedlens.ai.providers.openai import OpenAIProvider
 
 PROVIDERS: dict[str, type[AIProvider]] = {
@@ -167,25 +167,27 @@ def default_candidates(key: str, models: list[str]) -> list[str]:
     cls = PROVIDERS[key]
     if (env := os.getenv(cls.info.model_env)):
         return [env]
-    if not models:
-        return [cls.info.default_model]
     good = sorted((m for m in models
                    if any(p in m for p in _PREFER.get(key, ())) and not any(a in m for a in _AVOID)),
                   key=_version_key, reverse=True)
     # Model mặc định của app (vd gemini-3.5-flash-lite: nhanh, rẻ, đủ tốt để phân loại) đứng đầu nếu key dùng được
     first = [cls.info.default_model] if cls.info.default_model in models else []
-    return first + [m for m in good if m not in first] or models[:1]
+    discovered = first + [m for m in good if m not in first] or models[:1]
+    if key == "gemini":
+        return list(dict.fromkeys([*DEFAULT_MODELS, *discovered]))
+    return discovered or [cls.info.default_model]
 
 
 def pick_default(key: str, models: list[str]) -> str:
     return default_candidates(key, models)[0]
 
 
-def resolve_models(user_id: int, key: str, api_key: str, requested: str | None, limit: int = 3) -> list[str]:
+def resolve_models(user_id: int, key: str, api_key: str, requested: str | None, limit: int | None = None) -> list[str]:
     """Model sẽ dùng + model dự phòng khi model chính quá tải. User đã chọn model thì không đổi."""
     if requested:
         return [requested]
     try:
-        return default_candidates(key, list_models(user_id, key, api_key))[:limit]
+        candidates = default_candidates(key, list_models(user_id, key, api_key))
+        return candidates[:limit if limit is not None or key == "gemini" else 3]
     except Exception:  # noqa: BLE001 — không lấy được danh sách thì dùng mặc định cấu hình sẵn
         return default_candidates(key, [])

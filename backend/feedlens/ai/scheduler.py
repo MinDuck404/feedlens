@@ -10,12 +10,14 @@ import random
 from email.utils import parsedate_to_datetime
 import threading
 import time
+import logging
 from zoneinfo import ZoneInfo
 
 from .base import AIError, AIOutputTruncated, MAX_OUTPUT_TOKENS
 from .limits import Limits, daily_quota_error, default_limits, learn_limits
 
 MAX_OUTPUT = MAX_OUTPUT_TOKENS
+logger = logging.getLogger(__name__)
 
 
 class QuotaExhausted(AIError):
@@ -218,7 +220,8 @@ class QuotaScheduler:
             return models[c.model], c.priority, -remaining
         return sorted((c for c in candidates if not c.disabled), key=rank)
 
-    def acquire(self, candidates, est_tokens, notify=lambda message: None, *, stop_event=None, on_state=lambda state: None):
+    def acquire(self, candidates, est_tokens, notify=lambda message: None, *, stop_event=None, on_state=lambda state: None,
+                preferred_key=None):
         while True:
             check_stopped(stop_event)
             with self.lock:
@@ -231,7 +234,10 @@ class QuotaScheduler:
                         c.disabled = True
                         self.service_until.pop(self.quota_pair(c), None)
                         self.service_failures.pop(self.quota_pair(c), None)
-                for candidate in self._ordered(candidates, day):
+                ordered = self._ordered(candidates, day)
+                if preferred_key is not None:
+                    ordered.sort(key=lambda c: c.key_id != preferred_key)
+                for candidate in ordered:
                     limits = self.limits(candidate)
                     if (self.daily_exhausted(candidate, day) or
                             limits.rpd is not None and self.daily_requests(candidate, day) >= limits.rpd):
@@ -324,15 +330,24 @@ class QuotaScheduler:
         with self.lock:
             ordered = self._ordered(candidates, pacific_day(self.now()))
             previous = ordered[0] if ordered else None
+        preferred_key = None
         while True:
-            candidate = self.acquire(candidates, est_tokens, notify, stop_event=stop_event, on_state=on_state)
+            candidate = self.acquire(candidates, est_tokens, notify, stop_event=stop_event, on_state=on_state,
+                                     preferred_key=preferred_key)
             reservation = getattr(self._reservation, "current", None)
             check_stopped(stop_event)
             switched = previous is not None and candidate.key_id != previous.key_id and candidate.model == previous.model
+            switched_model = (previous is not None and candidate.model != previous.model
+                              and self.last_failures.get(previous.pair, {}).get("kind") == "service")
+            switch_details = {"switched_key": switched, "switched_model": switched_model,
+                              "switch_reason": "service" if switched_model else ""}
+            if switched_model:
+                logger.info("Switched to model %s due to provider overload", candidate.model)
+                notify(f"{previous.model} không còn dùng được, chuyển sang {candidate.model}…")
             if switched:
                 notify(f"Chuyển sang key {candidate.progress('sending')['key_label']} (cùng model {candidate.model}).")
             on_selected(candidate)
-            on_state(candidate.progress("sending", switched_key=switched))
+            on_state(candidate.progress("sending", **switch_details))
 
             def response_state(state):
                 served = getattr(candidate.client, "served_model", candidate.model)
@@ -342,7 +357,7 @@ class QuotaScheduler:
                         self.model_aliases[(getattr(candidate.client.info, "key", ""), candidate.model)] = served
                         self._merge_pair(old, self.quota_pair(candidate))
                 on_selected(candidate)
-                on_state(candidate.progress(state, model=served, requested_model=candidate.model, switched_key=switched))
+                on_state(candidate.progress(state, model=served, requested_model=candidate.model, **switch_details))
 
             try:
                 attempt_started = self.clock()
@@ -362,7 +377,7 @@ class QuotaScheduler:
             except Exception as exc:
                 message = str(exc)
                 status = next((getattr(exc, k, None) for k in ("status_code", "code", "status") if isinstance(getattr(exc, k, None), int)), None)
-                if status is None and (code := re.match(r"\s*(?:HTTP\s+)?(500|502|503|504|529)\b", message, re.I)):
+                if status is None and (code := re.match(r"\s*(?:HTTP\s+)?(5\d\d)\b", message, re.I)):
                     status = int(code[1])
                 if status is None and re.search(r"\b400\b.*INVALID_ARGUMENT", message, re.I):
                     status = 400
@@ -378,7 +393,9 @@ class QuotaScheduler:
                 daily = daily_quota_error(message)
                 rate = status == 429 or bool(re.search(r"\b429\b|RESOURCE_EXHAUSTED", message, re.I))
                 missing = status == 404 or bool(re.search(r"\b404\b|model.*(?:not found|not supported|no longer)", message, re.I))
-                service = status in {500, 502, 503, 504, 529} or (not rate and bool(re.search(r"UNAVAILABLE|OVERLOADED|HIGH DEMAND", message, re.I)))
+                service = ((status is not None and 500 <= status < 600)
+                           or (not rate and bool(re.search(r"UNAVAILABLE|OVERLOADED|HIGH DEMAND", message, re.I))))
+                preferred_key = candidate.key_id if service else None
                 transient = (isinstance(exc, (ConnectionError, TimeoutError, OSError)) or status in {408, 500, 502, 503, 504, 529}
                              or bool(re.search(r"UNAVAILABLE|OVERLOADED|TIMEOUT|TIMED OUT|HIGH DEMAND|CONNECTION|CONNECTERROR|GETADDRINFO|DNS|SOCKET", message, re.I)))
                 with self.lock:

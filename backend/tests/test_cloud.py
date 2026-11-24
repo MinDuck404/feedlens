@@ -157,19 +157,20 @@ def test_api_keys_are_per_user_encrypted_and_masked(cloud, monkeypatch):
     assert c.get("/api/ai/models/gemini", headers=a).status_code == 400
 
 
-def test_default_model_follows_available_list():
+def test_default_model_keeps_configured_fallbacks_before_discovery():
     from feedlens.ai.registry import pick_default
-    # model mặc định đã bị khai tử -> chọn bản "flash" mới nhất còn dùng được, tránh lite/preview
+    # Configured fallbacks remain available even when model discovery omits them.
     models = ["gemini-omni-flash-preview", "gemini-4-argon", "gemini-3.8-pro", "gemini-3.8-flash-lite",
               "gemini-3.8-flash", "gemini-3.10-flash-image", "gemini-3.5-flash", "gemini-2.5-flash"]
-    assert pick_default("gemini", models) == "gemini-3.8-flash"
-    assert pick_default("gemini", ["gemini-3.7-flash", "gemini-3.10-flash"]) == "gemini-3.10-flash"
-    assert pick_default("gemini", ["gemini-x-pro"]) == "gemini-x-pro"
+    assert pick_default("gemini", models) == "gemini-3.5-flash-lite"
+    assert pick_default("gemini", ["gemini-3.7-flash", "gemini-3.10-flash"]) == "gemini-3.5-flash-lite"
+    assert pick_default("gemini", ["gemini-x-pro"]) == "gemini-3.5-flash-lite"
     assert pick_default("gemini", []) == "gemini-3.5-flash-lite"
     # model mặc định của app có trong danh sách -> đứng đầu, các bản flash mới hơn làm dự phòng
     from feedlens.ai.registry import default_candidates
     assert default_candidates("gemini", models + ["gemini-3.5-flash-lite"])[:3] == \
-        ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash"]
+        ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"]
+    assert default_candidates("gemini", models)[3:5] == ["gemini-3.8-flash", "gemini-3.5-flash"]
 
 
 def test_default_model_env_override(monkeypatch):

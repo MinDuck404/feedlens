@@ -13,8 +13,11 @@ class Limits:
 def default_limits(provider: str, model: str, tier: str = "free") -> Limits:
     if tier == "paid" or provider != "gemini":
         return Limits()
-    if model.removeprefix("models/").startswith("gemini-3.5-flash-lite"):
+    model = model.removeprefix("models/")
+    if model.startswith(("gemini-3.5-flash-lite", "gemini-3.1-flash-lite")):
         return Limits(15, 250_000, 500)
+    if model.startswith("gemini-3.6-flash"):
+        return Limits(5, 250_000, 20)
     return Limits(5, 250_000, 20)
 
 

@@ -13,6 +13,7 @@ from feedlens.ai.base import ProviderInfo
 from feedlens.ai.base import decode_output
 
 TIMEOUT_MS = 180_000
+DEFAULT_MODELS = ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash")
 logger = logging.getLogger(__name__)
 
 
