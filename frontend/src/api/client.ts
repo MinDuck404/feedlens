@@ -100,7 +100,7 @@ export const api = {
     call<{ models: string[] }>(`/api/ai/keys/${p}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) }),
   deleteKey: (p: string | number) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
   listKeys: () => call<AIKey[]>("/api/ai/keys"),
-  addKey: (body: { provider: AIKey["provider"]; api_key: string; label?: string; tier?: AIKey["tier"] }) =>
+  addKey: (body: { provider: AIKey["provider"]; api_key?: string; label?: string; tier?: AIKey["tier"]; base_url?: string; default_model?: string }) =>
     call<AIKey>("/api/ai/keys", { method: "POST", body: JSON.stringify(body) }),
   updateKey: (id: number, body: Partial<Pick<AIKey, "label" | "enabled" | "tier">>) =>
     call<AIKey>(`/api/ai/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) }),

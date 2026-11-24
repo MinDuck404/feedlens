@@ -315,7 +315,7 @@ export default function Composer({ meta, me, platforms, prefs, onPrefsChange, on
               <>
                 <Select aria-label={t("cmp.ai")} value={f.ai_provider}
                   onChange={(e) => { set("ai_provider", e.target.value); set("ai_model", ""); set("ai_key_id", null); }}>
-                  {usable.map((p) => <option key={p.key} value={p.key}>{p.key === "offline" ? t("cmp.offline") : p.name}</option>)}
+                  {usable.map((p) => <option key={p.key} value={p.key}>{p.key === "offline" ? t("cmp.offline") : p.key === "custom" ? t("set.customProvider") : p.name}</option>)}
                 </Select>
                 {f.ai_provider !== "offline" && (
                   <AIKeyPicker key={f.ai_provider} provider={f.ai_provider} providerInfo={providers.find((p) => p.key === f.ai_provider)} keyId={f.ai_key_id ?? null} model={f.ai_model}

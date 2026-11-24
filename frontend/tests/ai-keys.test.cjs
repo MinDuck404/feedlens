@@ -130,3 +130,111 @@ test("Settings loads and groups keys, then reloads metadata after mutations", as
     assert.equal(keyCalls, 2); assert.equal(providerCalls, 2); assert.equal(changed, 1);
   } finally { harness.close(); Object.assign(api, original); }
 });
+
+const customProvider = { key: "custom", name: "Custom (OpenAI-compatible)", configured: true, source: "db", hint: "", default_model: "local-model", key_url: "" };
+const customKey = { id: 12, provider: "custom", label: "", hint: "", priority: 0, enabled: true, tier: "free", status: "ok", usage_today: {}, base_url: "http://localhost:11434/v1", default_model: "local-model" };
+
+test("custom endpoint form requires URL/model, permits an empty key, and preserves fields after a failed save", async () => {
+  const original = { ...api }, calls = [], harness = hooks(Component); let fail = true;
+  api.addKey = async (body) => { calls.push(body); if (fail) throw new Error("Endpoint unreachable"); return customKey; };
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => {} };
+  try {
+    let tree = harness.render(props);
+    assert.ok(JSON.stringify(tree).includes("set.customProvider"));
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.saveKey").props.disabled, true);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "  http://localhost:11434/v1  " } }); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.saveKey").props.disabled, true);
+    byAria(tree, "set.customDefaultModel").props.onChange({ target: { value: "  local-model  " } }); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.children === "set.saveKey").props.disabled, false);
+    assert.ok(JSON.stringify(tree).includes("set.customKeyOptional"));
+    await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick(); tree = harness.render(props);
+    assert.equal(find(tree, (node) => node.props?.role === "alert").props.children, "Endpoint unreachable");
+    assert.equal(byAria(tree, "set.customBaseUrl").props.value, "  http://localhost:11434/v1  ");
+    assert.equal(byAria(tree, "set.customDefaultModel").props.value, "  local-model  ");
+    fail = false; await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick(); tree = harness.render(props);
+    assert.deepEqual(calls[1], { provider: "custom", api_key: "", label: "", tier: "free", base_url: customKey.base_url, default_model: customKey.default_model });
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    assert.equal(byAria(tree, "set.customBaseUrl").props.value, "");
+    assert.equal(byAria(tree, "set.customDefaultModel").props.value, "");
+    assert.equal(find(tree, (node) => node.type === TextField && node.props.type === "password").props.value, "");
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("custom keys display endpoint/model without a fake secret hint, and Settings offers custom before a key exists", async () => {
+  const original = { ...api }, harness = hooks(Component);
+  try {
+    const tree = harness.render({ provider: customProvider, keys: [customKey], available: true, onChanged: async () => {} });
+    const content = JSON.stringify(tree);
+    assert.ok(content.includes(customKey.base_url) && content.includes(customKey.default_model));
+    assert.ok(!content.includes("••••"));
+  } finally { harness.close(); }
+  const Settings = require("../src/features/settings/Settings.tsx").default, settingsHarness = hooks(Settings);
+  api.providers = async () => []; api.listKeys = async () => [];
+  try {
+    const props = { meta: { mode: "local" }, me: null, initialTab: "keys", onChanged() {}, onClose() {} };
+    settingsHarness.render(props); await tick();
+    const tree = settingsHarness.render(props);
+    const section = find(tree, (node) => node.type === Component && node.props.provider.key === "custom");
+    assert.ok(section && section.props.available);
+    assert.equal(section.props.provider.name, "set.customProvider");
+  } finally { settingsHarness.close(); Object.assign(api, original); }
+});
+
+test("custom requests preserve endpoint metadata and localize backend errors", async () => {
+  const { ApiError } = require("../src/api/client.ts"), i18n = require("../src/i18n/index.tsx");
+  const original = global.fetch, requests = [];
+  global.fetch = async (url, init) => { requests.push({ url, body: JSON.parse(init.body) }); return new Response(JSON.stringify(customKey)); };
+  try {
+    const body = { provider: "custom", base_url: customKey.base_url, default_model: customKey.default_model, api_key: "" };
+    assert.deepEqual(await api.addKey(body), customKey);
+    assert.deepEqual(requests, [{ url: "/api/ai/keys", body }]);
+    for (const [code, status] of [["error.custom_endpoint", 422], ["error.custom_model", 422], ["error.custom_connection", 400]]) {
+      global.fetch = async () => new Response(JSON.stringify({ code, detail: "backend diagnostic" }), { status });
+      await assert.rejects(api.addKey(body), (error) => error instanceof ApiError && error.code === code && error.message === i18n.translate(code));
+    }
+  } finally { global.fetch = original; }
+});
+
+test("custom key picker tolerates empty hints and loads models for the selected endpoint", async () => {
+  const { AIKeyPicker } = require("../src/features/composer/AIKeyPicker.tsx"), { ModelPicker } = require("../src/features/composer/Controls.tsx");
+  const original = { ...api }, picker = hooks(AIKeyPicker), calls = [];
+  api.listKeys = async () => [customKey];
+  api.models = async (...args) => { calls.push(args); return { models: [customKey.default_model], default: customKey.default_model }; };
+  let modelNode;
+  try {
+    const props = { provider: "custom", providerInfo: customProvider, keyId: customKey.id, model: "", onChange() {} };
+    picker.render(props); await tick(); const tree = picker.render(props);
+    const select = byAria(tree, "cmp.keyLabel");
+    assert.ok(JSON.stringify(select).includes(customKey.base_url));
+    assert.ok(!JSON.stringify(select).includes("••••"));
+    assert.equal(select.props.children.flat(Infinity).find((node) => node?.props?.value === customKey.id).props.disabled, false);
+    modelNode = find(tree, (node) => node.type === ModelPicker);
+  } finally { picker.close(); }
+  const modelHarness = hooks(ModelPicker);
+  try {
+    modelHarness.render(modelNode.props); await tick(); const tree = modelHarness.render(modelNode.props);
+    assert.deepEqual(calls, [["custom", false, customKey.id]]);
+    assert.ok(JSON.stringify(tree).includes(customKey.default_model));
+  } finally { modelHarness.close(); Object.assign(api, original); }
+});
+
+test("Composer and RetryAnalysis expose the localized custom provider and existing key picker", async () => {
+  const Composer = require("../src/features/composer/Composer.tsx").default, { RetryAnalysis } = require("../src/features/run/RetryAnalysis.tsx");
+  const { AIKeyPicker } = require("../src/features/composer/AIKeyPicker.tsx"), original = { ...api };
+  api.providers = async () => [customProvider]; api.profile = async () => null; api.topics = async () => ({ topics: [] });
+  for (const [component, props] of [
+    [Composer, { meta: { mode: "local", max_posts: 500 }, me: null, platforms: [], prefs: { composer: { ai_provider: "custom", ai_key_id: customKey.id } }, onPrefsChange() {}, onClose() {}, onCreated() {}, onOpenSettings() {} }],
+    [RetryAnalysis, { run: { request: { ai_provider: "custom", ai_key_id: customKey.id }, collected: 0 }, onStarted() {} }],
+  ]) {
+    const harness = hooks(component);
+    try {
+      harness.render(props); await tick(); const tree = harness.render(props);
+      const select = byAria(tree, "cmp.ai");
+      assert.ok(JSON.stringify(select).includes("set.customProvider"));
+      const picker = find(tree, (node) => node.type === AIKeyPicker);
+      assert.equal(picker.props.provider, "custom"); assert.equal(picker.props.keyId, customKey.id);
+    } finally { harness.close(); }
+  }
+  Object.assign(api, original);
+});

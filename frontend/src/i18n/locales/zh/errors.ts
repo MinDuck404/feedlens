@@ -1,5 +1,8 @@
 // Thông báo lỗi dùng chung: serverMessage, api/client và các biểu mẫu/màn hình gọi API.
 export const errors = {
+  "error.custom_endpoint": "基础 URL 无效或不允许使用，请检查端点地址。",
+  "error.custom_model": "请输入自定义端点的默认模型。",
+  "error.custom_connection": "无法连接自定义端点，请检查基础 URL、API key 和模型。",
   "error.ai_key_unavailable": "此密钥不可用。请选择其他密钥或使用自动模式。",
   "error.ai_key_provider": "此密钥属于其他提供商。请选择匹配的密钥。",
   "error.ask_needs_key": "请添加 API 密钥后使用 AI。",

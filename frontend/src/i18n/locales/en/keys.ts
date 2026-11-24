@@ -1,5 +1,11 @@
 // Tab API key trong Cài đặt: AIProviderKeys, Settings; Composer dùng nhãn model/key.
 export const keys = {
+  "set.customProvider": "Custom (OpenAI-compatible)",
+  "set.customBaseUrl": "Base URL",
+  "set.customBaseUrlPlaceholder": "https://openrouter.ai/api/v1",
+  "set.customBaseUrlHint": "Local endpoint example: http://localhost:11434/v1.",
+  "set.customKeyOptional": "API key is optional — leave blank for Ollama or LM Studio.",
+  "set.customDefaultModel": "Default model (required)",
   "set.keys": "AI API keys",
   "set.keysHint": "Keys are encrypted before they're saved and only used for your account. FeedLens checks a key by listing its models.",
   "set.envKey": "Using the key from this computer's .env file",

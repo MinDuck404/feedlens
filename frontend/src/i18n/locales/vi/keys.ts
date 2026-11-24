@@ -1,5 +1,11 @@
 // Tab API key trong Cài đặt: AIProviderKeys, Settings; Composer dùng nhãn model/key.
 export const keys = {
+  "set.customProvider": "Tuỳ chỉnh (tương thích OpenAI)",
+  "set.customBaseUrl": "Base URL",
+  "set.customBaseUrlPlaceholder": "https://openrouter.ai/api/v1",
+  "set.customBaseUrlHint": "Ví dụ endpoint cục bộ: http://localhost:11434/v1.",
+  "set.customKeyOptional": "API key không bắt buộc — để trống với Ollama hoặc LM Studio.",
+  "set.customDefaultModel": "Model mặc định (bắt buộc)",
   "set.keys": "API key AI",
   "set.keysHint": "Key được mã hóa trước khi lưu và chỉ dùng cho tài khoản của bạn. FeedLens kiểm tra key bằng cách lấy danh sách model.",
   "set.envKey": "Đang dùng key trong file .env của máy này",

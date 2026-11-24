@@ -35,7 +35,7 @@ export interface AIProviderInfo {
 
 export interface AIKey {
   id: number;
-  provider: "anthropic" | "openai" | "gemini";
+  provider: "anthropic" | "openai" | "gemini" | "custom";
   label: string;
   hint: string;
   priority: number;
@@ -43,6 +43,8 @@ export interface AIKey {
   tier: "free" | "paid";
   status: "ok" | "invalid" | "unchecked";
   usage_today: Record<string, { requests: number; limit_rpd: number | null }>;
+  base_url?: string;
+  default_model?: string;
 }
 
 export interface AgentInfo {

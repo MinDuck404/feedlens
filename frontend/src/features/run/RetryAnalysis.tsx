@@ -33,8 +33,8 @@ export function RetryAnalysis({ run, onStarted, reanalyzeAll = false, switching 
     <fieldset disabled={busy} className="mt-3 min-w-0 space-y-3">
       <label className="block text-sm">{t("cmp.ai")}<Select aria-label={t("cmp.ai")} className="mt-2" value={provider} onChange={(e) => { setProvider(e.target.value); setModel(""); setKeyId(null); }}>
         <option value="auto">{t("profile.auto")}</option>
-        {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}
-        {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider}</option>}
+        {providers.filter((p) => p.configured && p.key !== "offline").map((p) => <option key={p.key} value={p.key}>{p.key === "custom" ? t("set.customProvider") : p.name}</option>)}
+        {provider !== "auto" && provider !== "offline" && !providers.some((p) => p.key === provider && p.configured) && <option value={provider}>{provider === "custom" ? t("set.customProvider") : provider}</option>}
         <option value="offline">{t("profile.offlineOption")}</option>
       </Select></label>
       {provider !== "offline" && effectiveProvider && <AIKeyPicker key={effectiveProvider.key} provider={effectiveProvider.key} providerInfo={effectiveProvider} keyId={keyId} model={model}

@@ -25,7 +25,7 @@ export function AIKeyPicker({ provider, providerInfo, keyId, model, onChange }: 
   }, [keys, keyId, onChange]);
   const reason = (key: AIKey) => !key.enabled ? t("cmp.keyDisabled") : key.status === "invalid" ? t("set.keyInvalid")
     : model && key.usage_today[model]?.limit_rpd != null && key.usage_today[model].requests >= key.usage_today[model].limit_rpd! ? t("cmp.keyQuota") : "";
-  const name = (key: AIKey) => `${key.label.trim() || t("set.keyName", { hint: key.hint })}${key.label.trim() && key.hint ? ` · …${key.hint.slice(-4)}` : ""}`;
+  const name = (key: AIKey) => `${key.label.trim() || key.base_url || t("set.keyName", { hint: key.hint })}${key.label.trim() && key.hint ? ` · …${key.hint.slice(-4)}` : ""}`;
   const first = keys?.find((key) => key.enabled && key.status !== "invalid");
   const firstAuto = keys?.find((key) => key.enabled);
   const firstName = firstAuto ? name(firstAuto) : providerInfo?.source === "env" ? t("run.environmentKey") : t("cmp.noSelectableKey");

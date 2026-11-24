@@ -52,6 +52,7 @@ export default function Settings({ meta, me, prefs, onPrefsChange, onClose, onCh
   };
   const rows = [
     { key: "anthropic", name: "Claude" }, { key: "openai", name: "OpenAI" }, { key: "gemini", name: "Gemini" },
+    { key: "custom", name: t("set.customProvider") },
   ].map((p) => providers.find((row) => row.key === p.key) ?? { ...p, configured: false, source: null, hint: "", default_model: "", key_url: "" } as AIProviderInfo);
 
   const handleClose = useCallback(() => {

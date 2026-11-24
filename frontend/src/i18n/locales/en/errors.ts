@@ -1,5 +1,8 @@
 // Thông báo lỗi dùng chung: serverMessage, api/client và các biểu mẫu/màn hình gọi API.
 export const errors = {
+  "error.custom_endpoint": "The base URL is invalid or not allowed. Check the endpoint address.",
+  "error.custom_model": "Enter a default model for the custom endpoint.",
+  "error.custom_connection": "Could not connect to the custom endpoint. Check the base URL, API key, and model.",
   "error.ai_key_unavailable": "This key is unavailable. Choose another key or use Automatic.",
   "error.ai_key_provider": "This key belongs to another provider. Choose a matching key.",
   "error.ask_needs_key": "Add an API key to ask AI.",
