@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ExternalLink, Search, X } from "lucide-react";
-import { api } from "../api/client";
-import { formatNumber, useI18n, type Key } from "../i18n";
-import { questionHistory, textParts } from "../lib/search";
-import { routeHref } from "../router";
-import { topicColor } from "../lib/topics";
-import type { AskResponse, SearchFilters, SearchPost, SearchResponse, Topic } from "../api/types";
-import { Button, Dialog, EmptyState, SegmentedControl, Select, SkeletonCard, TextField } from "./ui";
+import { api } from "../../api/client";
+import { formatNumber, useI18n, type Key } from "../../i18n";
+import { questionHistory, textParts } from "../../lib/search";
+import { routeHref } from "../../router";
+import { topicColor } from "../../lib/topics";
+import type { AskResponse, SearchFilters, SearchPost, SearchResponse, Topic } from "../../api/types";
+import { Button, Dialog, EmptyState, SegmentedControl, Select, SkeletonCard, TextField } from "../../components/ui";
 
 interface Props { initialFilters?: SearchFilters; account: string; onNewRun: () => void; onSettings: () => void }
 const categoryKeys = ["job", "news", "tech", "question", "marketplace", "event", "promotion", "personal", "entertainment", "other"];
