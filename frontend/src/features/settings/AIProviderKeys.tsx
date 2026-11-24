@@ -1,9 +1,9 @@
 import { ArrowDown, ArrowUp, ExternalLink, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { api } from "../api/client";
-import { formatNumber, useI18n } from "../i18n";
-import type { AIKey, AIProviderInfo } from "../api/types";
-import { Button, IconButton, Select, TextField } from "./ui";
+import { api } from "../../api/client";
+import { formatNumber, useI18n } from "../../i18n";
+import type { AIKey, AIProviderInfo } from "../../api/types";
+import { Button, IconButton, Select, TextField } from "../../components/ui";
 
 interface Props {
   provider: AIProviderInfo;

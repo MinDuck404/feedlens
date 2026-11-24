@@ -11,7 +11,7 @@ for (const extension of [".ts", ".tsx"]) require.extensions[extension] = (module
 global.localStorage = { getItem: () => "en", setItem() {}, removeItem() {} };
 global.window = new EventTarget(); global.document = { documentElement: {} };
 const React = require("react"), { api } = require("../src/api/client.ts");
-const Component = require("../src/components/AIProviderKeys.tsx").default;
+const Component = require("../src/features/settings/AIProviderKeys.tsx").default;
 const { TextField } = require("../src/components/ui/TextField.tsx");
 const tick = () => new Promise(setImmediate);
 const provider = { key: "gemini", name: "Gemini", configured: true, source: "db", hint: "", default_model: "gemini-3.5-flash-lite", key_url: "https://example.test/keys" };
@@ -116,7 +116,7 @@ test("delete requires confirmation and unavailable data disables mutations", asy
 });
 
 test("Settings loads and groups keys, then reloads metadata after mutations", async () => {
-  const Settings = require("../src/components/Settings.tsx").default;
+  const Settings = require("../src/features/settings/Settings.tsx").default;
   const original = { ...api }, harness = hooks(Settings); let keyCalls = 0, providerCalls = 0, changed = 0;
   api.providers = async () => { providerCalls++; return [provider]; };
   api.listKeys = async () => { keyCalls++; return rows; };

@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { LANGS, useI18n } from "../i18n";
-import { getThemePreference, isDarkTheme, setThemePreference, type ThemePreference } from "../theme";
+import { LANGS, useI18n } from "../../i18n";
+import { getThemePreference, isDarkTheme, setThemePreference, type ThemePreference } from "../../theme";
 
 function ChoiceMenu({ label, icon, caption, value, options, onChange, above = true }: {
   label: string; icon: ReactNode; caption?: string; value: string;

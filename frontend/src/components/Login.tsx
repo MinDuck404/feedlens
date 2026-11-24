@@ -4,7 +4,7 @@ import { api, auth, ApiError } from "../api/client";
 import { serverMessage, useI18n } from "../i18n";
 import { Button } from "./ui/Button";
 import { TextField } from "./ui/TextField";
-import { LanguageMenu, ThemeMenu } from "./PreferenceMenus";
+import { LanguageMenu, ThemeMenu } from "../features/settings/PreferenceMenus";
 
 interface Props {
   configError: string | null;

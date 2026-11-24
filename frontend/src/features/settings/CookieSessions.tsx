@@ -1,12 +1,12 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { parseTimestamp } from "../lib/logic";
-import { api } from "../api/client";
-import { PLATFORM_LABEL } from "../lib/categories";
-import { serverMessage, useI18n, type Key } from "../i18n";
-import type { Platform, PlatformSession } from "../api/types";
+import { parseTimestamp } from "../../lib/logic";
+import { api } from "../../api/client";
+import { PLATFORM_LABEL } from "../../lib/categories";
+import { serverMessage, useI18n, type Key } from "../../i18n";
+import type { Platform, PlatformSession } from "../../api/types";
 
-import { Button, SkeletonCard, TextField } from "./ui";
+import { Button, SkeletonCard, TextField } from "../../components/ui";
 
 const PLATFORMS: Platform[] = ["facebook", "linkedin", "x", "reddit"];
 

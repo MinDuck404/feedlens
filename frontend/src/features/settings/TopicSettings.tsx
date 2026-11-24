@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api } from "../api/client";
-import { useI18n, type Key } from "../i18n";
-import { TOPIC_INKS, topicColor } from "../lib/topics";
-import type { Topic, TopicApplyStatus, TopicColor } from "../api/types";
-import { Button, EmptyState, SkeletonCard, TextField } from "./ui";
+import { api } from "../../api/client";
+import { useI18n, type Key } from "../../i18n";
+import { TOPIC_INKS, topicColor } from "../../lib/topics";
+import type { Topic, TopicApplyStatus, TopicColor } from "../../api/types";
+import { Button, EmptyState, SkeletonCard, TextField } from "../../components/ui";
 
 const blank = (): Omit<Topic, "id"> & { id?: number } => ({ name: "", description: "", include_keywords: [], exclude_keywords: [], enabled: true, color: "red" });
 const keywords = (text: string) => [...new Set(text.split(/[,，\n]/).map((k) => k.trim()).filter(Boolean))].slice(0, 20);

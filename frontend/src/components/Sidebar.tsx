@@ -14,7 +14,7 @@ import { api, ApiError } from "../api/client";
 import { PLATFORM_LABEL } from "../lib/categories";
 import { describeRunSource } from "../lib/logic";
 import { serverMessage, useI18n, type Key } from "../i18n";
-import { LanguageMenu, ThemeSwitch } from "./PreferenceMenus";
+import { LanguageMenu, ThemeSwitch } from "../features/settings/PreferenceMenus";
 import type { PlatformState, Run } from "../api/types";
 import { Button, IconButton } from "./ui/Button";
 import { Sheet } from "./ui/Dialog";
