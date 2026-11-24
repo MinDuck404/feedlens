@@ -42,7 +42,8 @@ export default function JobProfileSettings({ providers }: { providers: AIProvide
       form.set("language", lang); form.set("ai_provider", provider);
       const result = await api.analyzeCV(form);
       setProfile((p) => ({ ...p, markdown: result.markdown, primary_roles: result.suggested_roles, adjacent_roles: result.adjacent_roles.map((r) => ({ ...r, enabled: r.enabled ?? true })) }));
-      setFile(null); if (fileInput.current) fileInput.current.value = ""; setText(""); setNotice(result.offline ? "profile.offline" : "profile.review");
+      if (result.ai_status === "unavailable") setNotice("profile.aiUnavailable");
+      else { setFile(null); if (fileInput.current) fileInput.current.value = ""; setText(""); setNotice(result.offline ? "profile.offline" : "profile.review"); }
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(""); }
   };
@@ -86,7 +87,7 @@ export default function JobProfileSettings({ providers }: { providers: AIProvide
             </label>
             <Button onClick={analyze} busy={busy === "analyze"} disabled={!!busy || (!file && text.trim().length < 20)}>{t("profile.analyze")}</Button>
           </div>
-          {notice && <p role="status" className="border-y border-line py-3 text-sm text-ink-soft">{t(notice)}</p>}
+          {notice && <p role="status" className="border-y border-line py-3 text-sm text-ink-soft">{t(notice)}{notice === "profile.aiUnavailable" && <> <Button variant="ghost" onClick={analyze} busy={busy === "analyze"} disabled={!!busy || (!file && text.trim().length < 20)}>{t("act.retry")}</Button></>}</p>}
           <label className="block text-sm font-medium">{t("profile.markdown")}
             <TextField as="textarea" aria-label={t("profile.markdown")} className="mt-2 font-mono text-xs" rows={8} maxLength={8000} value={profile.markdown} onChange={(e) => set("markdown", e.target.value)} />
           </label>

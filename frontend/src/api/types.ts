@@ -94,6 +94,7 @@ export interface RunRequest {
   profile: string;
   ai_provider: string;
   ai_model: string;
+  ai_key_id?: number | null;
   only_new: boolean;
   headless: boolean;
   speed: "fast" | "careful";
@@ -275,6 +276,9 @@ export interface CVAnalysis {
   suggested_roles: string[];
   adjacent_roles: JobProfile["adjacent_roles"];
   offline: boolean;
+  ai_status?: "ok" | "unavailable";
+  code?: string;
+  saved?: boolean;
 }
 
 export type TopicColor =

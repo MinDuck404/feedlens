@@ -37,6 +37,7 @@ export const profile = {
   "profile.saved": "已保存，新的求职浏览将使用此档案。",
   "profile.deleted": "档案已删除。",
   "profile.offline": "离线模式：已移除联系方式并保留文字。请编辑岗位和条件后保存；评分仅依据关键词。",
+  "profile.aiUnavailable": "简历已保存（离线读取）。AI 服务繁忙，尚未完成深入分析，请稍后重试。",
   "profile.review": "分析完成，请检查并修改档案后再保存。",
   "profile.using": "正在使用简历档案：{role}",
   "profile.edit": "编辑档案",

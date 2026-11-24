@@ -37,6 +37,7 @@ export const profile = {
   "profile.saved": "Saved. New job searches will use this profile.",
   "profile.deleted": "Profile deleted.",
   "profile.offline": "Offline: contact details were removed and text retained. Edit roles and criteria, then save; scoring uses keywords only.",
+  "profile.aiUnavailable": "CV saved (read offline). AI is overloaded, so detailed analysis is not ready — try again later.",
   "profile.review": "Analysis ready. Review and edit before saving.",
   "profile.using": "Using CV profile: {role}.",
   "profile.edit": "Edit profile",

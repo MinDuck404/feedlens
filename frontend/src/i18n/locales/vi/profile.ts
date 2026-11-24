@@ -37,6 +37,7 @@ export const profile = {
   "profile.saved": "Đã lưu. Các lượt tìm việc mới sẽ dùng hồ sơ này.",
   "profile.deleted": "Đã xóa hồ sơ.",
   "profile.offline": "Offline: đã bỏ thông tin liên hệ và giữ văn bản. Sửa vai trò, tiêu chí rồi lưu; điểm chỉ dựa trên từ khóa.",
+  "profile.aiUnavailable": "Đã lưu CV (đọc offline). AI đang quá tải nên chưa phân tích sâu — thử lại sau.",
   "profile.review": "Đã phân tích. Kiểm tra và chỉnh hồ sơ trước khi lưu.",
   "profile.using": "Đang dùng hồ sơ CV: {role}.",
   "profile.edit": "Sửa hồ sơ",
