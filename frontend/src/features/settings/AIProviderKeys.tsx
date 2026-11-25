@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp, ExternalLink, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { api } from "../../api/client";
-import { formatNumber, useI18n, type Key } from "../../i18n";
+import { formatNumber, useI18n } from "../../i18n";
 import type { AIKey, AIProviderInfo, APIStyle } from "../../api/types";
 import { Button, IconButton, Select, TextField } from "../../components/ui";
 
@@ -140,8 +140,7 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
         <TextField type="url" required aria-label={t("set.customBaseUrl")} placeholder={t("set.customBaseUrlPlaceholder")} value={baseUrl} maxLength={2000} disabled={pending}
           aria-describedby={`${modelListId}-base-hint`} onChange={(event) => { setBaseUrl(event.target.value); setApiStyle("auto"); setCustomModels(null); }} />
         <span id={`${modelListId}-base-hint`} className="mt-1.5 block text-xs text-ink-soft">{t("set.customBaseUrlHint")}
-          {/* shortcut: English-only hint awaits locale parity, remove its Key cast once vi/zh gain the key. */}
-          <span className="mt-1.5 block">{t("set.customBaseUrlFullHint" as Key)}</span>
+          <span className="mt-1.5 block">{t("set.customBaseUrlFullHint")}</span>
         </span>
       </label>}
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.keyLabel")}</span>

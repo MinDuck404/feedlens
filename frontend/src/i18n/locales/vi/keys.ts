@@ -4,6 +4,7 @@ export const keys = {
   "set.customBaseUrl": "Base URL",
   "set.customBaseUrlPlaceholder": "https://openrouter.ai/api/v1",
   "set.customBaseUrlHint": "Ví dụ endpoint cục bộ: http://localhost:11434/v1.",
+  "set.customBaseUrlFullHint": "Có thể dán nguyên endpoint (…/v1/chat/completions hoặc …/v1/responses); FeedLens tự giữ phần gốc và chọn đúng kiểu API.",
   "set.customKeyOptional": "API key không bắt buộc — để trống với Ollama hoặc LM Studio.",
   "set.customDefaultModel": "Model mặc định (bắt buộc)",
   "set.customLoadModels": "Tải danh sách model",

@@ -4,6 +4,7 @@ export const keys = {
   "set.customBaseUrl": "基础 URL",
   "set.customBaseUrlPlaceholder": "https://openrouter.ai/api/v1",
   "set.customBaseUrlHint": "本地端点示例：http://localhost:11434/v1。",
+  "set.customBaseUrlFullHint": "可以直接粘贴完整端点（…/v1/chat/completions 或 …/v1/responses）；FeedLens 会保留基础地址并自动选择正确的 API。",
   "set.customKeyOptional": "API key 可选 — 使用 Ollama 或 LM Studio 时可留空。",
   "set.customDefaultModel": "默认模型（必填）",
   "set.customLoadModels": "加载模型列表",
