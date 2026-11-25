@@ -44,6 +44,7 @@ class ApiKeyRow(Base):
     tier: Mapped[str] = mapped_column(String(8), default="free", server_default="free")
     base_url: Mapped[str] = mapped_column(Text, default="", server_default="")
     default_model: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    api_style: Mapped[str] = mapped_column(String(16), nullable=False, default="auto", server_default="auto")
 
 
 class AIUsageRow(Base):

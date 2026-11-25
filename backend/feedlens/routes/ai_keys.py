@@ -30,7 +30,7 @@ from feedlens.core.auth import CurrentUser
 from feedlens.core.auth import current_user
 from feedlens.core.crypto import encrypt
 from feedlens.core.crypto import key_hint
-from feedlens.ai.providers.custom import CustomProvider, EndpointError
+from feedlens.ai.providers.custom import APIStyle, CustomProvider, EndpointError, ModelDiscovery
 
 
 class NewKey(BaseModel):
@@ -41,6 +41,7 @@ class NewKey(BaseModel):
     tier: Literal["free", "paid"] = "free"
     base_url: str = Field("", max_length=2000)
     default_model: str = Field("", max_length=200)
+    api_style: APIStyle = "auto"
 
 
 class KeyPatch(BaseModel):
@@ -71,7 +72,7 @@ def ai_keys_router(db):
         return dict(id=row.id, provider=row.provider, label=row.label, hint=row.hint,
                     priority=row.priority, enabled=row.enabled, tier=row.tier,
                     status=scheduler.status.get(row.id, "unchecked"), usage_today=usage,
-                    base_url=row.base_url, default_model=row.default_model)
+                    base_url=row.base_url, default_model=row.default_model, api_style=row.api_style)
 
     @router.get("")
     def keys(user: CurrentUser = Depends(current_user)):
@@ -84,14 +85,15 @@ def ai_keys_router(db):
             if not body.default_model.strip():
                 raise HTTPException(422, "Custom default model is required")
             try:
-                provider = await run_in_threadpool(CustomProvider, body.default_model, secret, base_url=body.base_url)
+                provider = await run_in_threadpool(CustomProvider, body.default_model, secret,
+                                                 base_url=body.base_url, api_style=body.api_style)
                 await run_in_threadpool(provider.check_connection)
             except EndpointError:
                 raise HTTPException(422, "Invalid or unsafe custom endpoint URL") from None
             except Exception:
                 raise HTTPException(400, "Custom endpoint connection failed") from None
             row = db().add_key(user.id, "custom", encrypt(secret), key_hint(secret), body.label, body.tier,
-                               base_url=provider.base_url, default_model=provider.model)
+                               base_url=provider.base_url, default_model=provider.model, api_style=provider.api_style)
             scheduler_for(db()).status[row.id] = "ok"
             return describe(row)
         if len(secret) < 8:
@@ -147,6 +149,7 @@ class CustomModelsBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     base_url: str = Field(min_length=1, max_length=2000)
     api_key: str = Field("", max_length=500, repr=False)
+    api_style: APIStyle = "auto"
 
     @model_validator(mode="wrap")
     @classmethod
@@ -162,14 +165,13 @@ class CustomModelsBody(BaseModel):
 
 
 @private.post("/ai/custom/models")
-async def custom_models(body: CustomModelsBody, user: User = Depends(current_user)) -> dict[str, list[str]]:
+async def custom_models(body: CustomModelsBody, user: User = Depends(current_user)) -> ModelDiscovery:
     try:
-        models = await run_in_threadpool(CustomProvider.discover_models, body.base_url, body.api_key.strip())
+        return await run_in_threadpool(CustomProvider.discover_models, body.base_url, body.api_key.strip(), body.api_style)
     except EndpointError:
         raise HTTPException(422, "Invalid or unsafe custom endpoint URL") from None
     except Exception:
         raise HTTPException(400, "Custom endpoint connection failed") from None
-    return {"models": models}
 
 
 @private.get("/ai/providers")

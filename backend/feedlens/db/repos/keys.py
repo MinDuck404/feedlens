@@ -33,11 +33,11 @@ class KeysMixin:
             return list(s.scalars(select(ApiKeyRow).where(ApiKeyRow.user_id == user_id)
                                   .order_by(ApiKeyRow.priority, ApiKeyRow.id)))
 
-    def add_key(self, user_id, provider, ciphertext, hint, label="", tier="free", *, base_url="", default_model="") -> ApiKeyRow:
+    def add_key(self, user_id, provider, ciphertext, hint, label="", tier="free", *, base_url="", default_model="", api_style="auto") -> ApiKeyRow:
         with self.Session.begin() as s:
             priority = s.scalar(select(func.max(ApiKeyRow.priority)).where(ApiKeyRow.user_id == user_id, ApiKeyRow.provider == provider))
             row = ApiKeyRow(user_id=user_id, provider=provider, ciphertext=ciphertext, hint=hint,
-                            label=label, tier=tier, base_url=base_url, default_model=default_model,
+                            label=label, tier=tier, base_url=base_url, default_model=default_model, api_style=api_style,
                             priority=0 if priority is None else priority + 1)
             s.add(row); s.flush()
         if hasattr(self, "_quota_scheduler"):

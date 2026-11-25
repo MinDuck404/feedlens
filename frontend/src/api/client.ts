@@ -1,7 +1,7 @@
 import { serverMessage, translate } from "../i18n";
 import { searchParams } from "../lib/search";
 import { serialWriter } from "../lib/logic";
-import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIKey, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
+import type { SearchFilters, SearchResponse, AskResponse, Topic, TopicApplyStatus, TrendsResponse, AgentInfo, AIKey, APIStyle, AIProviderInfo, JobProfile, CVAnalysis, Me, Meta, PlatformSession, PlatformState, Preferences, Run, RunRequest } from "./types";
 
 // Khi deploy riêng, VITE_API_URL là URL backend (vd https://feedlens-api.up.railway.app).
 // Khi chạy local qua Vite proxy hoặc backend phục vụ luôn frontend thì để trống.
@@ -100,10 +100,10 @@ export const api = {
     call<{ models: string[] }>(`/api/ai/keys/${p}`, { method: "PUT", body: JSON.stringify({ api_key: apiKey }) }),
   deleteKey: (p: string | number) => call(`/api/ai/keys/${p}`, { method: "DELETE" }),
   listKeys: () => call<AIKey[]>("/api/ai/keys"),
-  addKey: (body: { provider: AIKey["provider"]; api_key?: string; label?: string; tier?: AIKey["tier"]; base_url?: string; default_model?: string }) =>
+  addKey: (body: { provider: AIKey["provider"]; api_key?: string; label?: string; tier?: AIKey["tier"]; base_url?: string; default_model?: string; api_style?: APIStyle }) =>
     call<AIKey>("/api/ai/keys", { method: "POST", body: JSON.stringify(body) }),
-  customModels: (body: { base_url: string; api_key?: string }) =>
-    call<{ models: string[] }>("/api/ai/custom/models", { method: "POST", body: JSON.stringify(body) }),
+  customModels: (body: { base_url: string; api_key?: string; api_style?: APIStyle }) =>
+    call<{ models: string[]; base_url?: string; api_style?: APIStyle }>("/api/ai/custom/models", { method: "POST", body: JSON.stringify(body) }),
   updateKey: (id: number, body: Partial<Pick<AIKey, "label" | "enabled" | "tier">>) =>
     call<AIKey>(`/api/ai/keys/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   reorderKeys: (provider: AIKey["provider"], ids: number[]) =>

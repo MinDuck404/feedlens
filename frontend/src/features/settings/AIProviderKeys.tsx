@@ -1,8 +1,8 @@
 import { ArrowDown, ArrowUp, ExternalLink, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { api } from "../../api/client";
-import { formatNumber, useI18n } from "../../i18n";
-import type { AIKey, AIProviderInfo } from "../../api/types";
+import { formatNumber, useI18n, type Key } from "../../i18n";
+import type { AIKey, AIProviderInfo, APIStyle } from "../../api/types";
 import { Button, IconButton, Select, TextField } from "../../components/ui";
 
 interface Props {
@@ -18,6 +18,7 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
   const [label, setLabel] = useState("");
   const [secret, setSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
+  const [apiStyle, setApiStyle] = useState<APIStyle>("auto");
   const [defaultModel, setDefaultModel] = useState("");
   const [customModels, setCustomModels] = useState<string[] | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -42,8 +43,8 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
   };
   const save = () => action(async () => {
     await api.addKey({ provider: p.key as AIKey["provider"], api_key: secret.trim(), label: label.trim(), tier,
-      ...(custom ? { base_url: baseUrl.trim(), default_model: defaultModel.trim() } : {}) });
-    setSecret(""); setLabel(""); setBaseUrl(""); setDefaultModel(""); setCustomModels(null); setEditing(false); setTier("free");
+      ...(custom ? { base_url: baseUrl.trim(), default_model: defaultModel.trim(), ...(apiStyle !== "auto" ? { api_style: apiStyle } : {}) } : {}) });
+    setSecret(""); setLabel(""); setBaseUrl(""); setApiStyle("auto"); setDefaultModel(""); setCustomModels(null); setEditing(false); setTier("free");
   });
   const move = (index: number, direction: -1 | 1) => action(async () => {
     const ids = ordered.map((key) => key.id);
@@ -63,7 +64,10 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
     if (pending || !baseUrl.trim()) return;
     setLoadingModels(true); setError(""); setVerified(false); setCustomModels(null);
     try {
-      const { models } = await api.customModels({ base_url: baseUrl.trim(), api_key: secret.trim() });
+      const result = await api.customModels({ base_url: baseUrl.trim(), api_key: secret.trim(), ...(apiStyle !== "auto" ? { api_style: apiStyle } : {}) });
+      const { models } = result;
+      if (result.base_url) setBaseUrl(result.base_url);
+      if (result.api_style) setApiStyle(result.api_style);
       setCustomModels(models);
       setDefaultModel((current) => current.trim() ? current : models[0] ?? "");
     } catch (e) { setError((e as Error).message); }
@@ -93,7 +97,9 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
             {t(key.status === "ok" ? "set.keyValid" : key.status === "invalid" ? "set.keyInvalid" : "set.keyUnchecked")}
           </span>
         </div>
-        {custom && <p className="mt-2 break-words text-xs text-ink-soft">{key.base_url}<span className="mt-1 block">{t("set.defaultModel", { model: key.default_model || "—" })}</span></p>}
+        {custom && <p className="mt-2 break-words text-xs text-ink-soft">{key.base_url}
+          {key.api_style && key.api_style !== "auto" && <span className="ml-2 rounded-full bg-sunken px-2 py-0.5 font-mono">{key.api_style}</span>}
+          <span className="mt-1 block">{t("set.defaultModel", { model: key.default_model || "—" })}</span></p>}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
           <label className="min-w-28 flex-1 text-xs"><span className="mb-1 block">{t("set.keyTier")}</span>
             <Select value={key.tier} disabled={pending || !available} aria-label={t("set.keyTierFor", { name: name(key) })}
@@ -132,8 +138,11 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
     {editing && <div className="mt-4 space-y-3 border-t border-line pt-4">
       {custom && <label className="block text-sm"><span className="mb-1.5 block">{t("set.customBaseUrl")}</span>
         <TextField type="url" required aria-label={t("set.customBaseUrl")} placeholder={t("set.customBaseUrlPlaceholder")} value={baseUrl} maxLength={2000} disabled={pending}
-          onChange={(event) => { setBaseUrl(event.target.value); setCustomModels(null); }} />
-        <span className="mt-1.5 block text-xs text-ink-soft">{t("set.customBaseUrlHint")}</span>
+          aria-describedby={`${modelListId}-base-hint`} onChange={(event) => { setBaseUrl(event.target.value); setApiStyle("auto"); setCustomModels(null); }} />
+        <span id={`${modelListId}-base-hint`} className="mt-1.5 block text-xs text-ink-soft">{t("set.customBaseUrlHint")}
+          {/* shortcut: English-only hint awaits locale parity, remove its Key cast once vi/zh gain the key. */}
+          <span className="mt-1.5 block">{t("set.customBaseUrlFullHint" as Key)}</span>
+        </span>
       </label>}
       <label className="block text-sm"><span className="mb-1.5 block">{t("set.keyLabel")}</span>
         <TextField value={label} maxLength={80} onChange={(event) => setLabel(event.target.value)} disabled={pending} />
@@ -165,7 +174,7 @@ export default function AIProviderKeys({ provider: p, keys, available, onChanged
       <div className="flex flex-wrap items-center justify-between gap-2">
         {p.key_url && <a href={p.key_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-sm text-link hover:underline">{t("set.whereKey")}<ExternalLink className="size-3" /></a>}
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" disabled={pending} onClick={() => { setEditing(false); setSecret(""); setLabel(""); setBaseUrl(""); setDefaultModel(""); setCustomModels(null); setError(""); }}>{t("act.cancel")}</Button>
+          <Button variant="ghost" disabled={pending} onClick={() => { setEditing(false); setSecret(""); setLabel(""); setBaseUrl(""); setApiStyle("auto"); setDefaultModel(""); setCustomModels(null); setError(""); }}>{t("act.cancel")}</Button>
           <Button busy={busy} disabled={pending || (custom ? !baseUrl.trim() || !defaultModel.trim() : secret.trim().length < 8)} onClick={save}>{t(busy ? "set.checking" : "set.saveKey")}</Button>
         </div>
       </div>

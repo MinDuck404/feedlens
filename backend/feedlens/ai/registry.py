@@ -17,7 +17,7 @@ from feedlens.ai.providers.anthropic import AnthropicProvider
 from .base import AIProvider
 from feedlens.ai.providers.gemini import DEFAULT_MODELS, GeminiProvider
 from feedlens.ai.providers.openai import OpenAIProvider
-from feedlens.ai.providers.custom import CustomProvider
+from feedlens.ai.providers.custom import APIStyle, CustomProvider
 
 PROVIDERS: dict[str, type[AIProvider]] = {
     "anthropic": AnthropicProvider,
@@ -44,6 +44,7 @@ class KeyCredential:
     label: str = ""
     base_url: str = ""
     default_model: str = ""
+    api_style: APIStyle = "auto"
 
 
 class KeyList(list):
@@ -87,7 +88,7 @@ def user_keys(db, user_id: int) -> UserKeys:
         val = decrypt(row.ciphertext)
         if val is not None and (val or row.provider == "custom"):
             credentials.append(KeyCredential(row.id, row.provider, val, row.priority, row.tier, label=row.label,
-                                             base_url=row.base_url, default_model=row.default_model))
+                                             base_url=row.base_url, default_model=row.default_model, api_style=row.api_style))
     if not settings.is_cloud:
         for k in PROVIDERS:
             if not any(c.provider == k for c in credentials) and (v := _env_key(k)):
@@ -130,7 +131,8 @@ def get_provider(key: str, model: str | None = None, api_key: str | None = None,
     if key == "custom":
         if credential is None:
             raise ValueError("Custom endpoints require per-key configuration")
-        return PROVIDERS[key](model or credential.default_model, credential.api_key, base_url=credential.base_url)
+        return PROVIDERS[key](model or credential.default_model, credential.api_key,
+                              base_url=credential.base_url, api_style=credential.api_style)
     return PROVIDERS[key](model or None, api_key)
 
 
@@ -160,7 +162,7 @@ _TTL = 600
 
 
 def list_models(user_id: int, key: str, api_key: str, refresh: bool = False, *, credential: KeyCredential | None = None) -> list[str]:
-    identity = (user_id, key, hashlib.sha256((api_key + repr((credential.base_url, credential.default_model) if credential else ())).encode()).hexdigest())
+    identity = (user_id, key, hashlib.sha256((api_key + repr((credential.base_url, credential.default_model, credential.api_style) if credential else ())).encode()).hexdigest())
     hit = _MODEL_CACHE.get(identity)
     if hit and not refresh and time.time() - hit[0] < _TTL:
         return hit[1]

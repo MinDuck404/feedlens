@@ -4,6 +4,7 @@ export const keys = {
   "set.customBaseUrl": "Base URL",
   "set.customBaseUrlPlaceholder": "https://openrouter.ai/api/v1",
   "set.customBaseUrlHint": "Local endpoint example: http://localhost:11434/v1.",
+  "set.customBaseUrlFullHint": "You can paste the full endpoint (…/v1/chat/completions or …/v1/responses); FeedLens keeps the base and picks the right API.",
   "set.customKeyOptional": "API key is optional — leave blank for Ollama or LM Studio.",
   "set.customDefaultModel": "Default model (required)",
   "set.customLoadModels": "Load models",

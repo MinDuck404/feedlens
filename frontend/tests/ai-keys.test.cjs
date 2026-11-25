@@ -248,6 +248,43 @@ test("custom model suggestions reset when credentials change or the form is canc
   } finally { harness.close(); Object.assign(api, original); }
 });
 
+test("custom model discovery shows the normalized URL and keeps its API style through save and reset", async () => {
+  const original = { ...api }, harness = hooks(Component), loaded = [], saved = [];
+  api.customModels = async (body) => { loaded.push(body); return { models: ["a-model"], base_url: "https://models.example/v1", api_style: "responses" }; };
+  api.addKey = async (body) => { saved.push(body); return { ...customKey, ...body }; };
+  const props = { provider: customProvider, keys: [], available: true, onChanged: async () => {} };
+  try {
+    let tree = harness.render(props);
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    assert.ok(find(tree, (node) => node.props?.children === "set.customBaseUrlFullHint"));
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://models.example/v1/responses" } });
+    tree = harness.render(props);
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    assert.equal(byAria(tree, "set.customBaseUrl").props.value, "https://models.example/v1");
+    await find(tree, (node) => node.props?.children === "set.customLoadModels").props.onClick(); tree = harness.render(props);
+    assert.equal(loaded[1].api_style, "responses");
+    await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick(); tree = harness.render(props);
+    assert.deepEqual(saved[0], { provider: "custom", api_key: "", label: "", tier: "free", base_url: "https://models.example/v1", default_model: "a-model", api_style: "responses" });
+    find(tree, (node) => node.props?.children === "set.addKey").props.onClick(); tree = harness.render(props);
+    byAria(tree, "set.customBaseUrl").props.onChange({ target: { value: "https://another.example/v1" } });
+    byAria(tree, "set.customDefaultModel").props.onChange({ target: { value: "manual-model" } }); tree = harness.render(props);
+    await find(tree, (node) => node.props?.children === "set.saveKey").props.onClick();
+    assert.equal(saved[1].api_style ?? "auto", "auto");
+  } finally { harness.close(); Object.assign(api, original); }
+});
+
+test("custom key rows show explicit API styles and omit the auto badge", () => {
+  const harness = hooks(Component), props = { provider: customProvider, available: true, onChanged: async () => {} };
+  try {
+    let tree = harness.render({ ...props, keys: [{ ...customKey, api_style: "responses" }] });
+    assert.ok(find(tree, (node) => node.type === "span" && node.props.children === "responses"));
+    tree = harness.render({ ...props, keys: [{ ...customKey, api_style: "chat" }] });
+    assert.ok(find(tree, (node) => node.type === "span" && node.props.children === "chat"));
+    tree = harness.render({ ...props, keys: [{ ...customKey, api_style: "auto" }] });
+    assert.equal(find(tree, (node) => node.type === "span" && node.props.children === "auto"), null);
+  } finally { harness.close(); }
+});
+
 test("custom endpoint form requires URL/model, permits an empty key, and preserves fields after a failed save", async () => {
   const original = { ...api }, calls = [], harness = hooks(Component); let fail = true;
   api.addKey = async (body) => { calls.push(body); if (fail) throw new Error("Endpoint unreachable"); return customKey; };

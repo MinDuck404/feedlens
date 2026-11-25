@@ -44,7 +44,8 @@ class Database(UsersMixin, KeysMixin, RunsMixin, PostsMixin, TopicsMixin, Search
                       "analyzed_by": "VARCHAR(120) NOT NULL DEFAULT ''"},
             "api_keys": {"label": "VARCHAR(80) NOT NULL DEFAULT ''", "priority": "INTEGER NOT NULL DEFAULT 0",
                          "enabled": "BOOLEAN NOT NULL DEFAULT TRUE", "tier": "VARCHAR(8) NOT NULL DEFAULT 'free'",
-                         "base_url": "TEXT NOT NULL DEFAULT ''", "default_model": "VARCHAR(200) NOT NULL DEFAULT ''"},
+                          "base_url": "TEXT NOT NULL DEFAULT ''", "default_model": "VARCHAR(200) NOT NULL DEFAULT ''",
+                          "api_style": "VARCHAR(16) NOT NULL DEFAULT 'auto'"},
             "ai_usage": {"exhausted": "BOOLEAN NOT NULL DEFAULT FALSE"},
         }
         insp = inspect(self.engine)
@@ -69,8 +70,8 @@ class Database(UsersMixin, KeysMixin, RunsMixin, PostsMixin, TopicsMixin, Search
                 try:
                     with conn.begin():
                         conn.exec_driver_sql("BEGIN IMMEDIATE")
-                        conn.exec_driver_sql("CREATE TABLE api_keys_new (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, provider VARCHAR(20) NOT NULL, ciphertext TEXT NOT NULL, hint VARCHAR(16), created_at DATETIME NOT NULL, label VARCHAR(80) NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, tier VARCHAR(8) NOT NULL DEFAULT 'free', base_url TEXT NOT NULL DEFAULT '', default_model VARCHAR(200) NOT NULL DEFAULT '')")
-                        cols = "id,user_id,provider,ciphertext,hint,created_at,label,priority,enabled,tier,base_url,default_model"
+                        conn.exec_driver_sql("CREATE TABLE api_keys_new (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, provider VARCHAR(20) NOT NULL, ciphertext TEXT NOT NULL, hint VARCHAR(16), created_at DATETIME NOT NULL, label VARCHAR(80) NOT NULL DEFAULT '', priority INTEGER NOT NULL DEFAULT 0, enabled BOOLEAN NOT NULL DEFAULT TRUE, tier VARCHAR(8) NOT NULL DEFAULT 'free', base_url TEXT NOT NULL DEFAULT '', default_model VARCHAR(200) NOT NULL DEFAULT '', api_style VARCHAR(16) NOT NULL DEFAULT 'auto')")
+                        cols = "id,user_id,provider,ciphertext,hint,created_at,label,priority,enabled,tier,base_url,default_model,api_style"
                         conn.exec_driver_sql(f"INSERT INTO api_keys_new ({cols}) SELECT {cols} FROM api_keys")
                         conn.exec_driver_sql("DROP TABLE api_keys")
                         conn.exec_driver_sql("ALTER TABLE api_keys_new RENAME TO api_keys")

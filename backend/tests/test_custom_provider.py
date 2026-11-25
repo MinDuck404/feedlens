@@ -188,7 +188,7 @@ def test_unsaved_custom_model_discovery_is_private_sorted_and_never_saves_a_key(
     with caplog.at_level(logging.INFO):
         result = client.post("/api/ai/custom/models", headers=headers, json=body)
     assert result.status_code == 200, result.text
-    assert result.json() == {"models": ["a-model", "z-model"]}
+    assert result.json() == {"models": ["a-model", "z-model"], "base_url": "https://public.example/v1", "api_style": "auto"}
     assert len(requests) == 1
     assert requests[0].method == "GET" and requests[0].url.path == "/v1/models"
     assert not requests[0].url.query
@@ -230,7 +230,7 @@ def test_unsaved_custom_model_discovery_limits_results_and_accepts_no_api_key(cl
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", reply)
     result = client.post("/api/ai/custom/models", headers=headers, json={"base_url": "https://public.example/v1"})
     assert result.status_code == 200, result.text
-    assert result.json() == {"models": [f"model-{i:04}" for i in range(500)]}
+    assert result.json() == {"models": [f"model-{i:04}" for i in range(500)], "base_url": "https://public.example/v1", "api_style": "auto"}
 
 
 def test_unsaved_custom_model_discovery_rejects_cloud_loopback_before_http(cloud, monkeypatch):

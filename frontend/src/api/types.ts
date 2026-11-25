@@ -33,6 +33,8 @@ export interface AIProviderInfo {
   key_url: string;
 }
 
+export type APIStyle = "auto" | "chat" | "responses";
+
 export interface AIKey {
   id: number;
   provider: "anthropic" | "openai" | "gemini" | "custom";
@@ -45,6 +47,7 @@ export interface AIKey {
   usage_today: Record<string, { requests: number; limit_rpd: number | null }>;
   base_url?: string;
   default_model?: string;
+  api_style?: APIStyle;
 }
 
 export interface AgentInfo {
